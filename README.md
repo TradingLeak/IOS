@@ -39,6 +39,21 @@ Push tag `v1.0.0` sẽ tạo thêm Release riêng cho phiên bản đó.
 
 > ✅ Repo này đang **public** → Actions không tốn phí, không giới hạn số phút.
 
+### Bản build đã được kiểm chứng tự động
+
+Mỗi lần build, workflow tự giải nén IPA và kiểm tra (fail nếu sai):
+
+| Hạng mục | Giá trị của bản mới nhất |
+|---|---|
+| Binary | `arm64` · platform `IOS` → bản cho máy thật, không phải Simulator |
+| iOS tối thiểu | 15.0 |
+| Bundle ID | `com.tradingleak.helloipa` |
+| Phiên bản | 1.0.0 (1) |
+| Kích thước | ~3.0 MB |
+| Dấu chữ ký còn lại | 0 (đúng: unsigned) |
+
+Kết quả kiểm tra hiện ngay trên trang run (mục **Annotations**) và trong nội dung Release.
+
 ### Cài file IPA lên iPhone
 
 IPA này **chưa ký** (unsigned) nên cần một bước ký khi cài — xem
