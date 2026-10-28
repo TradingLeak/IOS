@@ -39,6 +39,8 @@ final class AppSettings: ObservableObject {
         static let mapType = "vietmap.map.type"
         static let traffic = "vietmap.map.traffic"
         static let pois = "vietmap.map.pois"
+        static let voiceGuidance = "vietmap.nav.voice"
+        static let alertBeep = "vietmap.nav.alertBeep"
     }
 
     @Published var baseURL: String {
@@ -65,6 +67,14 @@ final class AppSettings: ObservableObject {
     @Published var showPOIs: Bool {
         didSet { defaults.set(showPOIs, forKey: Keys.pois) }
     }
+    /// Giọng nói tiếng Việt khi chỉ đường & đọc cảnh báo.
+    @Published var voiceGuidance: Bool {
+        didSet { defaults.set(voiceGuidance, forKey: Keys.voiceGuidance) }
+    }
+    /// Tiếng "tink" khi xuất hiện card camera/biển báo mới.
+    @Published var alertBeep: Bool {
+        didSet { defaults.set(alertBeep, forKey: Keys.alertBeep) }
+    }
 
     private let defaults: UserDefaults
 
@@ -88,6 +98,8 @@ final class AppSettings: ObservableObject {
         mapTypeIndex = defaults.object(forKey: Keys.mapType) as? Int ?? 0
         showTraffic = defaults.object(forKey: Keys.traffic) as? Bool ?? false
         showPOIs = defaults.object(forKey: Keys.pois) as? Bool ?? true
+        voiceGuidance = defaults.object(forKey: Keys.voiceGuidance) as? Bool ?? true
+        alertBeep = defaults.object(forKey: Keys.alertBeep) as? Bool ?? true
     }
 
     var config: AIConfig {

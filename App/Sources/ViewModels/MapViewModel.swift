@@ -16,6 +16,13 @@ struct AIChatMessage: Identifiable {
     var isError: Bool = false
 }
 
+/// Sự kiện điều hướng cần phát âm (MapScreen nghe rồi nối VoiceGuide).
+enum NavAnnouncement: Equatable {
+    case arrived
+    case rerouted
+    case rerouteFailed
+}
+
 /// Trạng thái trung tâm của màn hình bản đồ.
 @MainActor
 final class MapViewModel: ObservableObject {
@@ -46,6 +53,14 @@ final class MapViewModel: ObservableObject {
     @Published var isPlanning = false
     @Published var isNavigating = false
     @Published var navigationStepIndex = 0
+    /// Đang tính lại tuyến sau khi đi lệch (off-route).
+    @Published var isRerouting = false
+    /// Sự kiện giọng nói cần phát (MapScreen xử lý rồi reset về nil).
+    @Published var navAnnouncement: NavAnnouncement?
+
+    // Off-route / reroute (không publish — chỉ nội bộ).
+    private var offRouteSamples = 0
+    private var lastRerouteAt = Date.distantPast
 
     // MARK: AI
     @Published var aiThinking = false
@@ -213,6 +228,9 @@ final class MapViewModel: ObservableObject {
         aiSummary = nil
         isNavigating = false
         navigationStepIndex = 0
+        offRouteSamples = 0
+        isRerouting = false
+        navAnnouncement = nil
         showRouteSheet = false
     }
 
@@ -256,6 +274,9 @@ final class MapViewModel: ObservableObject {
         guard hasRoute else { return }
         navigationStepIndex = 0
         isNavigating = true
+        offRouteSamples = 0
+        isRerouting = false
+        navAnnouncement = nil
         if let route = selectedRoute, let first = route.steps.first {
             focusCoordinate = first.endCoordinate
             focusToken += 1
@@ -265,12 +286,18 @@ final class MapViewModel: ObservableObject {
     func stopNavigation() {
         isNavigating = false
         navigationStepIndex = 0
+        offRouteSamples = 0
+        isRerouting = false
     }
 
     /// Cập nhật bước đi hiện tại theo vị trí thật.
+    /// + Phát hiện đến nơi (cách đích <30m ở bước cuối).
+    /// + Phát hiện đi lệch tuyến (>70m, 3 lần liên tiếp) → tự tính lại tuyến.
     func updateNavigation(with coordinate: CLLocationCoordinate2D) {
         guard isNavigating, let route = selectedRoute, !route.steps.isEmpty else { return }
         let current = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+
+        // ① Chốt bước theo điểm cuối từng chặng (giữ nguyên hành vi cũ).
         while navigationStepIndex < route.steps.count - 1 {
             let step = route.steps[navigationStepIndex]
             let end = CLLocation(latitude: step.endCoordinate.latitude,
@@ -280,6 +307,74 @@ final class MapViewModel: ObservableObject {
             } else {
                 break
             }
+        }
+
+        // ② Đến nơi: bước cuối cùng + <30m.
+        let lastStep = route.steps[route.steps.count - 1]
+        let destination = CLLocation(latitude: lastStep.endCoordinate.latitude,
+                                     longitude: lastStep.endCoordinate.longitude)
+        if navigationStepIndex >= route.steps.count - 1,
+           current.distance(from: destination) < 30 {
+            arrive()
+            return
+        }
+
+        // ③ Off-route → reroute (throttle 15s, bỏ qua khi đang reroute).
+        guard !isRerouting else { return }
+        if RouteGeometry.isOffRoute(coordinate, from: route.coordinates, thresholdM: 70) {
+            offRouteSamples += 1
+            if offRouteSamples >= 3,
+               Date().timeIntervalSince(lastRerouteAt) > 15 {
+                reroute(from: coordinate)
+            }
+        } else {
+            offRouteSamples = 0
+        }
+    }
+
+    // MARK: - Điều hướng: đến nơi / tính lại tuyến
+
+    private func arrive() {
+        isNavigating = false
+        navigationStepIndex = 0
+        offRouteSamples = 0
+        isRerouting = false
+        navAnnouncement = .arrived
+        toast = "Đã đến nơi"
+    }
+
+    /// Tính lại tuyến từ vị trí hiện tại (như Google Maps khi đi lạc).
+    private func reroute(from coordinate: CLLocationCoordinate2D) {
+        lastRerouteAt = Date()
+        offRouteSamples = 0
+        isRerouting = true
+
+        // Giữ tuyến cũ làm phương án dự phòng nếu tính lại thất bại.
+        let previousRoutes = routes
+        let previousSelected = selectedRouteID
+        let previousOrigin = origin
+
+        origin = Place(name: "Vị trí của tôi",
+                       subtitle: Format.coordinates(coordinate),
+                       coordinate: coordinate)
+        toast = "Đang tính lại tuyến…"
+
+        Task {
+            await planRoute()
+            if routes.isEmpty {
+                routes = previousRoutes
+                selectedRouteID = previousSelected
+                origin = previousOrigin
+                errorMessage = nil   // chỉ hiện toast, không bật alert giữa lúc lái
+                navAnnouncement = .rerouteFailed
+                toast = "Tính lại thất bại — giữ tuyến cũ"
+            } else {
+                navigationStepIndex = 0
+                fitToken += 1
+                navAnnouncement = .rerouted
+                toast = "Đã tính lại tuyến"
+            }
+            isRerouting = false
         }
     }
 

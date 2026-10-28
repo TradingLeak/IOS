@@ -256,7 +256,7 @@ với course ≤ 100° (hoặc gần đích <45m).
 ### 4.5 Tính toàn vẹn & cập nhật dữ liệu
 
 - **At load**: magic/size đúng như bảng → `crc32(index.bin)` khớp metadata → nếu sai: **từ chối tải** (fail-safe, HUD simply ẩn, không hiện sai).
-- **OTA (P3)**: tái dùng chính pipeline VietHUD: `manifest.txt` (version + size + SHA-256 từng file) + `manifest.txt.sig` (**ECDSA P-256**) → app tải 7 file → verify → ghi原子 (tmp + rename) → giữ backup để rollback. Kho: `911273/VietHUD` (`raw.githubusercontent.com/.../speedmap/`).
+- **OTA (P3)**: tái dùng chính pipeline VietHUD: `manifest.txt` (version + size + SHA-256 từng file) + `manifest.txt.sig` (**ECDSA P-256**) → app tải 7 file → verify → ghi nguyên tử (tmp + rename) → giữ backup để rollback. Kho: `911273/VietHUD` (`raw.githubusercontent.com/.../speedmap/`).
 
 ---
 
@@ -418,7 +418,7 @@ navigating ──Kết thúc──► idle        (rerouting throttle: tối đa
 | Phase | Nội dung | Ước lượng |
 |---|---|---|
 | **P0 — HUD + Design foundation** ✅ *trong PR này* | 7 file speedmap vào app · parser+matcher+engine · HUD overlay card · SpaceX tokens · tests + CI | 2–3 ngày |
-| **P1 — Điều hướng pro** | NavigationSession state machine · reroute · voice vi-VN · background location · thiết lập âm báo camera | 1–2 tuần |
+| **P1 — Điều hướng pro** | ✅ *Phần này đã làm*: reroute tự động khi đi lệch (>70 m, throttle 15 s, giữ tuyến cũ nếu lỗi) · voice vi-VN (bước rẽ + đến nơi + đọc cảnh báo) · beep camera · phát hiện đến nơi · Settings chẩn đoán speedmap (metadata + self-test). *Còn lại:* background location, lane guidance, dashboard lock | 1–2 tuần |
 | **P2 — Bản đồ offline** | MapLibre SPM · MBTiles bundle/tải vùng · style Orbital-dark · Settings quản lý vùng | 2–3 tuần |
 | **P3 — Router + Search offline** | Valhalla XCFramework · costing ↔ AI · FTS5 geocoder · AI function-calling | 3–4 tuần |
 | **P4 — OTA + CarPlay** | manifest ECDSA updater · vùng delta · CarPlay dashboard | 1–2 tuần |
@@ -427,7 +427,7 @@ navigating ──Kết thúc──► idle        (rerouting throttle: tối đa
 
 | Rủi ro | Mức | Biện pháp |
 |---|---|---|
-| Bản đồ/MBTiles nặng (RAM/storage) | TB |懒 loading theo tile z/x/y, LRU, compress WAL off |
+| Bản đồ/MBTiles nặng (RAM/storage) | TB | Lazy loading theo tile z/x/y, LRU, compress WAL off |
 | Valhalla build iOS phức tạp | Cao | CI Docker build XCFramework; fallback OSRM hoặc giữ online router |
 | MapKit → MapLibre đổi nhiều code | TB | Interface `MapRenderer` bọc 2 backend, MapViewModel không đổi |
 | GPS sai trong hẻm/tầng hầm | TB | matcher có hysteresis + timeout 8s → "không rõ" thay vì hiện sai |
@@ -437,7 +437,7 @@ navigating ──Kết thúc──► idle        (rerouting throttle: tối đa
 
 ---
 
-###附 A. Tham chiếu
+### Phụ lục A. Tham chiếu
 
 - Repo dữ liệu: `911273/VietHUD/speedmap` (manifest `2026.10.24.1739`)
 - Format chuẩn (nguồn): VietHUD `src/map/SpeedMapFormat.h` — wire contract builder↔reader
