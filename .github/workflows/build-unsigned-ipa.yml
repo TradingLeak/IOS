@@ -137,17 +137,29 @@ jobs:
           [[ -n "$BUNDLE_ID" ]] && args+=(--bundle-id "$BUNDLE_ID")
           [[ -n "$DISPLAY_NAME" ]] && args+=(--display-name "$DISPLAY_NAME")
           set -x
-          ./scripts/make-ipa.sh "${args[@]}"
+          set +e
+          ./scripts/make-ipa.sh "${args[@]}" 2>&1 | tee build-output.log
+          RC=${PIPESTATUS[0]}
+          set -e
+          echo "make-ipa.sh exit=$RC"
+          exit $RC
 
       - name: Báo lỗi biên dịch lên trang run (nếu build lỗi)
         if: failure()
         shell: bash
         run: |
-          LOG=build/xcodebuild.log
-          [ -f "$LOG" ] || exit 0
-          grep -E "error:|fatal error:" "$LOG" | head -10 | while IFS= read -r line; do
-            printf '::error title=Swift build error::%s\n' "$(printf '%s' "$line" | cut -c1-900)"
-          done
+          if [ -f build/xcodebuild.log ]; then
+            grep -E "error:|fatal error:" build/xcodebuild.log | head -10 | while IFS= read -r line; do
+              printf '::error title=Swift build error::%s\n' "$(printf '%s' "$line" | cut -c1-900)"
+            done
+          fi
+          if [ -f build-output.log ]; then
+            tail -n 20 build-output.log | while IFS= read -r line; do
+              [ -n "$line" ] || continue
+              printf '::error title=Build output::%s\n' "$(printf '%s' "$line" | cut -c1-900)"
+            done
+          fi
+          true
 
       - name: Chuẩn hoá tên file + kiểm tra nội dung IPA
         if: success()

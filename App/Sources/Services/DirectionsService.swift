@@ -132,9 +132,19 @@ struct DirectionsService {
     }
 
     static func step(from step: MKRoute.Step) -> RouteStep {
-        let instruction = step.instructions.isEmpty ? step.notice : step.instructions
+        // `instructions`/`notice` có thể là optional tuỳ phiên bản SDK → gán qua String?
+        let instructions: String? = step.instructions
+        let notice: String? = step.notice
+        var text = ""
+        if let instructions, !instructions.isEmpty {
+            text = instructions
+        } else if let notice, !notice.isEmpty {
+            text = notice
+        }
+        if text.isEmpty { text = "Tiếp tục di chuyển" }
+
         let end = step.polyline.coordinates.last ?? kCLLocationCoordinate2DInvalid
-        return RouteStep(instruction: instruction.isEmpty ? "Tiếp tục di chuyển" : instruction,
+        return RouteStep(instruction: text,
                          distance: step.distance,
                          endCoordinate: CLLocationCoordinate2DIsValid(end)
                             ? end
