@@ -165,6 +165,7 @@ enum Format {
 
     static func duration(_ seconds: TimeInterval) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "—" }
+        if seconds < 60 { return "dưới 1 phút" }
         let minutes = Int((seconds / 60).rounded())
         if minutes < 1 { return "dưới 1 phút" }
         if minutes < 60 { return "\(minutes) phút" }
