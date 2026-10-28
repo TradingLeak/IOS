@@ -502,6 +502,8 @@ def main() -> int:
     parser.add_argument("--geometry", action="store_true",
                         help="lấy hình học để rải điểm mỗi --spacing mét (chậm hơn, dày hơn)")
     parser.add_argument("--no-checkpoint", action="store_true", help="không ghi tạm sau mỗi ô")
+    parser.add_argument("--residential-only", action="store_true",
+                        help="chỉ tải khu dân cư và GỘP vào tệp --out đã có (chạy bù sau)")
     parser.add_argument("--out", default=OUT_DEFAULT, help="tệp đầu ra")
     parser.add_argument("--from-file", help="phân tích phản hồi Overpass đã lưu (không gọi mạng)")
     parser.add_argument("--dry-run", action="store_true", help="chỉ in các ô sẽ tải")
@@ -516,6 +518,26 @@ def main() -> int:
         print(f"{len(boxes)} ô:")
         for box in boxes:
             print(f"  {box[0]:.1f},{box[1]:.1f} → {box[2]:.1f},{box[3]:.1f}")
+        return 0
+
+    if args.residential_only:
+        existing: list[dict] = []
+        if os.path.isfile(args.out):
+            with open(args.out, encoding="utf-8") as handle:
+                existing = json.load(handle).get("alerts") or []
+        fresh: list[dict] = []
+        for box in tiles(args.tile):
+            try:
+                payload = fetch(build_residential_query(box))
+            except Exception as error:  # noqa: BLE001
+                log(f"  ô {box} — LỖI: {error}")
+                continue
+            fresh.extend(parse_elements(payload.get("elements") or [], args.spacing, residential=True))
+            log(f"  ô {box} — {len(fresh)} khu dân cư")
+        merged = dedupe(existing + fresh)[:args.max_alerts]
+        write_source(merged, args.out)
+        added = len(merged) - len(existing)
+        print(f"\n  Thêm {added} khu dân cư — tổng {len(merged)} mục → {os.path.relpath(args.out, ROOT)}")
         return 0
 
     if args.from_file:

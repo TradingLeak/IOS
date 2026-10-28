@@ -111,6 +111,16 @@ python3 scripts/fetch-osm-alerts.py                 # tải toàn quốc (18 ô 
 python3 scripts/build-alert-data.py                 # gộp + kiểm tra
 ```
 
+Bản tải mặc định dùng `out center` (mỗi way một điểm ở tâm) nên cả nước chạy trong ~15 phút.
+Muốn dày hơn thì thêm `--geometry` (rải điểm mỗi `--spacing` mét) — chậm hơn nhiều.
+
+Khu dân cư (`landuse=residential`) là phần nặng nhất nên **tách riêng**, chạy bù khi cần:
+
+```bash
+python3 scripts/fetch-osm-alerts.py --residential-only --tile 3   # gộp thêm vào tệp đã có
+python3 scripts/build-alert-data.py
+```
+
 Workflow **Cập nhật dữ liệu biển báo OSM** (`.github/workflows/update-osm-alerts.yml`) chạy
 việc này tự động mỗi Chủ nhật và commit kết quả; build IPA chỉ đọc tệp đã commit nên nếu
 Overpass lỗi thì bản build vẫn xanh với dữ liệu cũ.
