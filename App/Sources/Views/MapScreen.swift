@@ -7,6 +7,13 @@ struct MapScreen: View {
     @StateObject private var location: LocationService
     @StateObject private var model: MapViewModel
     @StateObject private var settings = AppSettings()
+    /// HUD speedmap: cảnh báo camera/biển báo trực tiếp trên màn hình (7 file .bin).
+    @StateObject private var hud = SpeedmapController()
+    /// Giọng nói tiếng Việt: chỉ đường + đọc cảnh báo.
+    @StateObject private var voice = VoiceGuide()
+
+    /// ID card HUD đã phát âm — chỉ đọc lại (beep/voice) khi xuất hiện card MỚI.
+    @State private var seenAlertIDs: Set<String> = []
 
     @State private var activeSheet: ActiveSheet?
 
@@ -68,6 +75,9 @@ struct MapScreen: View {
                 header
                 categoryChips
                 if model.isNavigating { navigationBanner }
+                if hud.isReady {
+                    SpeedHudOverlay(controller: hud)
+                }
                 Spacer(minLength: 0)
                 bottomPanel
             }
@@ -95,6 +105,51 @@ struct MapScreen: View {
         .onAppear {
             model.bootstrap()
             model.syncConfig(settings.config)
+            hud.loadBundled()
+        }
+        .onChange(of: model.isNavigating) { navigating in
+            location.setNavigationMode(navigating)
+            // Không stop() khi kết thúc: thông báo "Đã đến nơi" (nếu có) phải kịp phát.
+            if navigating, settings.voiceGuidance, let first = model.currentStep {
+                voice.speak("Bắt đầu chỉ đường. \(first.instruction)")
+            }
+        }
+        .onChange(of: model.navigationStepIndex) { _ in
+            guard model.isNavigating, settings.voiceGuidance,
+                  let step = model.currentStep else { return }
+            voice.speak(step.instruction)
+        }
+        .onChange(of: model.navAnnouncement) { announcement in
+            guard let announcement else { return }
+            if settings.voiceGuidance {
+                switch announcement {
+                case .arrived:
+                    voice.speak("Đã đến nơi.")
+                case .rerouted:
+                    voice.speak("Bạn đi lệch tuyến. Đang đi theo tuyến mới.")
+                case .rerouteFailed:
+                    voice.speak("Không tính lại được tuyến. Tiếp tục theo tuyến cũ.")
+                }
+            }
+            model.navAnnouncement = nil
+        }
+        .onChange(of: hud.alerts) { alerts in
+            let currentIDs = Set(alerts.map(\.id))
+            let newIDs = currentIDs.subtracting(seenAlertIDs)
+            seenAlertIDs.formUnion(currentIDs)
+            guard !newIDs.isEmpty,
+                  let first = alerts.first(where: { newIDs.contains($0.id) }) else { return }
+            let urgent: Set<HazardAlert.Kind> = [.camera, .noOvertaking, .speedLimitChange]
+            if settings.alertBeep, urgent.contains(first.kind) {
+                AlertSound.beep()
+            }
+            if settings.voiceGuidance {
+                voice.speak(VoiceGuide.alertText(first))
+            }
+        }
+        .onReceive(model.location.$lastLocation) { lastLocation in
+            guard let lastLocation else { return }
+            hud.update(with: lastLocation)
         }
         .onChange(of: settings.baseURL) { _ in model.syncConfig(settings.config) }
         .onChange(of: settings.model) { _ in model.syncConfig(settings.config) }
@@ -150,7 +205,7 @@ struct MapScreen: View {
                     activeSheet = nil
                 }
             case .settings:
-                SettingsView(settings: settings, model: model)
+                SettingsView(settings: settings, model: model, hud: hud)
             case .favorites:
                 FavoritesSheet(favorites: model.favorites,
                                recents: model.recents,

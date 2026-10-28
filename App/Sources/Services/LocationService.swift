@@ -8,6 +8,8 @@ final class LocationService: NSObject, ObservableObject {
 
     @Published private(set) var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published private(set) var coordinate: CLLocationCoordinate2D?
+    /// CLLocation đầy đủ (course/speed/timestamp) — HUD speedmap cần speed & heading.
+    @Published private(set) var lastLocation: CLLocation?
     @Published private(set) var isLocating = false
     @Published private(set) var lastError: String?
 
@@ -56,6 +58,14 @@ final class LocationService: NSObject, ObservableObject {
     func stopUpdating() {
         manager.stopUpdatingLocation()
     }
+
+    /// Chế độ chỉ đường: tần suất GPS cao hơn (3m) để HUD/cảnh báo chạy mượt.
+    func setNavigationMode(_ active: Bool) {
+        manager.distanceFilter = active ? 3 : 8
+        if active, isAuthorized {
+            manager.startUpdatingLocation()
+        }
+    }
 }
 
 extension LocationService: CLLocationManagerDelegate {
@@ -69,6 +79,7 @@ extension LocationService: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         coordinate = location.coordinate
+        lastLocation = location
         isLocating = false
     }
 

@@ -41,7 +41,22 @@ Sideloadly/SideStore với Apple ID miễn phí).
 - Danh sách chỉ dẫn từng bước có icon rẽ trái/phải/vòng xuyến/cao tốc/đến nơi.
 - Điểm dừng giữa đường (ghép nhiều chặng `MKDirections` thành một tuyến duy nhất).
 - Chế độ điều hướng: banner bước kế tiếp, tự chuyển bước khi bạn tới gần (GPS).
+- **Giọng nói tiếng Việt**: đọc từng bước rẽ, báo "Đã đến nơi", đọc cảnh báo
+  biển báo/camera (`AVSpeechSynthesizer`, bật/tắt trong Cài đặt).
+- **Tự tính lại tuyến** khi đi lệch >70 m (throttle 15s) — thất bại thì giữ tuyến cũ
+  và báo bằng giọng nói.
+- **Tiếng báo "tink"** khi xuất hiện card camera/biển báo mới (ưu tiên camera, cấm vượt).
 - Lưu lịch sử tìm kiếm và địa điểm yêu thích (UserDefaults + JSON).
+
+**Cảnh báo biển báo & camera (offline — speedmap VietHUD)**
+- Bundle sẵn 7 file `.bin` (~8MB, [911273/VietHUD/speedmap](https://github.com/911273/VietHUD/tree/main/speedmap)):
+  camera phạt nguội, biển báo (khu dân cư, cấm vượt, trạm thu phí, đèn), mạng đường
+  & giới hạn tốc độ toàn quốc — **100% offline, không cần mạng**.
+- HUD hiện card cảnh báo **trực tiếp trên màn hình bản đồ**: khoảng cách đếm ngược
+  theo tốc độ (`clamp(v×4.5, 100…400m)`, biển báo 350m), biển giới hạn tốc độ kiểu
+  giao thông + đồng hồ tốc độ, tự ẩn khi qua mặt.
+- Kiểm tra CRC32 lúc nạp, điểm self-test trong `metadata` để tự xác minh dữ liệu.
+- Thiết kế chi tiết: [docs/NAV-PRO-DESIGN.md](docs/NAV-PRO-DESIGN.md).
 
 **AI (model và base URL tuỳ chỉnh)**
 - Gõ/speak câu tự nhiên: *“đi từ Cầu Giấy đến Hồ Tây, tránh đường đông”* → app tìm địa

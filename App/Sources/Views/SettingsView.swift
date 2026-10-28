@@ -4,11 +4,14 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var model: MapViewModel
+    /// HUD speedmap (tuỳ chọn) — hiển thị chẩn đoán dữ liệu .bin trong app.
+    var hud: SpeedmapController? = nil
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var showAPIKey = false
     @State private var testState: TestState = .idle
+    @State private var selfTestText: String?
 
     private let client = AIClient()
 
@@ -26,6 +29,7 @@ struct SettingsView: View {
                     aiCard
                     presetsCard
                     mapCard
+                    navCard
                     dataCard
                     aboutCard
                 }
@@ -33,6 +37,7 @@ struct SettingsView: View {
                 .padding(.vertical, 12)
             }
             .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+            .onAppear { runSpeedmapSelfTestIfNeeded() }
             .navigationTitle("Cài đặt")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -232,6 +237,53 @@ struct SettingsView: View {
                 }
                 .tint(AppTheme.accent)
             }
+        }
+    }
+
+    // MARK: - Chỉ đường & cảnh báo
+
+    private var navCard: some View {
+        SectionCard(title: "Chỉ đường & cảnh báo", symbol: "speaker.wave.2.fill") {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(isOn: $settings.voiceGuidance) {
+                    Label("Giọng nói tiếng Việt", systemImage: "waveform")
+                        .font(.system(size: 13))
+                }
+                .tint(AppTheme.accent)
+
+                Toggle(isOn: $settings.alertBeep) {
+                    Label("Tiếng báo khi gặp camera/biển báo", systemImage: "bell.badge.fill")
+                        .font(.system(size: 13))
+                }
+                .tint(AppTheme.accent)
+
+                Divider().overlay(AppTheme.subtleFill)
+
+                if let hud, let meta = hud.metadata {
+                    infoRow("Speedmap", "\(meta.mapVersion) · \(meta.region)")
+                    infoRow("Mạng đường", "\(meta.segmentCount.formatted()) đoạn · \(meta.tileCount.formatted()) tile")
+                    infoRow("Nguồn dữ liệu", meta.attribution)
+                if let selfTestText {
+                    infoRow("Tự kiểm tra", selfTestText)
+                }
+                if let source = hud.database?.sourceDirectory.path {
+                    infoRow("Nơi nạp file", source)
+                }
+                } else {
+                    Text("Chưa nạp được 7 file speedmap (.bin) — cảnh báo biển báo sẽ ẩn.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func runSpeedmapSelfTestIfNeeded() {
+        guard selfTestText == nil, let hud, hud.isReady else { return }
+        if let passed = hud.runSelfTest() {
+            selfTestText = passed ? "PASS (khớp điểm thử)" : "FAIL"
+        } else {
+            selfTestText = "metadata không có điểm thử"
         }
     }
 

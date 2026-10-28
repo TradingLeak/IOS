@@ -180,6 +180,23 @@ jobs:
           EXEC_PATH="$APP_DIR/$EXEC_NAME"
           [[ -f "$EXEC_PATH" ]] || { echo "::error::Không có binary thực thi $EXEC_NAME"; exit 1; }
 
+          # 7 file speedmap (.bin) BẮT BUỘC phải nằm trong .app (HUD cảnh báo biển báo).
+          MISSING_SPEEDMAP=0
+          for f in metadata index tiles cameras signs names seg_names; do
+            FOUND="$(/usr/bin/find "$APP_DIR" -name "$f.bin" -type f | head -n 1)"
+            if [[ -z "$FOUND" ]]; then
+              echo "::error title=Thiếu speedmap::Không tìm thấy $f.bin trong IPA ($APP_DIR)"
+              MISSING_SPEEDMAP=1
+            else
+              SZ="$(/usr/bin/stat -f%z "$FOUND" 2>/dev/null || stat -c%s "$FOUND")"
+              echo "::notice title=speedmap/$f.bin::${FOUND#$APP_DIR/} — $SZ bytes"
+            fi
+          done
+          if [[ "$MISSING_SPEEDMAP" -ne 0 ]]; then
+            echo "::error::IPA thiếu file speedmap — kiểm tra project.yml (buildPhase: resources) và App/Resources/speedmap/"
+            exit 1
+          fi
+
           ARCHS="$(lipo -archs "$EXEC_PATH")"
           PLATFORM="$(vtool -show-build "$EXEC_PATH" | awk '/platform/{print $2; exit}')"
           MIN_OS="$(plutil -extract MinimumOSVersion raw -o - "$APP_INFO")"
