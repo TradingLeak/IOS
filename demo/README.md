@@ -40,3 +40,42 @@ ngày/đêm, từng lớp hiển thị.
 
 Đây là prototype UI (SVG + JS thuần, không thư viện, không gọi mạng, không dùng dữ liệu thật).
 Sau khi duyệt, các thay đổi sẽ được viết lại bằng SwiftUI/MapKit trong `App/Sources`.
+
+---
+
+## `vietmap.html` — bản demo 3.0 (duyệt trước khi code)
+
+Mở `http://127.0.0.1:8000/vietmap.html` (hoặc `open demo/vietmap.html`).
+
+Mục tiêu: **giao diện dẫn đường kiểu VietMap nhưng không dùng API VietMap**, kèm
+**dữ liệu biển báo / cảnh báo / camera tự có**.
+
+Có trong bản này:
+
+- **Thẻ chỉ dẫn 2 dòng** + thanh tiến trình tới chỗ rẽ + dòng “Sau đó…”.
+- **Bảng tốc độ**: vòng cung theo tốc độ thực, biển giới hạn (tự vẽ theo QCVN 41:2019),
+  chuyển đỏ + “Vượt X km/h”.
+- **Banner cảnh báo** theo từng loại: biển tốc độ, khu dân cư (R.420), trường học,
+  camera, đường cong nguy hiểm, trạm thu phí — kèm đếm lùi và thanh chạy.
+- **Gợi ý làn đường** khi còn < 400 m tới chỗ rẽ.
+- **Thanh dưới**: còn km / phút / giờ đến, Kết thúc, Báo cáo.
+- **Bảng dữ liệu** (nút ổ đĩa bên phải): nguồn, giấy phép, kết quả khảo sát repo ESP32.
+
+Nút **Chạy mô phỏng** chạy tuyến 2,4 km với 6 điểm cảnh báo thật theo thứ tự.
+
+### Kết luận khảo sát ESP32 (ghi lại để khỏi rà lại)
+
+| Repo | Có gì | Dữ liệu toạ độ? |
+|---|---|---|
+| `nhoxboo/vietmap-hud-web-flasher` | web flasher + `assets_icons.h` (icon biển báo nhúng) + BLE `0xFFF0` | không |
+| `vthang87/esp32_vietmap_hud` | `output.txt` (Wireshark BLE), `log.pcap` | không |
+| `daotronghieucm-afk/hud-firmware` | chỉ `README.md` 69 B | không |
+| `dangkhoa116/mzd-vietnav-hud` | bridge Mazda HUD + emu ESP32, `hud_data.h` | không |
+| `Tthanh2k6/moto-nav` | BLE turn-by-turn + LovyanGFX fonts | không |
+
+Giá trị lấy được từ nhóm này **không phải dữ liệu** mà là **hợp đồng dữ liệu HUD**:
+`speed_limit`, `turn_icon`, `distance_to_turn`, `exit_num`, `lanes`, `alerts`.
+App sẽ xuất đúng bộ trường đó nếu sau này bật lại HUD BLE.
+
+Dữ liệu thật dùng nguồn khác: cổng camera TP.HCM (795 điểm, đã có) + OpenStreetMap (ODbL)
++ suy luận tốc độ theo TT 38/2024 + người dùng báo camera mới.
