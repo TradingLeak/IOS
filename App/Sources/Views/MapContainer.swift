@@ -4,14 +4,14 @@ import UIKit
 
 final class PinAnnotation: NSObject, MKAnnotation {
     let coordinate: CLLocationCoordinate2D
-    let title: String?
-    let subtitle: String?
+    var title: String?
+    var subtitle: String?
     let kind: MapPin.Kind
     let pinID: String
     /// Riêng cho ghim cảnh báo giao thông (biển tốc độ, camera…).
-    let alertKind: AlertKind?
-    let limit: Int?
-    let severity: Int
+    var alertKind: AlertKind?
+    var limit: Int?
+    var severity: Int
 
     init(pin: MapPin) {
         coordinate = pin.coordinate
@@ -23,6 +23,28 @@ final class PinAnnotation: NSObject, MKAnnotation {
         limit = pin.limit
         severity = pin.severity
         super.init()
+    }
+
+    /// Cùng một điểm ghim (không đổi toạ độ) → cập nhật tại chỗ, không xoá/thêm lại.
+    func isSamePlace(as pin: MapPin) -> Bool {
+        abs(coordinate.latitude - pin.coordinate.latitude) < 1e-6
+            && abs(coordinate.longitude - pin.coordinate.longitude) < 1e-6
+    }
+
+    /// Màu/hình/nhãn có cần vẽ lại không (khoảng cách đổi liên tục, chỉ vẽ lại khi đổi mức).
+    func needsRestyle(as pin: MapPin) -> Bool {
+        severity != pin.severity
+            || limit != pin.limit
+            || alertKind != pin.alertKind
+            || kind != pin.kind
+    }
+
+    func apply(_ pin: MapPin) {
+        title = pin.title
+        subtitle = pin.subtitle
+        alertKind = pin.alertKind
+        limit = pin.limit
+        severity = pin.severity
     }
 }
 
@@ -215,16 +237,43 @@ struct MapContainer: UIViewRepresentable {
 
     // MARK: - Pins & overlays
 
+    /// Ghim được cập nhật **tại chỗ**: khi bạn tiến lại gần một biển báo, marker đổi màu
+    /// (xa → cam → đỏ) ngay lập tức mà không xoá/thêm lại cả bản đồ (không nháy, không mất gom cụm).
     private func updatePins(_ mapView: MKMapView, context: Context) {
-        let signature = pins
-            .map { "\($0.id)|\($0.kind.rawValue)|\(String(format: "%.5f", $0.coordinate.latitude))|\(String(format: "%.5f", $0.coordinate.longitude))" }
-            .joined(separator: ";")
-        guard signature != context.coordinator.lastPinSignature else { return }
-        context.coordinator.lastPinSignature = signature
+        let wanted = Set(pins.map(\.id))
+        let stale = mapView.annotations
+            .compactMap { $0 as? PinAnnotation }
+            .filter { !wanted.contains($0.pinID) }
+        if !stale.isEmpty {
+            mapView.removeAnnotations(stale)
+        }
 
-        let existing = mapView.annotations.compactMap { $0 as? PinAnnotation }
-        mapView.removeAnnotations(existing)
-        mapView.addAnnotations(pins.map { PinAnnotation(pin: $0) })
+        var index: [String: PinAnnotation] = [:]
+        for annotation in mapView.annotations.compactMap({ $0 as? PinAnnotation }) {
+            index[annotation.pinID] = annotation
+        }
+
+        var toAdd: [PinAnnotation] = []
+        for pin in pins {
+            guard let annotation = index[pin.id] else {
+                toAdd.append(PinAnnotation(pin: pin))
+                continue
+            }
+            guard annotation.isSamePlace(as: pin) else {
+                // Toạ độ đổi (hiếm) → thay ghim.
+                mapView.removeAnnotation(annotation)
+                toAdd.append(PinAnnotation(pin: pin))
+                continue
+            }
+            let restyle = annotation.needsRestyle(as: pin)
+            annotation.apply(pin)
+            if restyle, let view = mapView.view(for: annotation) as? MKMarkerAnnotationView {
+                style(view, with: annotation)
+            }
+        }
+        if !toAdd.isEmpty {
+            mapView.addAnnotations(toAdd)
+        }
     }
 
     private func updateOverlays(_ mapView: MKMapView, context: Context) {
@@ -277,7 +326,6 @@ struct MapContainer: UIViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var parent: MapContainer
-        var lastPinSignature = ""
         var lastOverlaySignature = ""
         var lastFocusToken = -1
         var lastFitToken = -1
@@ -373,6 +421,12 @@ struct MapContainer: UIViewRepresentable {
             view.annotation = annotation
             view.canShowCallout = true
             view.animatesWhenAdded = true
+            style(view, with: pin)
+            return view
+        }
+
+        /// Áp màu, hình, độ ưu tiên cho marker — gọi cả khi tạo mới và khi cập nhật tại chỗ.
+        func style(_ view: MKMarkerAnnotationView, with pin: PinAnnotation) {
             view.transform = .identity
             view.titleVisibility = .hidden
             view.subtitleVisibility = .hidden
@@ -410,7 +464,6 @@ struct MapContainer: UIViewRepresentable {
                     ? CGAffineTransform(scaleX: 1.18, y: 1.18)
                     : .identity
             }
-            return view
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {

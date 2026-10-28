@@ -81,7 +81,7 @@ chỉ khác nhau ở scheme, bundle ID, tên hiển thị và phiên bản.
 
 ```bash
 ./scripts/make-ipa.sh -b com.congty.myapp -n "Bản đồ của tôi" \
-                      --short-version 2.1.0 --build-number 12
+                      --short-version 2.2.0 --build-number 4
 ```
 
 Trong CI: `Run workflow` → `scheme`, `bundle_id`, `display_name`, `run_tests`.

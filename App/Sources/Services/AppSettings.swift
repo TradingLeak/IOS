@@ -92,7 +92,7 @@ final class AppSettings: ObservableObject {
             defaults.set(alertKinds.map(\.rawValue).sorted(), forKey: Keys.alertKinds)
         }
     }
-    /// Nhóm xe hai bánh — đổi bảng tốc độ mặc định trong HUD.
+    /// Nhóm xe hai bánh — đổi bảng tốc độ mặc định (thanh tốc độ + biển báo trên bản đồ).
     @Published var vehicleClass: VehicleClass {
         didSet { defaults.set(vehicleClass.rawValue, forKey: Keys.vehicleClass) }
     }

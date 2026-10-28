@@ -268,7 +268,7 @@ enum Format {
         duration(max(0, seconds))
     }
 
-    /// Khoảng cách ngắn gọn cho HUD: "320 m", "1,4 km".
+    /// Khoảng cách ngắn gọn cho thanh tốc độ / nhãn trên bản đồ: "320 m", "1,4 km".
     static func hudDistance(_ meters: Double) -> String {
         guard meters.isFinite, meters > 0 else { return "0 m" }
         if meters < 950 {

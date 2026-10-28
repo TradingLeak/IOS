@@ -87,6 +87,9 @@ final class MapViewModel: ObservableObject {
     private var routeGeometry: RouteGeometry?
 
     // Trạng thái phụ trợ khi dẫn đường
+    private var lastSyncedPreference: RoutePreference?
+    private var lastNearbyRefresh: Date?
+    private var lastNearbyCenter: CLLocationCoordinate2D?
     private var wasOverLimit = false
     private var offRouteSamples = 0
     private var lastRerouteAt = Date.distantPast
@@ -113,7 +116,6 @@ final class MapViewModel: ObservableObject {
     @Published var toast: String?
     @Published var errorMessage: String?
     @Published var showRouteSheet = false
-    @Published var mapTypeIndex = 0
 
     // MARK: - Vòng đời
 
@@ -133,13 +135,22 @@ final class MapViewModel: ObservableObject {
         recents = store.recents()
         favorites = store.favorites()
         location.requestLocation()
+        // Chưa có tuyến vẫn thấy biển báo/camera quanh mình trên bản đồ.
+        refreshNearbyAlertsIfNeeded()
     }
 
     /// Đồng bộ toàn bộ cài đặt (VietMap, cảnh báo, camera dẫn đường).
     func syncSettings(_ settings: AppSettings) {
         vietmapKey = settings.vietmapKey
-        aiConfig = settings.aiConfig
-        preference = settings.routePreference
+        if aiConfig != settings.aiConfig {
+            aiConfig = settings.aiConfig
+        }
+        // Chỉ áp mức ưu tiên khi người dùng thật sự đổi trong Cài đặt — tránh ghi đè
+        // lựa chọn vừa bấm trong sheet hoặc do AI đề xuất.
+        if lastSyncedPreference != settings.routePreference {
+            preference = settings.routePreference
+            lastSyncedPreference = settings.routePreference
+        }
         followOnStart = settings.followUserInNavigation
         preferences = settings.alertPreferences
         voice.isEnabled = preferences.voiceEnabled
@@ -537,6 +548,7 @@ final class MapViewModel: ObservableObject {
 
         guard let geometry = routeGeometry else {
             updateSpeedContextWithoutRoute(coordinate: coordinate)
+            refreshNearbyAlertsIfNeeded()
             return
         }
 
@@ -753,6 +765,24 @@ final class MapViewModel: ObservableObject {
         alertStatusMessage = nil
     }
 
+    /// Tự nạp cảnh báo quanh vị trí khi **chưa có tuyến**, để biển báo/camera vẫn hiện trên
+    /// bản đồ và thanh tốc độ có dữ liệu ngay từ lúc mở app.
+    /// Giới hạn 1 lần/45 giây và chỉ tải lại khi đã đi xa hơn 400 m (đỡ tốn pin).
+    func refreshNearbyAlertsIfNeeded() {
+        guard preferences.showOnMap, !isNavigating else { return }
+        let center = location.coordinate ?? selectedPreset.coordinate
+        if let last = lastNearbyRefresh, Date().timeIntervalSince(last) < 45,
+           let previous = lastNearbyCenter, Self.distance(from: previous, to: center) < 400 {
+            return
+        }
+        lastNearbyRefresh = Date()
+        lastNearbyCenter = center
+        nearbyAlertPoints = alertDatabase.nearby(around: center,
+                                                 radius: 2_500,
+                                                 kinds: preferences.enabledKinds,
+                                                 limit: 60)
+    }
+
     /// Nhập tệp JSON do người dùng chọn trong ứng dụng Files.
     func importAlerts(from data: Data) throws -> String {
         let result = try AlertDatabase.fromJSON(data)
@@ -830,39 +860,6 @@ final class MapViewModel: ObservableObject {
     }
 
     // MARK: - Điểm dừng dọc đường
-
-    func suggestStopsAlongRoute() async {
-        guard let geometry = routeGeometry, !geometry.isEmpty else { return }
-        isLoadingStops = true
-        defer { isLoadingStops = false }
-
-        let fractions: [Double] = [0.25, 0.5, 0.75]
-        var places: [Place] = []
-        let categories: [NearbyCategory] = NearbyCategory.all.filter { $0.id == "fuel" }
-            + NearbyCategory.all.filter { $0.id == "cafe" }
-
-        for fraction in fractions {
-            guard let point = geometry.point(at: geometry.totalDistance * fraction) else { continue }
-            for category in categories {
-                if let found = try? await searchService.nearby(category, around: point, radiusMeters: 2_500),
-                   let first = found.first {
-                    places.append(first)
-                }
-            }
-        }
-
-        var unique: [Place] = []
-        for place in places where !unique.contains(where: { $0.name == place.name }) {
-            unique.append(place)
-        }
-
-        suggestedStops = Array(unique.prefix(4))
-        if suggestedStops.isEmpty {
-            toast = "Không tìm thấy điểm dừng nào dọc tuyến."
-        }
-    }
-
-    // MARK: - Địa điểm
 
     func remember(_ place: Place) {
         store.addRecent(place)
@@ -1128,17 +1125,29 @@ final class MapViewModel: ObservableObject {
     var speedLimitSourceText: String { speedContext.limitSource.rawValue }
 
     /// 3 cảnh báo gần nhất phía trước, dùng cho thanh trạng thái ở màn hình chính.
+    ///
+    /// Có tuyến → cảnh báo dọc tuyến (khoảng cách theo đường).
+    /// Chưa có tuyến → cảnh báo quanh vị trí hiện tại (khoảng cách chim bay) để màn hình
+    /// chính vẫn có thông tin mà không cần mở HUD.
     var upcomingAlerts: [ActiveAlert] {
-        aheadAlerts
-            .filter { $0.distance >= -5 }
+        let onRoute = aheadAlerts.filter { $0.distance >= -5 }
+        if !onRoute.isEmpty {
+            return Array(onRoute.sorted { $0.distance < $1.distance }.prefix(3))
+        }
+        guard routeAlerts.isEmpty, let coordinate = location.coordinate else { return [] }
+        let warn = ActiveAlert.warnDistance(forSpeed: speedKmh,
+                                            min: preferences.warnDistanceMin,
+                                            max: preferences.warnDistanceMax)
+        return nearbyAlertPoints
+            .map { alert in
+                ActiveAlert(alert: alert,
+                            distance: Self.distance(from: coordinate, to: alert.coordinate),
+                            warnDistance: warn,
+                            distanceAlongRoute: 0)
+            }
             .sorted { $0.distance < $1.distance }
             .prefix(3)
             .map { $0 }
-    }
-
-    var nextAlertDistanceText: String? {
-        guard let alert = upcomingAlerts.first else { return nil }
-        return Format.hudDistance(max(0, alert.distance))
     }
 
     // MARK: - Giọng nói

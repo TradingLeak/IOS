@@ -90,7 +90,10 @@ Từ 2.2 **không còn HUD toàn màn hình** — mọi thứ cần nhìn khi l�
   nguồn (biển báo / vùng / OSM / bảng TT 38/2024), và **2 cảnh báo gần nhất** kèm khoảng
   cách, tô màu theo mức nguy hiểm (`xanh → vàng → cam → đỏ`).
 - **Biển báo và camera nằm trực tiếp trên bản đồ** dưới dạng marker/nhãn ruột (glyph + số
-  km/h), phóng to khi tới gần; bấm vào marker để xem chi tiết.
+  km/h), phóng to khi tới gần; bấm vào marker để xem chi tiết. Marker **đổi màu tại chỗ**
+  (xám → màu loại → cam → đỏ) theo mức nguy hiểm, không xoá/thêm lại nên bản đồ không nháy.
+- **Chưa chọn tuyến vẫn thấy cảnh báo**: app tự nạp cảnh báo trong bán kính 2,5 km và tải lại
+  sau 45 giây hoặc khi bạn đi xa hơn 400 m.
 - **Băng cảnh báo** hiện phía trên khi cảnh báo kế tiếp đã vào ngưỡng `D_warn`.
 - Khoảng cách ước tính cập nhật theo tốc độ thật, không cần mở màn hình phụ.
 

@@ -44,6 +44,9 @@ Sideloadly/SideStore với Apple ID miễn phí).
 - **Thanh tốc độ trên màn hình chính**: tốc độ hiện tại (đỏ khi vượt ngưỡng), biển giới hạn
   + nguồn, và **2 cảnh báo sắp tới** kèm khoảng cách tô màu `xanh → vàng → cam → đỏ` —
   không phải mở màn hình phụ.
+- **Biển báo/camera quanh bạn hiện ngay khi chưa chọn tuyến**: app tự nạp trong bán kính
+  2,5 km (tải lại sau 45 giây hoặc khi đi xa 400 m), marker **đổi màu tại chỗ** khi bạn tiến
+  lại gần (xa → cam → đỏ) mà bản đồ không nháy.
 - **3D ↔ 2D đổi được bất cứ lúc nào**, kể cả khi chỉ xem bản đồ (nút `view.3d` / `map`).
 - **Trợ lý AI tìm tuyến kiểu Google Maps**: gõ câu tự nhiên (*“xe máy từ Cầu Giấy đến Hồ
   Hoàn Kiếm, tránh cao tốc, ghé cà phê”*), AI hiểu phương tiện / điểm đi / điểm đến / điểm
@@ -59,8 +62,9 @@ Sideloadly/SideStore với Apple ID miễn phí).
   **VietMap Route v4** (`vehicle=motorcycle`) khi bạn nhập API key; không có key thì lấy
   tuyến Apple Maps, **loại tuyến đi cao tốc** (xe máy không được phép) và hiệu chỉnh thời
   gian — có ghi chú rõ trong app.
-- **Cảnh báo tốc độ & biển báo**: HUD toàn màn hình với tốc độ hiện tại, biển tròn giới hạn
-  (kiểu P.127), nguồn giới hạn (biển báo / vùng / OSM / bảng mặc định **TT 38/2024**).
+- **Cảnh báo tốc độ & biển báo**: tốc độ hiện tại, biển tròn giới hạn (kiểu P.127), nguồn
+  giới hạn (biển báo / vùng / OSM / bảng mặc định **TT 38/2024**) — hiện trên thanh trạng thái
+  và trực tiếp trên bản đồ (bản 2.0–2.1 dùng HUD toàn màn hình, 2.2 đã bỏ).
   Chọn **nhóm xe hai bánh** trong Cài đặt: xe mô tô (> 50 cm³) dùng bảng 60/50 – 70/60,
   xe gắn máy ≤ 50 cm³ và xe đạp điện luôn **40 km/h**.
 - **Cảnh báo camera**: 795 camera giao thông TP.HCM có sẵn (kèm ảnh tải trực tiếp từ cổng),

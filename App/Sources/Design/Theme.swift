@@ -11,11 +11,6 @@ enum AppTheme {
     static let warning = Color(red: 0.95, green: 0.60, blue: 0.08)
     static let danger = Color(red: 0.90, green: 0.25, blue: 0.28)
 
-    /// Nền tối cho HUD khi lái xe (luôn tối, kể cả khi máy đang ở chế độ sáng).
-    static let hudTop = Color(red: 0.05, green: 0.06, blue: 0.10)
-    static let hudBottom = Color(red: 0.02, green: 0.03, blue: 0.05)
-    static let hudCard = Color(white: 1.0, opacity: 0.08)
-
     static let accentGradient = LinearGradient(
         colors: [accent, accentDeep],
         startPoint: .topLeading,
@@ -28,17 +23,11 @@ enum AppTheme {
         endPoint: .trailing
     )
 
-    /// Gradient nhấn cho HUD / cảnh báo.
+    /// Gradient nhấn cho cảnh báo.
     static let alertGradient = LinearGradient(
         colors: [Color(red: 0.95, green: 0.36, blue: 0.18), Color(red: 0.86, green: 0.12, blue: 0.30)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
-    )
-
-    static let hudGradient = LinearGradient(
-        colors: [hudTop, hudBottom],
-        startPoint: .top,
-        endPoint: .bottom
     )
 
     /// Nền của các "card nổi" trên bản đồ.

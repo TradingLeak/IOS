@@ -250,6 +250,7 @@ struct RouteSheet: View {
                         FilterChip(title: option.shortTitle,
                                    symbol: option.symbol,
                                    isSelected: model.preference == option) {
+                            settings.routePreference = option
                             model.setPreference(option)
                         }
                     }
@@ -418,22 +419,15 @@ struct RouteSheet: View {
                 .buttonStyle(.plain)
             }
 
-            if model.suggestedStops.isEmpty {
-                Text("Tìm trạm xăng / quán cà phê dọc tuyến để nghỉ giữa đường.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(model.suggestedStops) { place in
-                    Button {
-                        model.focus(on: place)
-                    } label: {
+            if !model.waypoints.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(model.waypoints) { place in
                         HStack(spacing: 8) {
-                            Image(systemName: "mappin.circle.fill")
-                                .foregroundStyle(AppTheme.warning)
+                            Image(systemName: "pause.circle.fill")
+                                .foregroundStyle(AppTheme.accent)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(place.name)
+                                Text("Đang dừng · \(place.name)")
                                     .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(.primary)
                                     .lineLimit(1)
                                 Text(place.displaySubtitle)
                                     .font(.system(size: 10))
@@ -441,9 +435,59 @@ struct RouteSheet: View {
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 0)
+                            Button {
+                                model.removeWaypoint(place)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Bỏ điểm dừng \(place.name)")
                         }
                     }
-                    .buttonStyle(.plain)
+                }
+            }
+
+            if model.suggestedStops.isEmpty {
+                Text("Tìm trạm xăng / quán cà phê dọc tuyến để nghỉ giữa đường.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(model.suggestedStops) { place in
+                    HStack(spacing: 8) {
+                        Button {
+                            model.focus(on: place)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "mappin.circle.fill")
+                                    .foregroundStyle(AppTheme.warning)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(place.name)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                    Text(place.displaySubtitle)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            model.insertWaypoint(place)
+                        } label: {
+                            Label("Thêm", systemImage: "plus.circle.fill")
+                                .labelStyle(.iconOnly)
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(AppTheme.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Thêm \(place.name) vào tuyến")
+                    }
                 }
             }
         }

@@ -80,7 +80,7 @@ extension LocationService: CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        // Bỏ qua điểm cũ / kém chính xác để HUD tốc độ không nhảy loạn.
+        // Bỏ qua điểm cũ / kém chính xác để số km/h không nhảy loạn.
         if location.horizontalAccuracy > 80 { return }
         coordinate = location.coordinate
         lastLocation = location

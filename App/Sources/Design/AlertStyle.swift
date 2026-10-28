@@ -69,36 +69,6 @@ struct SpeedLimitSignView: View {
     }
 }
 
-/// Đồng hồ tốc độ nhỏ nổi trên bản đồ.
-struct SpeedPill: View {
-    let speedKmh: Double
-    let limit: Int?
-    let isOverspeed: Bool
-
-    var body: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("\(Int(speedKmh.rounded()))")
-                    .font(.system(size: 24, weight: .heavy, design: .rounded))
-                    .foregroundStyle(isOverspeed ? Color(red: 0.92, green: 0.25, blue: 0.25) : Color.primary)
-                    .monospacedDigit()
-                Text("km/h")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            if let limit {
-                SpeedLimitSignView(limit: limit, size: 34, muted: !isOverspeed)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .glassCard(cornerRadius: 16)
-        .accessibilityLabel("Tốc độ \(Int(speedKmh.rounded())) km/h, giới hạn \(limit.map { String($0) } ?? "chưa rõ")")
-    }
-}
-
-// MARK: - Hàng cảnh báo
-
 struct AlertRow: View {
     let active: ActiveAlert
     var showsImage: Bool = false

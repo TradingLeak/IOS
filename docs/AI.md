@@ -101,6 +101,10 @@ Khi bật **Can thiệp sâu** (`aiDeepPlanning`), sau khi có ≥ 2 phương á
 3. AI được phép thêm **điểm dừng** (`planStopsWithAI`) và **đổi phương tiện/mức ưu tiên** —
    nhưng chỉ qua các API có sẵn của app (`insertWaypoint`, `setPreference`, `changeMode`).
 
+Người dùng vẫn kiểm soát: trong **sheet Chỉ đường → Điểm dừng dọc đường** có thể bấm
+**＋** để thêm một gợi ý vào tuyến hoặc **✕** để bỏ điểm dừng AI vừa thêm; tuyến được tính
+lại ngay (`insertWaypoint` / `removeWaypoint`).
+
 Chốt an toàn (không phụ thuộc AI):
 
 - `route_index` phải tồn tại, nếu không → bỏ qua và dùng mức ưu tiên offline.

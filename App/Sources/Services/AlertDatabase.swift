@@ -228,7 +228,7 @@ struct AlertDatabase {
 }
 
 extension ActiveAlert {
-    /// D_warn = clamp(v_kmh × 3,0 m; 150 m; 500 m) — công thức của HUD dẫn đường Việt Nam.
+    /// D_warn = clamp(v_kmh × 3,0 m; 150 m; 500 m) — công thức của các app dẫn đường Việt Nam (VietHUD…).
     static func warnDistance(forSpeed speedKmh: Double?,
                              min minimum: Double,
                              max maximum: Double) -> Double {
