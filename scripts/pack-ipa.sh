@@ -161,6 +161,9 @@ SAFE_NAME="$(printf '%s' "${APP_NAME%.app}" | tr -c 'A-Za-z0-9._-' '-' | sed 's/
 [[ -n "$SAFE_NAME" ]] || SAFE_NAME="App"
 IPA_NAME="${SAFE_NAME}-${VERSION}-${BUILD_NUM}-unsigned.ipa"
 mkdir -p "$OUTPUT_DIR"
+# Chuyển sang đường dẫn tuyệt đối: lệnh zip chạy trong thư mục tạm ($STAGE),
+# nếu để đường dẫn tương đối thì file IPA sẽ rơi vào $STAGE và bị xoá.
+OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 IPA_PATH="$OUTPUT_DIR/$IPA_NAME"
 rm -f "$IPA_PATH"
 

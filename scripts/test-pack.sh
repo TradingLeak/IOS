@@ -114,6 +114,14 @@ if not any(n.startswith("Payload/Fake.app/Frameworks/Foo.framework/") for n in n
 ok("giữ nguyên nội dung .framework")
 PY
 
+printf '\n\033[1mTest: --output là đường dẫn tương đối\033[0m\n'
+mkdir -p "$WORK/relout" && cd "$WORK"
+"$ROOT/scripts/pack-ipa.sh" "$APP" --output relout >"$WORK/pack-rel.log" 2>&1 \
+  || { cat "$WORK/pack-rel.log"; fail "pack-ipa.sh lỗi với --output tương đối"; }
+REL_IPA="$(find "$WORK/relout" -maxdepth 1 -name '*.ipa' | head -n 1)"
+[[ -n "$REL_IPA" ]] || fail "IPA không nằm trong thư mục --output khi dùng đường dẫn tương đối"
+pass "IPA nằm đúng thư mục với --output tương đối"
+
 printf '\n\033[1mTest: trường hợp lỗi\033[0m\n'
 if "$ROOT/scripts/pack-ipa.sh" "$WORK/khong-ton-tai.app" >/dev/null 2>&1; then
   fail "phải báo lỗi khi app không tồn tại"
