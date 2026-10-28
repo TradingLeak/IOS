@@ -26,6 +26,9 @@ targets:
     sources:
       - path: App/Sources
       - path: App/Resources
+        # Ép .bin (speedmap) + Assets vào Resources phase — không phụ thuộc
+        # infer-extension của xcodegen.
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: VietMap

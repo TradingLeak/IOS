@@ -7,6 +7,8 @@ struct MapScreen: View {
     @StateObject private var location: LocationService
     @StateObject private var model: MapViewModel
     @StateObject private var settings = AppSettings()
+    /// HUD speedmap: cảnh báo camera/biển báo trực tiếp trên màn hình (7 file .bin).
+    @StateObject private var hud = SpeedmapController()
 
     @State private var activeSheet: ActiveSheet?
 
@@ -68,6 +70,9 @@ struct MapScreen: View {
                 header
                 categoryChips
                 if model.isNavigating { navigationBanner }
+                if hud.isReady {
+                    SpeedHudOverlay(controller: hud)
+                }
                 Spacer(minLength: 0)
                 bottomPanel
             }
@@ -95,6 +100,14 @@ struct MapScreen: View {
         .onAppear {
             model.bootstrap()
             model.syncConfig(settings.config)
+            hud.loadBundled()
+        }
+        .onChange(of: model.isNavigating) { navigating in
+            location.setNavigationMode(navigating)
+        }
+        .onReceive(model.location.$lastLocation) { lastLocation in
+            guard let lastLocation else { return }
+            hud.update(with: lastLocation)
         }
         .onChange(of: settings.baseURL) { _ in model.syncConfig(settings.config) }
         .onChange(of: settings.model) { _ in model.syncConfig(settings.config) }
