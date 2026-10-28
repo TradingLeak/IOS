@@ -223,18 +223,34 @@ struct RoadAlert: Identifiable, Codable, Hashable {
     }
 
     /// Đọc được cả dữ liệu của app lẫn tệp JSON do người dùng nhập tay:
-    /// `kind` lạ → `.other`, `speedLimit` có thể là số hoặc chuỗi.
+    /// `kind` lạ → `.other`, `speedLimit` có thể là số hoặc chuỗi,
+    /// chấp nhận cả khoá `speed_limit` / `latitude` / `longitude`.
     /// Không ném lỗi vì toạ độ sai: dòng lỗi bị bỏ qua ở `AlertDatabase`.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // Container thứ hai để đọc các khoá viết kiểu snake_case / tên khác.
+        let aliases: KeyedDecodingContainer<AnyCodingKey>? = try? decoder.container(keyedBy: AnyCodingKey.self)
 
         let rawID = Self.flexibleString(container, .id)
         id = rawID ?? UUID().uuidString
         kind = AlertKind(rawValue: (Self.flexibleString(container, .kind) ?? "").lowercased()) ?? .other
 
-        latitude = Self.flexibleDouble(container, .latitude) ?? 0
-        longitude = Self.flexibleDouble(container, .longitude) ?? 0
-        speedLimit = Self.flexibleInt(container, .speedLimit)
+        var latitudeValue = Self.flexibleDouble(container, .latitude)
+        if latitudeValue == nil, let aliases, let key = AnyCodingKey(stringValue: "latitude") {
+            latitudeValue = Self.flexibleDouble(aliases, key)
+        }
+        var longitudeValue = Self.flexibleDouble(container, .longitude)
+        if longitudeValue == nil, let aliases, let key = AnyCodingKey(stringValue: "longitude") {
+            longitudeValue = Self.flexibleDouble(aliases, key)
+        }
+        var speedLimitValue = Self.flexibleInt(container, .speedLimit)
+        if speedLimitValue == nil, let aliases, let key = AnyCodingKey(stringValue: "speed_limit") {
+            speedLimitValue = Self.flexibleInt(aliases, key)
+        }
+
+        latitude = latitudeValue ?? 0
+        longitude = longitudeValue ?? 0
+        speedLimit = speedLimitValue
         bearing = Self.flexibleDouble(container, .bearing)
         length = Self.flexibleDouble(container, .length)
         road = Self.flexibleString(container, .road)
@@ -256,8 +272,8 @@ struct RoadAlert: Identifiable, Codable, Hashable {
             && !(latitude == 0 && longitude == 0)
     }
 
-    private static func flexibleDouble(_ container: KeyedDecodingContainer<CodingKeys>,
-                                       _ key: CodingKeys) -> Double? {
+    private static func flexibleDouble<K: CodingKey>(_ container: KeyedDecodingContainer<K>,
+                                       _ key: K) -> Double? {
         if let value = try? container.decode(Double.self, forKey: key) { return value }
         if let value = try? container.decode(Int.self, forKey: key) { return Double(value) }
         if let text = try? container.decode(String.self, forKey: key) {
@@ -266,8 +282,8 @@ struct RoadAlert: Identifiable, Codable, Hashable {
         return nil
     }
 
-    private static func flexibleInt(_ container: KeyedDecodingContainer<CodingKeys>,
-                                    _ key: CodingKeys) -> Int? {
+    private static func flexibleInt<K: CodingKey>(_ container: KeyedDecodingContainer<K>,
+                                    _ key: K) -> Int? {
         if let value = try? container.decode(Int.self, forKey: key) { return value }
         if let value = try? container.decode(Double.self, forKey: key) { return Int(value.rounded()) }
         if let text = try? container.decode(String.self, forKey: key) {
@@ -276,13 +292,29 @@ struct RoadAlert: Identifiable, Codable, Hashable {
         return nil
     }
 
-    private static func flexibleString(_ container: KeyedDecodingContainer<CodingKeys>,
-                                       _ key: CodingKeys) -> String? {
+    private static func flexibleString<K: CodingKey>(_ container: KeyedDecodingContainer<K>,
+                                       _ key: K) -> String? {
         if let text = try? container.decode(String.self, forKey: key) {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed
         }
         return nil
+    }
+}
+
+/// Khoá bất kỳ — dùng để đọc các tên trường thay thế trong JSON người dùng nhập.
+struct AnyCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(intValue: Int) {
+        self.stringValue = String(intValue)
+        self.intValue = intValue
     }
 }
 
