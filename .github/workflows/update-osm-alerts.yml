@@ -42,7 +42,7 @@ jobs:
             --out data/curated/osm-vn.json
 
       - name: Gộp vào bộ dữ liệu của app
-        run: python3 scripts/build-alert-data.py
+        run: python3 scripts/build-alert-data.py --with-imports
 
       - name: Kiểm tra dữ liệu sau khi gộp
         run: python3 scripts/build-alert-data.py --check

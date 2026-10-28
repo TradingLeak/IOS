@@ -176,6 +176,8 @@ struct AlertEngine {
             return "Điểm kiểm tra tốc độ phía trước, còn \(distance)."
         case .hazard:
             return "Cảnh báo sự cố trên đường, còn \(distance)."
+        case .trafficLight:
+            return "Đèn tín hiệu giao thông phía trước, còn \(distance)."
         case .other:
             return "\(alert.displayName) phía trước, còn \(distance)."
         }

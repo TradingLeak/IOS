@@ -68,7 +68,7 @@ jobs:
             --max-alerts 40000 --out data/curated/osm-vn.json
 
       - name: Gộp vào bộ dữ liệu của app
-        run: python3 scripts/build-alert-data.py
+        run: python3 scripts/build-alert-data.py --with-imports
 
       - name: Commit nếu có thay đổi
         run: |

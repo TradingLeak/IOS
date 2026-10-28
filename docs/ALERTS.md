@@ -20,6 +20,7 @@ cách nhập/xuất, cách app chọn giới hạn tốc độ, và những gi�
 | Khu vực trường học | `school_zone` | |
 | Điểm kiểm tra tốc độ | `checkpoint` | |
 | Sự cố / ngập | `hazard` | |
+| Đèn tín hiệu giao thông | `traffic_light` | Cảnh báo ngã tư / đèn đỏ phía trước |
 | Khác | `other` | Mọi `kind` lạ đều được đọc thành `other` |
 
 Mỗi cảnh báo được cảnh báo theo 3 kênh:
@@ -130,7 +131,30 @@ những đoạn đã được vẽ biển (cao tốc ~89%, quốc lộ ~20%, đ�
 app **suy luận theo TT 38/2024** lúc chạy và hiển thị nguồn là “Ước tính TT 38/2024”
 (xem mục 3), không giả làm biển báo thật.
 
-### 4.2b Tải theo tuyến (trong app, tuỳ chọn)
+### 4.3 Bộ dữ liệu SpeedMap (VietHUD) — 82.608 điểm
+
+Nhúng sẵn trong app từ 3.1, chuyển từ `cameras.bin` + `signs.bin` của
+[`911273/VietHUD/speedmap`](https://github.com/911273/VietHUD/tree/main/speedmap) bằng
+`scripts/import-viethud-speedmap.py` (định dạng: xem [DATA-SPEEDMAP.md](DATA-SPEEDMAP.md)):
+
+| Loại | Số điểm | Ghi chú |
+|---|---|---|
+| `speed_sign` | 25.887 | biển P.127 có giá trị km/h |
+| `residential_zone` | 25.102 | R.420/R.421, mặc định 60 km/h |
+| `traffic_light` | 15.148 | đèn tín hiệu / ngã tư |
+| `hazard` | 7.784 | điểm nguy hiểm, đường hầm, trạm dừng |
+| `speed_camera` | 7.144 | camera bắn tốc độ + phạt nguội |
+| `no_overtake` | 1.543 | P.125 cấm vượt |
+
+Độ chính xác đã đo trên 885 camera và 6.000 biển ở Hà Nội so với mạng đường OSM:
+**trung vị 3 m, 99% trong 15 m**.
+
+> ⚠️ **Giấy phép:** tài liệu của VietHUD ghi `cameras.bin` / `signs.bin` được trích xuất từ
+> ứng dụng **WYN**, và repo đó không có tệp LICENSE. Repo này nhúng theo yêu cầu của chủ dự án
+> (xem `docs/DATA-SPEEDMAP.md` mục 4); nếu bạn phát hành lại, hãy tự xác nhận quyền sử dụng hoặc
+> bỏ `data/imports/viethud-speedmap.json` rồi chạy lại `build-alert-data.py`.
+
+### 4.3b Tải theo tuyến (trong app, tuỳ chọn)
 
 Trong **Cảnh báo → Dữ liệu → Tải biển tốc độ từ OpenStreetMap**, app gọi Overpass cho khu
 vực quanh tuyến đang chọn (`speed_camera`, `enforcement=speed`, `maxspeed`). Phù hợp khi

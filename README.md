@@ -37,6 +37,16 @@ Sideloadly/SideStore với Apple ID miễn phí).
 
 ## ✨ Tính năng
 
+**🆕 3.1 — dữ liệu cảnh báo dày gấp 4: 108.528 điểm**
+
+- Nhập **bộ dữ liệu SpeedMap** của VietHUD (`cameras.bin`, `signs.bin`): **82.608 điểm** biển
+  giới hạn tốc độ, khu dân cư, đèn tín hiệu, camera, cấm vượt, điểm nguy hiểm — toạ độ khớp
+  mạng đường OSM (trung vị 3 m).
+- Loại cảnh báo mới **đèn tín hiệu** (`traffic_light`) có màu marker và câu đọc riêng.
+- Nạp dữ liệu 17 MB **ở luồng nền**: app mở lên ngay, marker hiện dần sau ~1 giây.
+- Công cụ chuyển đổi `scripts/import-viethud-speedmap.py` (có `--report`, `--compact`), hướng dẫn
+  định dạng + **lưu ý giấy phép** trong [docs/DATA-SPEEDMAP.md](docs/DATA-SPEEDMAP.md).
+
 **🆕 3.0 — giao diện dẫn đường kiểu VietMap, dữ liệu tự có, bỏ API VietMap**
 
 - **Thẻ chỉ dẫn 2 dòng + thanh tiến trình tới chỗ rẽ**, dòng “Sau đó…” như app thương mại.

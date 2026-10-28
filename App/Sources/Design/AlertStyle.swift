@@ -15,6 +15,7 @@ extension AlertKind {
         case .schoolZone: return Color(red: 0.95, green: 0.62, blue: 0.10)
         case .checkpoint: return Color(red: 0.20, green: 0.45, blue: 0.75)
         case .hazard: return Color(red: 0.88, green: 0.35, blue: 0.12)
+        case .trafficLight: return Color(red: 0.95, green: 0.40, blue: 0.15)
         case .other: return Color.gray
         }
     }

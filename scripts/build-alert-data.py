@@ -50,6 +50,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT = os.path.join(ROOT, "App", "Resources", "Data", "vn_alerts.json")
 SOURCES_DIR = os.path.join(ROOT, "data", "sources")
 CURATED_DIR = os.path.join(ROOT, "data", "curated")
+IMPORTS_DIR = os.path.join(ROOT, "data", "imports")
 
 SCHEMA_VERSION = 2
 DATASET_VERSION = "2.0.0"
@@ -67,6 +68,7 @@ ALERT_KINDS = {
     "school_zone",
     "checkpoint",
     "hazard",
+    "traffic_light",
     "other",
 }
 
@@ -254,11 +256,36 @@ def load_curated() -> tuple[list[dict], list[dict]]:
     return alerts, list(sources.values())
 
 
-def build() -> dict:
+def load_imports() -> tuple[list[dict], list[dict]]:
+    """Dữ liệu người dùng tự chuyển đổi (vd. SpeedMap .bin → JSON).
+
+    Chỉ nhúng khi chạy `--with-imports`: các tệp này thường không có giấy phép rõ ràng
+    nên mặc định không vào bản phát hành (xem docs/DATA-SPEEDMAP.md).
+    """
+    alerts: list[dict] = []
+    sources: dict[str, dict] = {}
+
+    for path in sorted(glob.glob(os.path.join(IMPORTS_DIR, "*.json"))):
+        payload = read_json(path)
+        default_source = str(payload.get("source") or os.path.basename(path).replace(".json", ""))
+        for index, entry in enumerate(payload.get("alerts") or []):
+            where = "%s[%d]" % (os.path.basename(path), index)
+            item = dict(entry)
+            item.setdefault("source", default_source)
+            alerts.append(normalize(item, default_source, where))
+        for source in payload.get("sources") or []:
+            if isinstance(source, dict) and source.get("id"):
+                sources[str(source["id"])] = source
+
+    return alerts, list(sources.values())
+
+
+def build(with_imports: bool = False) -> dict:
     camera_alerts, camera_source = load_cameras()
     curated_alerts, curated_sources = load_curated()
+    import_alerts, import_sources = load_imports() if with_imports else ([], [])
 
-    alerts = camera_alerts + curated_alerts
+    alerts = camera_alerts + curated_alerts + import_alerts
 
     seen: dict[str, int] = {}
     for alert in alerts:
@@ -272,6 +299,7 @@ def build() -> dict:
 
     sources = [camera_source] if camera_source else []
     sources.extend(curated_sources)
+    sources.extend(import_sources)
     if not sources:
         sources = [{
             "id": "vietmap-app",
@@ -347,6 +375,8 @@ def check() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Gộp dữ liệu cảnh báo giao thông Việt Nam")
     parser.add_argument("--check", action="store_true", help="chỉ kiểm tra tệp đã commit")
+    parser.add_argument("--with-imports", action="store_true",
+                        help="nhúng thêm data/imports/*.json (dữ liệu tự chuyển đổi, không rõ giấy phép)")
     args = parser.parse_args()
 
     print("\n\033[1mDữ liệu cảnh báo giao thông Việt Nam\033[0m")
@@ -354,7 +384,7 @@ def main() -> None:
         check()
         return
 
-    dataset = build()
+    dataset = build(with_imports=args.with_imports)
     write_dataset(dataset)
     check()
 

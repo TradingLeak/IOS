@@ -19,8 +19,9 @@ final class MapViewModel: ObservableObject {
 
     // MARK: Dữ liệu cảnh báo
 
-    private let bundledAlerts: [RoadAlert]
-    private let bundledSources: [AlertSource]
+    private var bundledAlerts: [RoadAlert] = []
+    private var bundledSources: [AlertSource] = []
+    private var didLoadBundled = false
     @Published private(set) var alertDatabase: AlertDatabase
     private var importedAlerts: [RoadAlert] = []
     private var preferences = AlertPreferences.all
@@ -122,20 +123,39 @@ final class MapViewModel: ObservableObject {
 
     init(location: LocationService = LocationService()) {
         self.location = location
-        let database = AlertDatabase.loadBundled()
-        self.bundledAlerts = database.alerts
-        self.bundledSources = database.sources
-        self.alertDatabase = database
+        // Bộ dữ liệu nhúng giờ hơn 100.000 điểm (~17 MB JSON): nạp ở nền trong
+        // `loadBundledIfNeeded()` để cửa sổ app hiện ra ngay, không chặn khởi động.
+        self.alertDatabase = AlertDatabase(alerts: [])
         self.importedAlerts = AlertFileStore.loadImported()
         self.incidents = IncidentStore.load()
-        if !importedAlerts.isEmpty {
-            rebuildDatabase()
+    }
+
+    /// Nạp bộ dữ liệu nhúng ở luồng nền rồi gộp với dữ liệu người dùng đã nhập.
+    func loadBundledIfNeeded() {
+        guard !didLoadBundled else { return }
+        didLoadBundled = true
+
+        Task.detached(priority: .userInitiated) {
+            let database = AlertDatabase.loadBundled()
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.bundledAlerts = database.alerts
+                self.bundledSources = database.sources
+                self.alertDatabase = AlertDatabase(alerts: database.alerts,
+                                                   sources: database.sources,
+                                                   generatedAt: database.generatedAt,
+                                                   version: database.datasetVersion)
+                self.rebuildDatabase()
+                // Chưa có tuyến vẫn thấy biển báo/camera quanh mình.
+                self.refreshNearbyAlertsIfNeeded()
+            }
         }
     }
 
     func bootstrap() {
         recents = store.recents()
         favorites = store.favorites()
+        loadBundledIfNeeded()
         location.requestLocation()
         // Chưa có tuyến vẫn thấy biển báo/camera quanh mình trên bản đồ.
         refreshNearbyAlertsIfNeeded()

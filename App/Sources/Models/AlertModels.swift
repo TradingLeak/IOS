@@ -18,6 +18,7 @@ enum AlertKind: String, Codable, CaseIterable, Identifiable, Hashable {
     case schoolZone = "school_zone"
     case checkpoint = "checkpoint"
     case hazard = "hazard"
+    case trafficLight = "traffic_light"
     case other = "other"
 
     var id: String { rawValue }
@@ -35,6 +36,7 @@ enum AlertKind: String, Codable, CaseIterable, Identifiable, Hashable {
         case .schoolZone: return "Khu vực trường học"
         case .checkpoint: return "Kiểm tra tốc độ"
         case .hazard: return "Sự cố / ngập"
+        case .trafficLight: return "Đèn tín hiệu giao thông"
         case .other: return "Cảnh báo khác"
         }
     }
@@ -53,6 +55,7 @@ enum AlertKind: String, Codable, CaseIterable, Identifiable, Hashable {
         case .schoolZone: return "Trường học"
         case .checkpoint: return "Kiểm tra"
         case .hazard: return "Sự cố"
+        case .trafficLight: return "Đèn đỏ"
         case .other: return "Khác"
         }
     }
@@ -70,6 +73,7 @@ enum AlertKind: String, Codable, CaseIterable, Identifiable, Hashable {
         case .schoolZone: return "figure.2.and.child.holdinghands"
         case .checkpoint: return "shield.lefthalf.filled"
         case .hazard: return "exclamationmark.triangle.fill"
+        case .trafficLight: return "trafficlight"
         case .other: return "bell.fill"
         }
     }
@@ -79,7 +83,7 @@ enum AlertKind: String, Codable, CaseIterable, Identifiable, Hashable {
         switch self {
         case .speedSign, .speedZone, .residentialZone: return true
         case .speedCamera, .schoolZone, .checkpoint, .redLightCamera,
-             .surveillanceCamera, .noOvertake, .tollStation, .hazard, .other:
+             .surveillanceCamera, .noOvertake, .tollStation, .hazard, .trafficLight, .other:
             return false
         }
     }
@@ -105,7 +109,8 @@ enum AlertKind: String, Codable, CaseIterable, Identifiable, Hashable {
     /// Nhóm hiển thị trong Cài đặt.
     static let cameraKinds: [AlertKind] = [.speedCamera, .redLightCamera, .surveillanceCamera]
     static let speedKinds: [AlertKind] = [.speedSign, .speedZone, .residentialZone, .noOvertake]
-    static let otherKinds: [AlertKind] = [.tollStation, .schoolZone, .checkpoint, .hazard, .other]
+    static let otherKinds: [AlertKind] = [.tollStation, .schoolZone, .checkpoint, .hazard,
+                                          .trafficLight, .other]
 }
 
 // MARK: - Một cảnh báo cụ thể
