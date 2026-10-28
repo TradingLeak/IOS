@@ -85,10 +85,19 @@ Bạn cũng có thể ghim Xcode: `with: xcode-version: "16.4"`.
 Bình thường với IPA unsigned. Cần ký lại — xem [INSTALL.md](INSTALL.md).
 
 ### Cài xong nhưng app trắng màn hình / crash ngay
+- **Kiểm tra đúng phiên bản trước tiên**: ☰ → **Cài đặt** → *Về ứng dụng* → dòng
+  **Phiên bản**. Bản mới nhất của nhánh này là **3.1.1 (8)**.
+  Release `latest-ipa` là **một** release dùng chung: nếu một nhánh khác (hoặc `main`)
+  build sau, tệp `VietMap-unsigned.ipa` bị ghi đè bởi app của nhánh đó. Gặp bản lạ
+  (ví dụ 1.0.0 (1)) thì tải lại tệp có tên phiên bản:
+  `VietMap-3.1.1-8-unsigned.ipa` trong cùng release.
 - Xem log: Xcode → Devices → *View Device Logs*.
 - Kiểm tra `UIApplicationSceneManifest` / `@main` trong code.
 - App dùng entitlement (push notification, HealthKit, Sign in with Apple, IAP) sẽ
   crash hoặc không hoạt động khi unsigned → cần tài khoản Developer trả phí.
+- **Dữ liệu cảnh báo không hiện** (bản đồ trống, không có biển/camera): mở
+  ☰ → **Cảnh báo**; nếu có dòng *“Không đọc được vn_alerts.json …”* thì bản build
+  thiếu/hỏng tệp dữ liệu — tải lại IPA mới nhất.
 
 ### `The app's Info.plist is missing ...` / `CFBundleIconName`
 Chạy lại build; nếu lỗi vẫn còn, đảm bảo bạn **không** xoá bước

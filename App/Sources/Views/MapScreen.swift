@@ -544,11 +544,14 @@ struct MapScreen: View {
                 Text("Vượt \(Int((model.liveSpeedKmh - Double(limit)).rounded())) km/h")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(AppTheme.danger))
             }
         }
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .floatingCard(cornerRadius: 20)

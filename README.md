@@ -37,6 +37,16 @@ Sideloadly/SideStore với Apple ID miễn phí).
 
 ## ✨ Tính năng
 
+**🆕 3.1.1 — sửa bố cục: nút không còn đè lên nhau**
+
+- Toàn bộ nút trên màn hình bản đồ nằm trong **một luồng bố cục dọc** — bỏ lớp phủ neo
+  tuyệt đối từng đè lên thẻ chỉ dẫn / dải làn / banner cảnh báo trên máy màn hình nhỏ.
+- Cột nút phụ còn **tối đa 4 nút**; AI, mật độ giao thông, kiểu bản đồ, về vị trí gom vào
+  menu **“…”**.
+- Màn hình thấp (< 720 pt): ẩn dải làn và hàng số liệu trùng lặp, giữ nguyên phần quan trọng.
+- Khi dẫn đường, thanh đáy là **thẻ gọn** (còn bao xa / bao lâu / giờ tới / Kết thúc).
+- Nếu tệp dữ liệu hỏng, app **nói rõ lý do** trong mục Cảnh báo thay vì im lặng.
+
 **🆕 3.1 — dữ liệu cảnh báo dày gấp 4: 108.528 điểm**
 
 - Nhập **bộ dữ liệu SpeedMap** của VietHUD (`cameras.bin`, `signs.bin`): **82.608 điểm** biển
