@@ -235,10 +235,44 @@ final class MapViewModel: ObservableObject {
         return pins
     }
 
+    /// Khoảng cách đã đi được trên tuyến đang chọn (mét), `nil` khi chưa có GPS.
+    private var alongRouteMeters: Double? {
+        guard let geometry = routeGeometry, let coordinate = location.coordinate else { return nil }
+        return geometry.projection(of: coordinate)?.along
+    }
+
     /// Cảnh báo được vẽ trên bản đồ: trên tuyến (nếu có) hoặc quanh vị trí hiện tại.
+    ///
+    /// Trên tuyến, khoảng cách của `ActiveAlert` là mốc tuyệt đối dọc đường — phải đổi sang
+    /// **khoảng cách còn lại** thì nhãn “còn 320 m” và màu mức nguy hiểm mới đúng.
     private var alertPinItems: [(alert: RoadAlert, distance: Double?, level: ActiveAlert.Level?)] {
         if !routeAlerts.isEmpty {
-            return routeAlerts.prefix(40).map { ($0.alert, $0.distance, $0.level) }
+            let progress = alongRouteMeters
+            var items: [(alert: RoadAlert, distance: Double?, level: ActiveAlert.Level?)] = routeAlerts.map { alert in
+                guard let progress else { return (alert.alert, nil, nil) }
+                let remaining = alert.distanceAlongRoute - progress
+                let level: ActiveAlert.Level
+                if remaining < -8 {
+                    level = .passed
+                } else if remaining <= alert.warnDistance * 0.45 {
+                    level = .close
+                } else if remaining <= alert.warnDistance {
+                    level = .approaching
+                } else {
+                    level = .far
+                }
+                return (alert.alert, remaining, level)
+            }
+
+            // Bản đồ chỉ nên ghim cảnh báo quanh chỗ đang đứng (đỡ rối, đỡ tốn pin).
+            if progress != nil {
+                let window = items.filter { item in
+                    guard let distance = item.distance else { return true }
+                    return distance >= -600 && distance <= 5_000
+                }
+                if !window.isEmpty { items = window }
+            }
+            return Array(items.prefix(60))
         }
         return nearbyAlertPoints.prefix(40).map { ($0, nil, nil) }
     }
