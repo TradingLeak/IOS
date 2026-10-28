@@ -268,7 +268,7 @@ struct MapContainer: UIViewRepresentable {
             let restyle = annotation.needsRestyle(as: pin)
             annotation.apply(pin)
             if restyle, let view = mapView.view(for: annotation) as? MKMarkerAnnotationView {
-                style(view, with: annotation)
+                context.coordinator.style(view, with: annotation)
             }
         }
         if !toAdd.isEmpty {
