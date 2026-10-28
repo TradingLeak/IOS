@@ -157,3 +157,81 @@ Muốn biết Xcode mới yêu cầu iOS tối thiểu bao nhiêu:
 xcodebuild -showsdks
 xcrun --sdk iphoneos --show-sdk-version
 ```
+
+---
+
+# Phần 2 — Lỗi riêng của app bản đồ (MapKit + AI)
+
+## Bản đồ
+
+### App không hiện vị trí của tôi
+- Lần đầu mở app, iOS sẽ hỏi quyền vị trí → chọn **Cho phép khi dùng ứng dụng**.
+- Nếu đã lỡ từ chối: Cài đặt → **Bản đồ Việt Nam** → Vị trí → *Khi dùng ứng dụng*.
+- `Info.plist` phải có `NSLocationWhenInUseUsageDescription`, nếu thiếu app sẽ không xin
+  được quyền (selfcheck đã kiểm tra khoá này).
+
+### Nhấn vào nút định vị mà bản đồ không di chuyển
+`CLLocationManager` cần vài giây để có GPS đầu tiên (nhất là trong nhà). App hiện toast
+“Đang xác định vị trí…”, đợi rồi bấm lại.
+
+### Không tìm thấy tuyến / "Apple Maps chưa có dữ liệu xe buýt"
+- Dữ liệu Apple Maps ở Việt Nam chưa phủ đủ như Google Maps. Xe buýt/đi bộ ngoài đô thị
+  lớn thường không có tuyến.
+- Thử đổi phương tiện (Ô tô ↔ Đi bộ), hoặc chọn điểm gần hơn.
+- Tuyến qua biển/sông/đảo (Phú Quốc, Côn Đảo) thường không có tuyến đường bộ.
+
+### Tuyến đường vẽ lệch hoặc không hiện
+- Kiểm tra bạn đang zoom quá xa; bấm nút ⤢ (bên phải) để fit toàn tuyến.
+- Nếu bản đồ ở chế độ Vệ tinh, đường vẫn hiển thị nhưng khó nhìn — chuyển về Tiêu chuẩn.
+
+### Nhấn giữ trên bản đồ không đặt được điểm đến
+Cử chỉ cần giữ ~0.4 giây. Nếu đang di chuyển bản đồ, nhả tay rồi thử lại (app cho phép
+nhận diện đồng thời với cử chỉ pan).
+
+## AI
+
+### "Chưa cấu hình AI" / nút gửi câu lệnh báo lỗi
+Đây là trạng thái bình thường khi chưa có API key: app vẫn hiểu các câu cơ bản bằng bộ
+phân tích offline (“từ A đến B”, “đi bộ”, “xe buýt”, “tránh đường đông”, “ghé X”).
+Muốn AI hiểu câu tự nhiên hơn: Cài đặt → dán API key → **Kiểm tra kết nối**.
+
+### HTTP 401 / 403 — API key bị từ chối
+- Key sai, hết hạn, hoặc thuộc tài khoản khác với base URL.
+- Với ckey.vn: key tạo ở trang cá nhân; base URL phải là `https://api.xah.io/v1`.
+- Kiểm tra không có khoảng trắng/dấu xuống dòng khi dán key.
+
+### HTTP 404 — Không tìm thấy endpoint
+- Base URL thường phải có `/v1` (app tự thêm `/chat/completions`).
+- Nếu bạn dán cả URL `.../v1/chat/completions` app cũng chấp nhận.
+- Kiểm tra tên model có đúng trong danh sách của nhà cung cấp không.
+
+### HTTP 429 — Hết hạn mức / gọi quá nhanh
+Đợi ít phút, hoặc kiểm tra số dư tài khoản AI. App tự chuyển sang parser offline để bạn
+vẫn tìm được tuyến.
+
+### AI trả lời lan man, không phải JSON
+App tự gửi lại một lần với yêu cầu “chỉ trả JSON”; nếu vẫn lỗi sẽ dùng parser offline.
+Giảm `temperature` về 0–0.2 trong Cài đặt để model ổn định hơn. Model nhỏ (< 7B) đôi khi
+không theo nổi schema — dùng model lớn hơn.
+
+### AI tìm ra địa danh nhưng sai chỗ
+AI chỉ trả **tên**, còn toạ độ do Apple Maps tra. Nếu tên trùng (ví dụ “Hồ Tây” ở tỉnh
+khác), hãy nói rõ hơn: “Hồ Tây, Hà Nội”.
+
+### Muốn dùng model chạy trên máy (Ollama) trong LAN
+Base URL `http://<ip-máy>:11434/v1`, model `qwen2.5`, API key nhập chuỗi bất kỳ (Ollama
+không kiểm tra). iPhone và máy tính phải cùng Wi-Fi.
+
+## CI / build
+
+### "error: value of optional type 'String?' must be unwrapped"
+Đã gặp với `MKRoute.Step.instructions`/`.notice`: các thuộc tính này là optional trong một
+số phiên bản SDK. Code hiện tại gán qua `String?` để tương thích cả hai.
+
+### Job `unit-tests` đỏ nhưng job `build` xanh
+App vẫn có IPA dùng được; lỗi nằm ở test logic (parser/format/AI client). Xem
+*Annotations* của job để biết test nào fail.
+
+### Muốn bỏ test cho nhanh
+`Run workflow` → tắt `run_tests`, hoặc push với commit chỉ sửa docs (workflow vẫn chạy
+nhưng bạn có thể cancel job test).
