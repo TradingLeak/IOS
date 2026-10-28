@@ -113,7 +113,10 @@ struct IncidentReport: Identifiable, Codable, Hashable {
         self.latitude = coordinate.latitude
         self.longitude = coordinate.longitude
         self.createdAt = createdAt
-        self.note = note
+
+        // Ghi chú sạch: bỏ khoảng trắng thừa, rỗng thì coi như không có.
+        let cleaned = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.note = (cleaned?.isEmpty ?? true) ? nil : cleaned
     }
 
     var coordinate: CLLocationCoordinate2D {
