@@ -2,7 +2,7 @@
 # (chỉ dùng trên macOS có Xcode + xcodegen)
 
 SHELL := /bin/bash
-SCHEME ?= HelloIPA
+SCHEME ?= VietMap
 OUTPUT ?= dist
 
 .PHONY: help setup project open ipa ipa-verbose device clean distclean lint test
@@ -14,7 +14,7 @@ help: ## Hiện danh sách lệnh
 setup: ## Cài đặt môi trường macOS (Xcode check + xcodegen)
 	./scripts/setup-macos.sh
 
-project: ## Sinh HelloIPA.xcodeproj từ project.yml
+project: ## Sinh VietMap.xcodeproj từ project.yml
 	xcodegen generate
 
 open: project ## Mở project trong Xcode (không cần đăng nhập Apple ID)

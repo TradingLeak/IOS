@@ -1,166 +1,158 @@
-# 📦 iOS → IPA không cần tài khoản Apple
+# 🗺️ Bản đồ & Chỉ đường Việt Nam (iOS) — MapKit + AI tuỳ chỉnh
 
 [![Build unsigned IPA](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml/badge.svg)](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml)
 
-Template dựng sẵn để **build file `.ipa` mà không cần Apple Developer Program (99$/năm)**,
-thậm chí **không cần Apple ID** — bằng cách tạo **IPA unsigned** (không ký) trên
-**GitHub Actions** (không cần máy Mac) hoặc trên **Mac local**.
+App chỉ đường cho Việt Nam, giao diện kiểu **OsmAnd / Organic Maps** (card nổi, tìm kiếm
+nhanh, bottom sheet), dùng **Apple Maps (MapKit)** để vẽ bản đồ và tính tuyến, tích hợp
+**AI model tuỳ chỉnh** (mặc định **ckey.vn**, chuẩn OpenAI) để hiểu câu lệnh tiếng Việt.
 
-Repo có sẵn một app SwiftUI mẫu (`HelloIPA`) hiển thị thông tin build, kèm script
-đóng gói IPA, workflow CI và hướng dẫn cài lên iPhone.
-
-```
-App/ (SwiftUI) ──xcodebuild archive──▶ Payload/HelloIPA.app ──zip──▶ HelloIPA-1.0.0-1-unsigned.ipa
-  project.yml      CODE_SIGNING_ALLOWED=NO                          dist/ + <file>.sha256
-```
-
----
-
-## ⚡ Tải IPA ngay (không cần Mac, không cần đăng nhập)
-
-**Link tải cố định — luôn là bản build mới nhất:**
+Build ra **file IPA unsigned trên GitHub Actions** — không cần máy Mac, không cần tài khoản
+Apple Developer.
 
 ```
-https://github.com/TradingLeak/IOS/releases/download/latest-ipa/HelloIPA-unsigned.ipa
+┌──────────────┐   MKLocalSearch    ┌──────────────┐   MKDirections   ┌──────────────┐
+│  Câu tiếng   │ ─────────────────► │  Ý định JSON │ ───────────────► │  Tuyến thật  │
+│  Việt tự     │   AI (tuỳ chỉnh)   │  điểm đi/đến │   Apple Maps     │  + turn-by-  │
+│  nhiên       │   ckey.vn / khác   │  + waypoint  │                  │  turn        │
+└──────────────┘                    └──────────────┘                  └──────────────┘
 ```
 
-Mở trang **[Releases](https://github.com/TradingLeak/IOS/releases/tag/latest-ipa)** để tải
-bằng trình duyệt (kèm file `.sha256`). Mỗi lần code thay đổi, GitHub Actions build lại và
-cập nhật đúng link này — bạn không phải làm gì cả.
+## 📥 Tải IPA
 
-Muốn build theo ý mình (đổi bundle ID, tên app, số build):
+**[https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa](https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa)**
 
-1. Vào tab **Actions** → workflow **Build unsigned IPA** → **Run workflow**.
-2. Điền `bundle_id`, `display_name` nếu cần → **Run**.
-3. ~5–10 phút sau, tải ở **Artifacts** (`unsigned-ipa-<số>`) hoặc ở **Releases**.
+Link cố định, cập nhật mỗi lần build. Hoặc vào tab **Actions** → *Build unsigned IPA* →
+**Run workflow** để tự build với bundle ID / model AI riêng.
 
-Workflow tự chạy khi push lên bất kỳ branch nào và khi có pull request.
-Push tag `v1.0.0` sẽ tạo thêm Release riêng cho phiên bản đó.
+Cài lên iPhone: xem **[docs/INSTALL.md](docs/INSTALL.md)** (TrollStore nếu iOS ≤ 17.0, hoặc
+Sideloadly/SideStore với Apple ID miễn phí).
 
-> ✅ Repo này đang **public** → Actions không tốn phí, không giới hạn số phút.
+## ✨ Tính năng
 
-### Bản build đã được kiểm chứng tự động
+**Bản đồ (Apple Maps / MapKit — miễn phí, không cần API key)**
+- Bản đồ toàn Việt Nam, 12 thành phố preset (Hà Nội, TP.HCM, Đà Nẵng, Đà Lạt, Phú Quốc…).
+- Tìm địa điểm/địa chỉ với gợi ý trực tiếp (MKLocalSearchCompleter), thiên vị khu vực VN.
+- 14 chip danh mục quanh đây: ăn uống, cà phê, xăng, khách sạn, bệnh viện, ATM, biển…
+- Nhấn giữ trên bản đồ → chọn điểm đến tại chỗ (tự reverse-geocode ra địa chỉ).
+- 4 kiểu bản đồ (tiêu chuẩn / vệ tinh lai / vệ tinh / tối giản), lớp giao thông, POI.
 
-Mỗi lần build, workflow tự giải nén IPA và kiểm tra (fail nếu sai):
+**Chỉ đường**
+- Ô tô / đi bộ / xe buýt, nhiều phương án tuyến để chọn, đường vẽ 2 lớp (viền + màu).
+- Danh sách chỉ dẫn từng bước có icon rẽ trái/phải/vòng xuyến/cao tốc/đến nơi.
+- Điểm dừng giữa đường (ghép nhiều chặng `MKDirections` thành một tuyến duy nhất).
+- Chế độ điều hướng: banner bước kế tiếp, tự chuyển bước khi bạn tới gần (GPS).
+- Lưu lịch sử tìm kiếm và địa điểm yêu thích (UserDefaults + JSON).
 
-| Hạng mục | Giá trị của bản mới nhất |
+**AI (model và base URL tuỳ chỉnh)**
+- Gõ/speak câu tự nhiên: *“đi từ Cầu Giấy đến Hồ Tây, tránh đường đông”* → app tìm địa
+  điểm thật, tính tuyến thật và tóm tắt lộ trình bằng tiếng Việt.
+- Chuẩn **OpenAI `/chat/completions`**: ckey.vn, OpenAI, Groq, OpenRouter, Ollama (LAN)…
+  đổi nhà cung cấp chỉ bằng base URL + model.
+- **Không có key vẫn dùng được**: có bộ phân tích tiếng Việt offline cho câu cơ bản.
+- Key lưu trong **Keychain**, không nằm trong repo, không ghi log.
+
+## ⚙️ Cấu hình AI
+
+Mặc định app trỏ tới **ckey.vn**:
+
+| Trường | Giá trị |
 |---|---|
-| Binary | `arm64` · platform `IOS` → bản cho máy thật, không phải Simulator |
-| iOS tối thiểu | 15.0 |
-| Bundle ID | `com.tradingleak.helloipa` |
-| Phiên bản | 1.0.0 (1) |
-| Kích thước | ~3.0 MB |
-| Dấu chữ ký còn lại | 0 (đúng: unsigned) |
+| Base URL | `https://api.xah.io/v1` |
+| Model | `gpt-4o-mini` (đổi được) |
+| Endpoint | `POST https://api.xah.io/v1/chat/completions` |
+| Auth | `Authorization: Bearer <API key>` |
 
-Kết quả kiểm tra hiện ngay trên trang run (mục **Annotations**) và trong nội dung Release.
+Ba cách cấu hình:
 
-### Cài file IPA lên iPhone
+**1. Trong app (khuyến nghị)**
+Mở app → menu ☰ → **Cài đặt AI & bản đồ** → dán API key → bấm **Kiểm tra kết nối**.
+Key lưu trong Keychain của máy, không ai khác đọc được.
 
-IPA này **chưa ký** (unsigned) nên cần một bước ký khi cài — xem
-**[docs/INSTALL.md](docs/INSTALL.md)**. Tóm tắt:
+**2. GitHub Secrets (nhúng sẵn vào bản build)**
+Repo → **Settings → Secrets and variables → Actions**:
 
-| iOS của bạn | Cách cài |
+| Loại | Tên | Ý nghĩa |
+|---|---|---|
+| Secret | `AI_API_KEY` | API key (KHÔNG commit vào code) |
+| Variable | `AI_BASE_URL` | vd `https://api.xah.io/v1` |
+| Variable | `AI_MODEL` | vd `gpt-4o-mini` |
+
+Build tự đọc và nhúng vào `Info.plist`. ⚠️ Repo public thì key nhúng sẽ nằm trong file IPA
+phát hành — ai tải cũng trích ra được. Chỉ dùng cách này cho bản build cá nhân, hoặc chỉ
+nhúng base URL/model rồi nhập key trong app.
+
+**3. Khi bấm Run workflow**
+Điền `ai_base_url`, `ai_model` cho từng lần build (key vẫn lấy từ secret).
+
+Chi tiết kỹ thuật, prompt, schema JSON: **[docs/AI.md](docs/AI.md)**.
+
+## 🧱 Cấu trúc mã nguồn
+
+```
+App/
+├── Info.plist                     # quyền vị trí + placeholder cấu hình AI
+├── Resources/Assets.xcassets      # AppIcon 1024×1024, màu nhấn, nền launch
+├── Sources/
+│   ├── App/VietMapApp.swift       # entry point
+│   ├── Design/                    # Theme (màu, card, gradient) + Components (nút, chip, field)
+│   ├── Models/                    # Place, RouteOption, TravelMode, MapPin, Format… 
+│   ├── Services/
+│   │   ├── AIClient.swift         # gọi {base_url}/chat/completions, parse phản hồi
+│   │   ├── AIRoutePlanner.swift   # prompt → JSON ý định → địa điểm thật → tóm tắt
+│   │   ├── RouteIntentParser.swift# parser tiếng Việt offline (dự phòng khi không có key)
+│   │   ├── SearchService.swift    # MKLocalSearchCompleter + MKLocalSearch + reverse geocode
+│   │   ├── DirectionsService.swift# MKDirections, ghép chặng, đổi sang model của app
+│   │   ├── LocationService.swift  # CLLocationManager, quyền, cập nhật vị trí
+│   │   ├── AppSettings.swift      # base URL/model/temperature + AIConfig
+│   │   ├── KeychainStore.swift    # lưu API key an toàn
+│   │   └── PlacesStore.swift      # lịch sử + yêu thích
+│   ├── ViewModels/MapViewModel.swift  # trạng thái trung tâm (tuyến, AI, bản đồ)
+│   └── Views/                     # MapScreen, MapContainer (MKMapView), RouteSheet,
+│                                  # SearchSheet, AIAssistantSheet, SettingsView…
+└── Tests/                         # unit test parser, AI client, format, lưu trữ
+```
+
+## 🚀 Build
+
+**Trên GitHub (không cần Mac):** push code → workflow tự chạy 3 job: `lint` (ubuntu),
+`unit-tests` (macOS Simulator), `build` (macOS → IPA + Release). Hoặc bấm **Run workflow**.
+
+**Trên máy Mac:**
+
+```bash
+brew install xcodegen
+./scripts/setup-macos.sh          # kiểm tra Xcode + sinh VietMap.xcodeproj
+./scripts/make-ipa.sh             # → dist/VietMap-1.0.0-1-unsigned.ipa
+AI_BASE_URL=https://api.xah.io/v1 AI_MODEL=gpt-4o-mini ./scripts/make-ipa.sh
+```
+
+**Kiểm tra không cần Xcode:**
+
+```bash
+./scripts/selfcheck.sh   # shell, plist, icon, cân bằng ngoặc Swift, YAML, tài liệu
+./scripts/test-pack.sh   # tạo app giả → đóng gói IPA → verify cấu trúc
+```
+
+## ✅ Kiểm chứng tự động trên mỗi build
+
+Workflow giải nén IPA và **fail nếu sai**: binary phải có `arm64`, platform `IOS`
+(không phải Simulator), `Info.plist` đủ khoá, không còn dấu chữ ký.
+Unit test chạy trên Simulator cho parser, AI client, format, lưu trữ.
+
+## 📚 Tài liệu
+
+| File | Nội dung |
 |---|---|
-| 14.0 → 16.6.1, 16.7 RC, 17.0 | **TrollStore** — cài vĩnh viễn, không cần Apple ID |
-| 17.0.1 trở lên | **Sideloadly / SideStore** — Apple ID miễn phí, chứng chỉ 7 ngày |
+| [docs/AI.md](docs/AI.md) | Tích hợp AI: schema JSON, prompt, đổi model/nhà cung cấp, xử lý lỗi |
+| [docs/BUILD.md](docs/BUILD.md) | Cơ chế build IPA unsigned, tuỳ biến project, thêm package |
+| [docs/INSTALL.md](docs/INSTALL.md) | Cài IPA lên iPhone: TrollStore, Sideloadly, SideStore… |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Lỗi thường gặp (build, MapKit, AI) |
 
-## 💻 Build trên máy Mac (không cần đăng nhập Apple ID)
+## ⚖️ Lưu ý
 
-```bash
-brew install xcodegen           # chỉ cần 1 lần
-./scripts/setup-macos.sh        # kiểm tra Xcode + sinh HelloIPA.xcodeproj
-./scripts/make-ipa.sh           # → dist/HelloIPA-1.0.0-1-unsigned.ipa
-```
-
-Hoặc dùng `make`:
-
-```bash
-make setup     # kiểm tra môi trường
-make ipa       # build IPA
-make open      # mở Xcode (không cần Apple ID để build simulator/archive)
-make test      # test khâu đóng gói IPA (không cần Xcode)
-```
-
-Tuỳ chọn hữu ích của `make-ipa.sh`:
-
-```bash
-./scripts/make-ipa.sh --bundle-id com.congty.myapp --build-number 42
-./scripts/make-ipa.sh -p MyApp.xcworkspace -s MyApp -o ~/Desktop
-./scripts/make-ipa.sh --verbose      # in full log xcodebuild
-```
-
----
-
-## 🧪 Kiểm thử
-
-Toàn bộ khâu đóng gói được test tự động, **không cần Mac**:
-
-```bash
-./scripts/selfcheck.sh    # shell, Info.plist, icon 1024x1024 không alpha, YAML, tài liệu
-./scripts/test-pack.sh    # tạo app bundle giả → đóng gói → kiểm tra lại IPA bằng python3
-```
-
-CI cũng chạy hai bước này ở job `lint` trên `ubuntu-latest` trước khi build.
-
-## 📁 Cấu trúc repo
-
-| Đường dẫn | Mô tả |
-|---|---|
-| `project.yml` | Định nghĩa project cho [XcodeGen](https://github.com/yonaskolb/XcodeGen) — **nguồn sự thật duy nhất**, không commit `.xcodeproj` để tránh conflict |
-| `App/Info.plist` | Info.plist (có `CFBundleDisplayName`, ngày build, git commit) |
-| `App/Sources/` | Code SwiftUI mẫu: `HelloIPAApp.swift`, `ContentView.swift`, `BuildInfo.swift` |
-| `App/Resources/Assets.xcassets` | AppIcon 1024×1024 (bắt buộc để archive thành công), AccentColor, LaunchBackground |
-| `scripts/make-ipa.sh` | Script chính (macOS): `xcodebuild archive` không ký → gọi `pack-ipa.sh` |
-| `scripts/pack-ipa.sh` | Đóng gói `.app` → `.ipa` (chạy được cả trên **Linux**, không cần Xcode) |
-| `scripts/test-pack.sh` | Test tự động khâu đóng gói bằng một app bundle giả — chạy trong CI |
-| `scripts/setup-macos.sh` | Cài đặt môi trường macOS (Xcode, xcodegen) |
-| `scripts/selfcheck.sh` | Kiểm tra repo không cần macOS (shell, plist, icon, YAML) — chạy ở job `lint` trên CI |
-| `Makefile` | Lệnh tắt: `make setup`, `make ipa`, `make test`, `make lint` |
-| `.github/workflows/build-unsigned-ipa.yml` | CI build IPA trên `macos-15`: artifact + Release `latest-ipa` (link tải cố định) + Release theo tag `v*` |
-| `docs/BUILD.md` | Giải thích cơ chế, đổi bundle ID / tên app / icon, thêm Swift Package |
-| `docs/INSTALL.md` | Cài IPA lên iPhone: TrollStore, Sideloadly, AltStore, SideStore, ESign… |
-| `docs/TROUBLESHOOTING.md` | Lỗi thường gặp và cách sửa |
-
----
-
-## 🔑 Điều quan trọng cần hiểu
-
-**Build** IPA không cần tài khoản Apple — điều này đúng và hợp pháp, hoàn toàn dùng
-toolchain miễn phí của Apple.
-
-**Cài** lên iPhone thì khác: iOS chỉ chạy app có chữ ký hợp lệ. Vì vậy IPA unsigned
-cần được **ký lại** ở một trong các dạng:
-
-| Cách | Cần Apple ID? | Cần trả phí? | Ghi chú |
-|---|---|---|---|
-| **TrollStore** | ❌ Không | Không | Chỉ iOS 14.0 beta 2 → 16.6.1, 16.7 RC, **17.0**. Cài vĩnh viễn |
-| **Sideloadly / AltStore / SideStore / ESign** | ✅ Apple ID **miễn phí** | Không | Chứng chỉ 7 ngày, tối đa 3 app, phải refresh định kỳ |
-| **Apple Developer Program** | ✅ | 99$/năm | Chứng chỉ 1 năm, TestFlight, App Store |
-| **Jailbreak + AppSync Unified** | ❌ | Không | Chạy app không ký trực tiếp |
-
-→ Chi tiết từng bước trong [docs/INSTALL.md](docs/INSTALL.md).
-
-Nói ngắn: **repo này lo phần build (0 đồng, 0 tài khoản)**. Phần ký để cài lên máy
-bạn dùng Apple ID miễn phí (nếu iOS ≥ 17.0.1) hoặc TrollStore (nếu iOS đủ cũ).
-
----
-
-## 🧩 Dùng cho app của bạn
-
-1. Thay `App/Sources/*.swift` bằng code app của bạn (giữ `@main` App entry).
-2. Sửa `project.yml`: `PRODUCT_BUNDLE_IDENTIFIER`, `bundleIdPrefix`, tên target.
-3. Nếu app cần quyền: thêm key vào `App/Info.plist` (Camera, Photo, Location…).
-4. Nếu app có CocoaPods: chạy `pod install` rồi build bằng `-p App.xcworkspace`
-   và thêm bước `pod install` vào workflow. Nếu dùng SPM: khai báo trong `project.yml`.
-5. Build lại: `make ipa` hoặc chạy workflow trên GitHub.
-
-Xem [docs/BUILD.md](docs/BUILD.md) để biết chi tiết từng mục.
-
-## 🧾 Ghi chú pháp lý
-
-- Không có phần mềm Apple bị chỉnh sửa hay vá lậu nào trong repo này; chỉ dùng
-  `xcodebuild` chính thức với cờ tắt ký.
-- App cài bằng chứng chỉ miễn phí **chỉ dùng cho máy của bạn / mục đích thử nghiệm**.
-  Phân phối cho người khác cần Apple Developer Program hoặc hình thức phù hợp.
-- TrollStore dựa trên lỗ hổng CoreTrust đã bị Apple vá từ iOS 17.0.1; đừng tin các
-  video "TrollStore cho iOS 18/26".
+- Bản đồ và tuyến đường do **Apple Maps** cung cấp; dữ liệu giao thông Việt Nam có thể
+  chưa đầy đủ như Google Maps/Goong — app nêu rõ khi không tìm được tuyến.
+- Ứng dụng gửi **câu lệnh dạng văn bản** (không phải vị trí) tới máy chủ AI bạn cấu hình,
+  chỉ khi bạn dùng tính năng trợ lý. Không có key → không có dữ liệu nào rời khỏi máy.
+- IPA phát hành **không có chữ ký Apple**; cài đặt cần TrollStore hoặc ký lại bằng Apple ID
+  miễn phí. Chi tiết trong docs/INSTALL.md.

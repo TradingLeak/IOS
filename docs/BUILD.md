@@ -1,4 +1,4 @@
-# 🛠 Cơ chế build & tuỳ biến
+# 🛠 Build & tuỳ biến
 
 ## 1. Vì sao không cần tài khoản Apple vẫn build được?
 
@@ -12,101 +12,92 @@ DEVELOPMENT_TEAM=""
 PROVISIONING_PROFILE_SPECIFIER=""
 ```
 
-thì Xcode biên dịch, liên kết và đóng gói `.app` mà **không** hỏi Apple ID, không cần
-team, không cần provisioning profile. Kết quả là file `.app`/`.ipa` chạy được trên
-máy ảo (Simulator) và **có thể cài lên máy thật nếu được ký lại sau đó**.
+Xcode biên dịch, liên kết và đóng gói `.app` mà **không** hỏi Apple ID, không cần team,
+không cần provisioning profile. Kết quả là `.ipa` chạy được trên Simulator và
+**cài được lên máy thật nếu được ký lại** (TrollStore / Sideloadly / SideStore).
 
-Điều duy nhất bạn mất so với bản có ký:
+Các cờ trên đã đặt ở 2 nơi: `project.yml` (áp dụng cả khi mở Xcode GUI) và
+`scripts/make-ipa.sh` (truyền thẳng vào `xcodebuild archive`).
 
-- Không có `_CodeSignature/`, không có `embedded.mobileprovision`.
-- iOS từ chối chạy trực tiếp → cần TrollStore, sideload tool, hoặc jailbreak.
-
-Các cờ trên đã được đặt ở 2 nơi để bạn không phải nhớ:
-
-- `project.yml` → `settings.base` (áp dụng cả khi mở Xcode bằng GUI).
-- `scripts/make-ipa.sh` → truyền thẳng vào `xcodebuild archive`.
-
-## 1b. Hai giai đoạn: build (macOS) và đóng gói (mọi hệ điều hành)
+## 2. Hai giai đoạn: build (macOS) và đóng gói (mọi hệ điều hành)
 
 | Giai đoạn | Script | Cần gì |
 |---|---|---|
 | Build `.app` không ký | `scripts/make-ipa.sh` | macOS + Xcode |
 | Đóng gói `.app` → `.ipa` | `scripts/pack-ipa.sh` | chỉ cần `zip` + `python3`/PlistBuddy |
 
-Nhờ tách như vậy, bạn có thể:
+Nhờ tách như vậy, bạn có thể đóng gói một `.app` có sẵn ngay trên Linux:
 
-- Đóng gói một `.app` có sẵn (do người khác build, tải từ CI, hoặc giải nén từ
-  `.xcarchive`) ngay trên Linux:
+```bash
+./scripts/pack-ipa.sh /đường/dẫn/Payload/VietMap.app --output dist
+```
 
-  ```bash
-  ./scripts/pack-ipa.sh /đường/dẫn/Payload/MyApp.app --output dist
-  ```
+## 3. XcodeGen: `project.yml` là nguồn sự thật
 
-- Sửa nhanh metadata mà không build lại:
-
-  ```bash
-  ./scripts/pack-ipa.sh MyApp.app --bundle-id com.moi.app --display-name "Tên mới"
-  ```
-- Test logic đóng gói bằng `./scripts/test-pack.sh` — không cần Mac, chạy được trong CI.
-
-## 2. XcodeGen: `project.yml` là nguồn sự thật
-
-File `.xcodeproj` là JSON-ish PBXProj rất dễ conflict khi làm việc nhóm, nên repo
-**không commit** nó (xem `.gitignore`). Thay vào đó `project.yml` mô tả target, và
-`xcodegen generate` sinh ra project.
+`.xcodeproj` không được commit (dễ conflict). `project.yml` mô tả target, và:
 
 ```bash
 brew install xcodegen
-xcodegen generate      # tạo HelloIPA.xcodeproj
+xcodegen generate      # tạo VietMap.xcodeproj
 ```
 
-Thêm file mới: chỉ cần tạo trong `App/Sources/` rồi chạy `xcodegen generate` lại —
-XcodeGen quét cả thư mục nên không phải thêm thủ công.
+Hai target:
 
-Nếu bạn **muốn** commit `.xcodeproj` (ví dụ đồng nghiệp không cài xcodegen), hãy xoá
-dòng `*.xcodeproj/` trong `.gitignore` và commit thư mục đó.
+| Target | Loại | Ghi chú |
+|---|---|---|
+| `VietMap` | application | app chính, `PRODUCT_BUNDLE_IDENTIFIER = com.tradingleak.vietmap` |
+| `VietMapTests` | bundle.unit-test | test với `TEST_HOST` trỏ vào app |
 
-## 3. Đổi tên app, bundle ID, phiên bản
+Thêm file Swift mới vào `App/Sources/` rồi chạy lại `xcodegen generate` là xong.
+Bài test đặt trong `App/Tests/`.
 
-Ba cách, chọn một:
+## 4. Đổi tên app / bundle ID / phiên bản
 
-**a) Trong `project.yml`** (khuyến nghị, áp dụng cho mọi lần build)
+**a) Trong `project.yml`** (áp dụng mọi lần build)
 
 ```yaml
-targets:
-  HelloIPA:
-    settings:
-      base:
-        PRODUCT_NAME: MyApp
-        PRODUCT_BUNDLE_IDENTIFIER: com.congty.myapp
+settings:
+  base:
+    PRODUCT_NAME: VietMap
+    PRODUCT_BUNDLE_IDENTIFIER: com.congty.myapp
 ```
 
-Tên hiển thị trên màn hình chính nằm ở `App/Info.plist` → `CFBundleDisplayName`.
-Phiên bản nằm ở `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`.
+Tên hiển thị: `App/Info.plist` → `CFBundleDisplayName`. Phiên bản: `MARKETING_VERSION`,
+`CURRENT_PROJECT_VERSION`.
 
-**b) Qua dòng lệnh** — ghi đè sau khi build, tiện cho CI:
+**b) Qua dòng lệnh**
 
 ```bash
-./scripts/make-ipa.sh --bundle-id com.congty.myapp --display-name "My App" \
+./scripts/make-ipa.sh --bundle-id com.congty.myapp --display-name "Bản đồ của tôi" \
                       --short-version 1.2.0 --build-number 87
 ```
 
-**c) Trong GitHub Actions** — `Run workflow` có sẵn ô nhập *scheme*, *bundle_id*,
-*display_name*, hoặc set biến môi trường `BUNDLE_ID` trong workflow.
+**c) Trong GitHub Actions** — `Run workflow` có ô nhập `scheme`, `bundle_id`, `display_name`.
 
-> Lưu ý: bundle ID khác nhau = app khác nhau trên máy. Nếu bạn cài đè lên bản cũ,
-> giữ nguyên bundle ID.
+## 5. Cấu hình AI lúc build
 
-## 4. Icon & splash
+`App/Info.plist` có 3 placeholder: `$(AI_BASE_URL)`, `$(AI_MODEL)`, `$(AI_API_KEY)`.
 
-- Icon: `App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png`
-  — **bắt buộc 1024×1024, không alpha, không góc bo** (iOS tự bo). Thiếu icon thì
-  archive sẽ fail hoặc bị App Store/TestFlight từ chối.
-- Màu nhấn: `AccentColor.colorset`.
-- Màn hình chờ: `UILaunchScreen` trong `App/Info.plist` dùng
-  `LaunchBackground.colorset`.
+```bash
+AI_BASE_URL=https://api.xah.io/v1 AI_MODEL=gpt-4o-mini ./scripts/make-ipa.sh
+```
 
-Thay icon bằng ảnh của bạn:
+Trong CI, lấy từ repo settings:
+
+| Loại | Tên | Dùng cho |
+|---|---|---|
+| Variable | `AI_BASE_URL` | base URL mặc định |
+| Variable | `AI_MODEL` | model mặc định |
+| Secret | `AI_API_KEY` | key (cảnh báo: nhúng vào IPA là không an toàn với repo public) |
+
+Không cấu hình gì thì app dùng mặc định ckey.vn + `gpt-4o-mini` và người dùng tự nhập
+key trong **Cài đặt** (lưu Keychain).
+
+## 6. Icon & splash
+
+- Icon: `App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` — **1024×1024,
+  không alpha, không góc bo** (iOS tự bo). Thiếu icon → archive fail.
+- Màu nhấn: `AccentColor.colorset`; nền launch: `LaunchBackground.colorset`.
 
 ```bash
 convert my-icon.png -resize 1024x1024^ -gravity center -extent 1024x1024 \
@@ -114,28 +105,23 @@ convert my-icon.png -resize 1024x1024^ -gravity center -extent 1024x1024 \
         App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 ```
 
-## 5. Quyền truy cập (camera, ảnh, vị trí, thông báo…)
+## 7. Quyền truy cập
 
-Thêm key tương ứng trong `App/Info.plist`:
+App đã khai báo `NSLocationWhenInUseUsageDescription` (bắt buộc cho bản đồ). Nếu thêm
+tính năng khác, thêm key tương ứng trong `App/Info.plist`:
 
-| Tính năng | Key bắt buộc |
+| Tính năng | Key |
 |---|---|
 | Camera | `NSCameraUsageDescription` |
-| Thư viện ảnh (đọc) | `NSPhotoLibraryUsageDescription` |
-| Lưu ảnh | `NSPhotoLibraryAddUsageDescription` |
-| Vị trí | `NSLocationWhenInUseUsageDescription` |
+| Thư viện ảnh | `NSPhotoLibraryUsageDescription` |
 | Micro | `NSMicrophoneUsageDescription` |
-| Bluetooth | `NSBluetoothAlwaysUsageDescription` |
-| Local network | `NSLocalNetworkUsageDescription` |
+| Thông báo đẩy | Cần entitlements → **không dùng được** với IPA unsigned |
 
-Thông báo đẩy / Sign in with Apple / HealthKit / IAP cần **entitlements + chữ ký**,
-nên chúng **không hoạt động** với IPA unsigned — cần Apple Developer Program.
-
-## 6. Thêm Swift Package
+## 8. Thêm Swift Package
 
 ```yaml
 targets:
-  HelloIPA:
+  VietMap:
     packages:
       Alamofire:
         url: https://github.com/Alamofire/Alamofire
@@ -144,49 +130,30 @@ targets:
       - package: Alamofire
 ```
 
-Sau đó `xcodegen generate` lại. Lần build đầu sẽ resolve package (cần mạng).
+Build đầu tiên sẽ resolve package (cần mạng). CI đã bật `-skipPackagePluginValidation`.
 
-## 7. Thêm CocoaPods
-
-```bash
-# thêm Podfile như bình thường, rồi:
-pod install
-./scripts/make-ipa.sh -p HelloIPA.xcworkspace -s HelloIPA
-```
-
-Trong CI, thêm bước `pod install` trước bước build và đổi scheme/`-p` tương ứng.
-Nhớ bỏ `*.xcworkspace/` khỏi `.gitignore` nếu muốn commit workspace (không khuyến khích —
-hãy để CI chạy `pod install`).
-
-## 8. Ký app sau khi có IPA (tuỳ chọn, cần Mac + Apple ID)
+## 9. Chạy test
 
 ```bash
-# cách chuẩn của Apple (dùng chứng chỉ + profile đã có trong máy)
-codesign -f -s "Apple Development: ban@email.com (XXXXXXXXXX)" \
-         --entitlements App/entitlements.plist Payload/HelloIPA.app
+# trên Mac
+xcodebuild test -project VietMap.xcodeproj -scheme VietMap \
+  -destination 'platform=iOS Simulator,name=iPhone 16'
+
+# không cần Mac
+./scripts/selfcheck.sh    # kiểm tra shell/plist/icon/cân bằng ngoặc Swift
+./scripts/test-pack.sh    # đóng gói IPA giả + verify
 ```
 
-Hoặc dùng các app có GUI: Sideloadly, ESign, Feather, AltStore — chúng nhận file
-`.ipa` unsigned và ký lại bằng Apple ID.
+CI chạy test trên Simulator ở job `unit-tests` (bỏ qua khi chọn `run_tests: false`).
 
-## 9. Build trên CI khác
+## 10. Deploy lên máy thật
 
-- **Self-hosted Mac runner**: giữ nguyên workflow, đổi `runs-on: self-hosted`, bỏ
-  bước `setup-xcode`.
-- **Bitrise/Codemagic**: chạy `scripts/make-ipa.sh` là đủ — script không phụ thuộc
-  dịch vụ CI nào.
-- **Máy Windows/Linux**: không build iOS native được. Cách hợp lý nhất là CI
-  (workflow này), hoặc dùng Flutter/React Native cloud build — vẫn cần runner macOS
-  phía sau.
-
-## 10. Chạy thử app mà không cần ký
-
-Bạn không cần iPhone để xem app: build cho Simulator.
+Simulator không cần ký, nên phát triển UI nhanh nhất là chạy Simulator. Với máy thật:
 
 ```bash
-xcodebuild -project HelloIPA.xcodeproj -scheme HelloIPA \
-           -sdk iphonesimulator -configuration Debug build
-open HelloIPA.xcodeproj    # rồi Cmd+R, chọn Simulator
+xcodebuild -project VietMap.xcodeproj -scheme VietMap \
+  -destination 'generic/platform=iOS' build
 ```
 
-Simulator không kiểm tra chữ ký, nên đây là cách nhanh nhất để phát triển UI.
+rồi cài qua Xcode (cần Apple ID miễn phí trong Xcode → Settings → Accounts), hoặc dùng
+IPA + Sideloadly như hướng dẫn trong [INSTALL.md](INSTALL.md).

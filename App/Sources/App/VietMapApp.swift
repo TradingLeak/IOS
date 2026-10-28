@@ -1,10 +1,10 @@
 import SwiftUI
 
 @main
-struct HelloIPAApp: App {
+struct VietMapApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MapScreen()
         }
     }
 }
