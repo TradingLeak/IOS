@@ -387,6 +387,15 @@ struct NearbyCategory: Identifiable, Hashable {
         NearbyCategory(id: "airport", title: "Sân bay", symbol: "airplane",
                        category: .airport, query: "sân bay")
     ]
+
+    /// Truy cập nhanh theo mã — dùng khi lập kế hoạch điểm dừng dọc tuyến.
+    static func named(_ id: String) -> NearbyCategory? {
+        all.first { $0.id == id }
+    }
+
+    static var fuel: NearbyCategory { named("fuel") ?? all[0] }
+    static var cafe: NearbyCategory { named("cafe") ?? all[0] }
+    static var food: NearbyCategory { named("food") ?? all[0] }
 }
 
 // MARK: - Thông tin app
