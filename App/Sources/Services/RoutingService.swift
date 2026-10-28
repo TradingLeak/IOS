@@ -68,11 +68,18 @@ struct RoutingService {
     static func adjustForMotorcycle(_ routes: [RouteOption]) -> [RouteOption] {
         guard !routes.isEmpty else { return [] }
 
+        // Chỉ hiệu chỉnh tuyến được yêu cầu cho xe máy; tuyến ô tô/đi bộ giữ nguyên.
+        guard routes.contains(where: { $0.mode == .motorcycle }) else { return routes }
+
         let shares = routes.map { RouteScorer.expresswayShare($0) }
         let bestShare = shares.min() ?? 0
         var output: [RouteOption] = []
 
         for (index, route) in routes.enumerated() {
+            guard route.mode == .motorcycle else {
+                output.append(route)
+                continue
+            }
             var adjusted = route
             let share = shares[index]
 
@@ -98,7 +105,9 @@ struct RoutingService {
         }
 
         if output.isEmpty { output = routes }
-        return output
+        // Giữ nguyên thứ tự ban đầu để bảng so sánh không bị đảo.
+        let order = Dictionary(uniqueKeysWithValues: routes.enumerated().map { ($1.id, $0) })
+        return output.sorted { (order[$0.id] ?? 0) < (order[$1.id] ?? 0) }
     }
 
     /// VietMap có thể trả tuyến 0 mét hoặc trùng nhau — bỏ đi.
