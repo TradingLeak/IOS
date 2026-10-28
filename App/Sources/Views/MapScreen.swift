@@ -27,6 +27,7 @@ struct MapScreen: View {
         case settings
         case favorites
         case cities
+        case alerts
 
         var id: String {
             switch self {
@@ -36,6 +37,7 @@ struct MapScreen: View {
             case .settings: return "settings"
             case .favorites: return "favorites"
             case .cities: return "cities"
+            case .alerts: return "alerts"
             }
         }
     }
@@ -68,6 +70,9 @@ struct MapScreen: View {
                 header
                 categoryChips
                 if model.isNavigating { navigationBanner }
+                if let alert = model.nextAlert, model.isNavigating, alert.isImminent {
+                    alertBanner(alert)
+                }
                 Spacer(minLength: 0)
                 bottomPanel
             }
@@ -81,7 +86,7 @@ struct MapScreen: View {
                     Spacer()
                     sideControls
                         .padding(.trailing, 14)
-                        .padding(.bottom, 172)
+                        .padding(.bottom, 158)
                 }
             }
         }
@@ -94,12 +99,22 @@ struct MapScreen: View {
         }
         .onAppear {
             model.bootstrap()
-            model.syncConfig(settings.config)
+            model.syncSettings(settings)
         }
-        .onChange(of: settings.baseURL) { _ in model.syncConfig(settings.config) }
-        .onChange(of: settings.model) { _ in model.syncConfig(settings.config) }
-        .onChange(of: settings.apiKey) { _ in model.syncConfig(settings.config) }
-        .onChange(of: settings.temperature) { _ in model.syncConfig(settings.config) }
+        .onChange(of: settings.baseURL) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.model) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.apiKey) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.temperature) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.vietmapAPIKey) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.voiceAlerts) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.hudAutoOpen) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.showAlertPins) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.overspeedTolerance) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.alertKinds) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.defaultMode) { value in
+            model.syncSettings(settings)
+            model.applyDefaultMode(value)
+        }
         .onChange(of: model.showRouteSheet) { value in
             if value {
                 model.showRouteSheet = false
@@ -164,7 +179,12 @@ struct MapScreen: View {
                     activeSheet = nil
                     model.selectPreset(preset)
                 }
+            case .alerts:
+                AlertsSheet(model: model, settings: settings)
             }
+        }
+        .fullScreenCover(isPresented: $model.showHUD) {
+            HUDView(model: model, settings: settings)
         }
     }
 
@@ -291,10 +311,28 @@ struct MapScreen: View {
 
     private var sideControls: some View {
         VStack(spacing: 10) {
+            if model.isNavigating || model.speedContext.speedKmh > 5 {
+                SpeedPill(speedKmh: model.speedContext.speedKmh,
+                          limit: model.speedContext.limit,
+                          isOverspeed: model.speedContext.isOverLimit)
+            }
+            FloatingIconButton(symbol: "camera.fill",
+                               active: !model.routeAlerts.isEmpty,
+                               badge: model.routeAlerts.isEmpty ? nil : "\(model.routeAlerts.count)",
+                               accessibilityLabel: "Cảnh báo giao thông") {
+                activeSheet = .alerts
+            }
             FloatingIconButton(symbol: "location.fill",
                                active: location.isAuthorized,
                                accessibilityLabel: "Về vị trí của tôi") {
                 model.focusOnUser()
+            }
+            if model.isNavigating {
+                FloatingIconButton(symbol: "gauge.with.dots.needle.67percent",
+                                   active: true,
+                                   accessibilityLabel: "Mở HUD tốc độ") {
+                    model.showHUD = true
+                }
             }
             FloatingIconButton(symbol: model.hasRoute ? "arrow.up.left.and.arrow.down.right" : "square.stack.3d.up.fill",
                                accessibilityLabel: model.hasRoute ? "Xem toàn bộ tuyến" : "Đổi kiểu bản đồ") {
@@ -304,15 +342,15 @@ struct MapScreen: View {
                     settings.mapTypeIndex = (settings.mapTypeIndex + 1) % 4
                 }
             }
-            FloatingIconButton(symbol: "point.topleft.down.curvedto.point.bottomright.up",
-                               active: settings.showTraffic,
-                               accessibilityLabel: "Bật/tắt giao thông") {
-                settings.showTraffic.toggle()
-            }
             FloatingIconButton(symbol: "sparkles",
                                active: model.aiThinking,
                                accessibilityLabel: "Trợ lý AI") {
                 activeSheet = .ai
+            }
+            FloatingIconButton(symbol: settings.showTraffic ? "car.2.fill" : "car.fill",
+                               active: settings.showTraffic,
+                               accessibilityLabel: "Bật/tắt mật độ giao thông") {
+                settings.showTraffic.toggle()
             }
         }
     }
@@ -386,6 +424,9 @@ struct MapScreen: View {
                     .labelStyle(.titleAndIcon)
                 }
                 Spacer(minLength: 0)
+                if let score = model.score(for: route) {
+                    ScoreBadge(score: score)
+                }
                 Button {
                     model.clearRoute()
                 } label: {
@@ -394,6 +435,29 @@ struct MapScreen: View {
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 12) {
+                Label("\(model.routeAlerts.count) cảnh báo", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(model.routeAlerts.isEmpty ? Color.secondary : AppTheme.warning)
+                if route.isEstimatedProfile {
+                    Label("ước lượng xe máy", systemImage: "info.circle")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .font(.system(size: 11, weight: .medium))
+
+            if let advice = model.aiAdvice, !advice.isEmpty {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(AppTheme.accentDeep)
+                    Text(advice)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(3)
+                }
             }
 
             if let summary = model.aiSummary, !summary.isEmpty {
@@ -426,6 +490,21 @@ struct MapScreen: View {
                     )
                 }
                 .buttonStyle(.plain)
+
+                Button {
+                    model.showHUD = true
+                } label: {
+                    Image(systemName: "gauge.with.dots.needle.67percent")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppTheme.accent)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(AppTheme.accent.opacity(0.12))
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Mở HUD tốc độ")
 
                 Button {
                     model.startNavigation()
@@ -491,6 +570,36 @@ struct MapScreen: View {
         .floatingCard()
     }
 
+    // MARK: - Băng cảnh báo
+
+    private func alertBanner(_ alert: ActiveAlert) -> some View {
+        HStack(spacing: 11) {
+            Image(systemName: alert.alert.kind.symbol)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(alert.alert.kind.tint))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(alert.alert.displayName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                Text(alert.distanceText
+                     + (alert.alert.speedLimit.map { " · giới hạn \($0) km/h" } ?? ""))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(alert.levelColor)
+            }
+
+            Spacer(minLength: 0)
+
+            if let limit = alert.alert.speedLimit {
+                SpeedLimitSignView(limit: limit, size: 32, muted: true)
+            }
+        }
+        .padding(10)
+        .floatingCard(cornerRadius: 16)
+    }
+
     // MARK: - Toast & helpers
 
     @ViewBuilder
@@ -531,6 +640,9 @@ struct MapScreen: View {
             }
         case .waypoint:
             break
+        case .camera:
+            model.focus(on: pin.coordinate)
+            model.toast = pin.title
         }
     }
 }

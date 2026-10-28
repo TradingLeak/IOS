@@ -208,6 +208,11 @@ struct MapContainer: UIViewRepresentable {
             case .poi:
                 view.markerTintColor = UIColor(AppTheme.warning)
                 view.glyphImage = UIImage(systemName: "mappin")
+            case .camera:
+                view.markerTintColor = UIColor(red: 0.85, green: 0.28, blue: 0.20, alpha: 1)
+                view.glyphImage = UIImage(systemName: "camera.fill")
+                view.displayPriority = .defaultHigh
+                view.clusteringIdentifier = "alert"
             }
             return view
         }

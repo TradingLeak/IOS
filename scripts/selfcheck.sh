@@ -147,6 +147,24 @@ else:
     else:
         ok("Ngoặc cân bằng ở tất cả file Swift")
 
+# Dữ liệu cảnh báo nhúng trong app
+alerts_path = os.path.join(root, "App/Resources/Data/vn_alerts.json")
+if not os.path.isfile(alerts_path):
+    no("Thiếu App/Resources/Data/vn_alerts.json (chạy: python3 scripts/build-alert-data.py)")
+else:
+    try:
+        with open(alerts_path, encoding="utf-8") as fh:
+            dataset = json.load(fh)
+        items = dataset.get("alerts") or []
+        if len(items) < 100:
+            no("vn_alerts.json chỉ có %d cảnh báo" % len(items))
+        else:
+            kinds = sorted({item.get("kind") for item in items})
+            ok("vn_alerts.json: %d cảnh báo, %d loại, %.0f KB" % (
+                len(items), len(kinds), os.path.getsize(alerts_path) / 1024))
+    except Exception as exc:  # noqa: BLE001
+        no("vn_alerts.json lỗi: %s" % exc)
+
 # project.yml / Info.plist khớp nhau
 yml = open(os.path.join(root, "project.yml"), encoding="utf-8").read()
 for needle in ["INFOPLIST_FILE: App/Info.plist", "ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon",
@@ -184,11 +202,19 @@ PY
 if [[ $? -ne 0 ]]; then FAIL=1; fi
 
 printf '\n\033[1m3. Tài liệu\033[0m\n'
-for f in README.md docs/BUILD.md docs/INSTALL.md docs/TROUBLESHOOTING.md; do
+for f in README.md docs/BUILD.md docs/INSTALL.md docs/TROUBLESHOOTING.md docs/ALERTS.md data/README.md; do
   if [[ -s "$f" ]]; then pass "$f"; else fail "thiếu $f"; fi
 done
 
-printf '\n\033[1m4. Test đóng gói IPA (không cần Xcode)\033[0m\n'
+printf '\n\033[1m4. Dữ liệu cảnh báo\033[0m\n'
+if python3 scripts/build-alert-data.py --check > /tmp/selfcheck-alerts.log 2>&1; then
+  pass "build-alert-data.py --check OK ($(grep -o '[0-9]\+ cảnh báo' /tmp/selfcheck-alerts.log | head -n 1))"
+else
+  fail "build-alert-data.py --check thất bại — log:"
+  sed 's/^/      /' /tmp/selfcheck-alerts.log >&2
+fi
+
+printf '\n\033[1m5. Test đóng gói IPA (không cần Xcode)\033[0m\n'
 if ./scripts/test-pack.sh > /tmp/selfcheck-pack.log 2>&1; then
   pass "pack-ipa.sh tạo đúng cấu trúc IPA (xem scripts/test-pack.sh)"
 else

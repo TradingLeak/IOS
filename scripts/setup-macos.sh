@@ -45,4 +45,4 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 xcodegen generate
 echo
 echo "Xong. Build IPA bằng:  ./scripts/make-ipa.sh"
-echo "Hoặc mở Xcode (không cần đăng nhập Apple ID):  open HelloIPA.xcodeproj"
+echo "Hoặc mở Xcode (không cần đăng nhập Apple ID):  open VietMap.xcodeproj"

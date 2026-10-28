@@ -11,11 +11,13 @@ enum DirectionsError: LocalizedError {
         case .noRoute(let mode):
             switch mode {
             case .transit:
-                return "Apple Maps chưa có dữ liệu xe buýt cho tuyến này. Hãy thử Ô tô hoặc Đi bộ."
+                return "Apple Maps chưa có dữ liệu xe buýt cho tuyến này. Hãy thử Ô tô, Xe máy hoặc Đi bộ."
             case .walking:
                 return "Không tìm được tuyến đi bộ giữa hai điểm này (có thể cách sông hoặc biển)."
             case .automobile:
                 return "Không tìm được tuyến ô tô giữa hai điểm này."
+            case .motorcycle:
+                return "Không tìm được tuyến xe máy giữa hai điểm này. Hãy thử đổi điểm đi/điểm đến hoặc dùng Ô tô."
             }
         case .failed(let message):
             return "Không tính được tuyến đường: \(message)"

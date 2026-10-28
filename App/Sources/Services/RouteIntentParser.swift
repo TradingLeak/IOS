@@ -30,7 +30,7 @@ struct AIIntent: Decodable {
     }
 
     var travelMode: TravelMode {
-        TravelMode.parse(mode) ?? .automobile
+        TravelMode.parse(mode) ?? .motorcycle
     }
 
     // MARK: Decoding linh hoạt
@@ -154,6 +154,12 @@ enum RouteIntentParser {
     // MARK: - Chi tiết
 
     static func detectMode(_ lowercased: String) -> TravelMode? {
+        if lowercased.contains("xe máy") || lowercased.contains("xe may") || lowercased.contains("mô tô")
+            || lowercased.contains("mo to") || lowercased.contains("motorcycle")
+            || lowercased.contains("motorbike") || lowercased.contains("xe hai bánh")
+            || lowercased.contains("two-wheel") {
+            return .motorcycle
+        }
         if lowercased.contains("xe đạp") || lowercased.contains("đạp xe") { return .walking }
         if lowercased.contains("đi bộ") || lowercased.contains("bộ ") || lowercased.contains("walk") {
             return .walking
@@ -162,7 +168,7 @@ enum RouteIntentParser {
             || lowercased.contains("bus") || lowercased.contains("tàu") || lowercased.contains("transit") {
             return .transit
         }
-        if lowercased.contains("ô tô") || lowercased.contains("xe hơi") || lowercased.contains("xe máy")
+        if lowercased.contains("ô tô") || lowercased.contains("xe hơi")
             || lowercased.contains("lái xe") || lowercased.contains("car") || lowercased.contains("drive") {
             return .automobile
         }

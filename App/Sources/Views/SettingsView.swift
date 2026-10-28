@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 struct SettingsView: View {
@@ -8,7 +9,9 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showAPIKey = false
+    @State private var showVietMapKey = false
     @State private var testState: TestState = .idle
+    @State private var showAlertsManager = false
 
     private let client = AIClient()
 
@@ -25,6 +28,8 @@ struct SettingsView: View {
                 VStack(spacing: 14) {
                     aiCard
                     presetsCard
+                    routingCard
+                    alertsCard
                     mapCard
                     dataCard
                     aboutCard
@@ -39,6 +44,9 @@ struct SettingsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Xong") { dismiss() }
                 }
+            }
+            .sheet(isPresented: $showAlertsManager) {
+                AlertsSheet(model: model, settings: settings)
             }
         }
     }
@@ -207,6 +215,149 @@ struct SettingsView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Dẫn đường xe máy
+
+    private var routingCard: some View {
+        SectionCard(title: "Dẫn đường xe máy", symbol: "scooter") {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Apple Maps không có hồ sơ xe máy. Nhập API key VietMap để có tuyến xe máy thật "
+                         + "(đi đúng đường cho phép, tránh cao tốc):")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Link("Đăng ký key VietMap (có gói miễn phí) →",
+                         destination: URL(string: "https://maps.vietmap.vn/console-v2/register")!)
+                        .font(.system(size: 11, weight: .semibold))
+                }
+
+                labeledField(title: "VietMap API key") {
+                    HStack(spacing: 8) {
+                        Group {
+                            if showVietMapKey {
+                                TextField("vietmap key", text: $settings.vietmapAPIKey)
+                            } else {
+                                SecureField("vietmap key", text: $settings.vietmapAPIKey)
+                            }
+                        }
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.system(size: 13, design: .monospaced))
+
+                        Button {
+                            showVietMapKey.toggle()
+                        } label: {
+                            Image(systemName: showVietMapKey ? "eye.slash" : "eye")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                InfoBanner(kind: settings.hasVietMapKey ? .success : .info,
+                           text: settings.hasVietMapKey
+                           ? "Đang dùng VietMap Route v4 (vehicle=motorcycle)."
+                           : "Chưa có key → app ước lượng tuyến xe máy từ Apple Maps và cảnh báo nếu có cao tốc.")
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Phương tiện mặc định")
+                        .font(.system(size: 12, weight: .medium))
+                    TravelModePicker(selection: $settings.defaultMode)
+                }
+            }
+        }
+    }
+
+    // MARK: - Cảnh báo & HUD
+
+    private var alertsCard: some View {
+        SectionCard(title: "Cảnh báo & HUD", symbol: "exclamationmark.shield") {
+            VStack(alignment: .leading, spacing: 14) {
+                Toggle(isOn: $settings.voiceAlerts) {
+                    Label("Đọc cảnh báo bằng giọng tiếng Việt", systemImage: "speaker.wave.2.fill")
+                        .font(.system(size: 13))
+                }
+                .tint(AppTheme.accent)
+
+                Toggle(isOn: $settings.hudAutoOpen) {
+                    Label("Tự mở HUD tốc độ khi bắt đầu dẫn đường", systemImage: "gauge.with.dots.needle.67percent")
+                        .font(.system(size: 13))
+                }
+                .tint(AppTheme.accent)
+
+                Toggle(isOn: $settings.showAlertPins) {
+                    Label("Hiện camera/cảnh báo trên bản đồ", systemImage: "camera.fill")
+                        .font(.system(size: 13))
+                }
+                .tint(AppTheme.accent)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Ngưỡng báo vượt tốc độ")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Text("+\(settings.overspeedTolerance) km/h")
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    Stepper("", value: $settings.overspeedTolerance, in: 0...20)
+                        .labelsHidden()
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Loại cảnh báo")
+                        .font(.system(size: 12, weight: .medium))
+                    kindChips(AlertKind.cameraKinds)
+                    kindChips(AlertKind.speedKinds)
+                    kindChips(AlertKind.otherKinds)
+                }
+
+                Button {
+                    showAlertsManager = true
+                } label: {
+                    HStack {
+                        Label("Quản lý dữ liệu cảnh báo", systemImage: "externaldrive.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                        Spacer()
+                        Text("\(model.alertDatabase.count)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(AppTheme.subtleFill)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Text("Giới hạn tốc độ lấy theo biển báo/vùng đã nhập, dữ liệu OpenStreetMap, "
+                     + "sau đó mới tới bảng mặc định của Thông tư 38/2024/TT-BGTVT. "
+                     + "Cảnh báo chỉ để tham khảo — luôn tuân theo biển báo tại chỗ.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func kindChips(_ kinds: [AlertKind]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(kinds) { kind in
+                    AlertKindChip(kind: kind, isOn: settings.alertKinds.contains(kind)) {
+                        settings.toggleAlertKind(kind)
+                    }
+                }
+            }
+            .padding(.vertical, 1)
+        }
+    }
+
     // MARK: - Map
 
     private var mapCard: some View {
@@ -290,6 +441,8 @@ struct SettingsView: View {
                 infoRow("Bundle ID", AppInfo.current.bundleIdentifier)
                 infoRow("Commit", AppInfo.current.commit)
                 infoRow("Bản đồ", "Apple Maps (MapKit)")
+                infoRow("Xe máy", settings.hasVietMapKey ? "VietMap Route v4" : "ước lượng Apple Maps")
+                infoRow("Cảnh báo", "\(model.alertDatabase.count) điểm")
                 infoRow("AI", settings.config.isConfigured ? settings.model : "chưa cấu hình")
 
                 Text("Bản IPA này không có chữ ký Apple: dùng TrollStore (iOS ≤ 17.0) "

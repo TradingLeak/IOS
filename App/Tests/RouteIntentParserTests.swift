@@ -24,6 +24,12 @@ final class RouteIntentParserTests: XCTestCase {
         XCTAssertEqual(intent.travelMode, .transit)
     }
 
+    func testParsesMotorcycleMode() throws {
+        let intent = try XCTUnwrap(RouteIntentParser.parse("đi xe máy từ Cầu Giấy đến Hồ Tây"))
+        XCTAssertEqual(intent.travelMode, .motorcycle)
+        XCTAssertEqual(intent.destination, "Hồ Tây")
+    }
+
     func testParsesAvoidClause() throws {
         let intent = try XCTUnwrap(RouteIntentParser.parse("đi từ Cầu Giấy đến Hồ Tây, tránh đường đông"))
         XCTAssertEqual(intent.destination, "Hồ Tây")
@@ -50,6 +56,8 @@ final class RouteIntentParserTests: XCTestCase {
     }
 
     func testModeDetection() {
+        XCTAssertEqual(RouteIntentParser.detectMode("đi xe máy ra chợ"), .motorcycle)
+        XCTAssertEqual(RouteIntentParser.detectMode("xe máy từ Cầu Giấy đến Hồ Tây"), .motorcycle)
         XCTAssertEqual(RouteIntentParser.detectMode("đi bộ ra chợ"), .walking)
         XCTAssertEqual(RouteIntentParser.detectMode("đạp xe quanh hồ"), .walking)
         XCTAssertEqual(RouteIntentParser.detectMode("lái xe về quê"), .automobile)

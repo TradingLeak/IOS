@@ -144,6 +144,75 @@ final class AIRoutePlanner {
         }
     }
 
+    // MARK: - Chọn tuyến thông minh
+
+    struct RouteAdvice: Codable {
+        var recommended: Int?
+        var reason: String?
+    }
+
+    /// AI giải thích vì sao nên đi tuyến nào; lỗi mạng thì dùng câu tiếng Việt soạn sẵn.
+    func advise(routes: [RouteOption],
+                scores: [RouteScore],
+                originName: String,
+                destinationName: String,
+                config: AIConfig) async -> String? {
+        let local = Self.localAdvice(routes: routes, scores: scores)
+        guard config.isConfigured, routes.count > 1 else { return local }
+
+        var lines: [String] = [
+            "Điểm đi: \(originName)",
+            "Điểm đến: \(destinationName)",
+            "Phương tiện: \(routes[0].mode.title)",
+            "Các phương án (điểm 0–100, cao hơn tốt hơn):"
+        ]
+        for (index, route) in routes.enumerated() {
+            let score = scores.first { $0.routeID == route.id }
+            let total = score.map { String(format: "%.0f", $0.total) } ?? "?"
+            let cameras = score?.cameraCount ?? 0
+            let highway = Int(((score?.expresswayShare ?? 0) * 100).rounded())
+            lines.append("[\(index)] \(route.name): \(route.formattedDistance), \(route.formattedDuration), "
+                         + "điểm \(total), \(cameras) camera, \(highway)% cao tốc")
+        }
+
+        do {
+            let reply = try await client.chat(config: config,
+                                              messages: [.system(Self.advicePrompt), .user(lines.joined(separator: "\n"))],
+                                              temperature: 0.3,
+                                              maxTokens: 220)
+            let cleaned = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let json = AIClient.extractJSONObject(from: cleaned),
+               let data = json.data(using: .utf8),
+               let advice = try? JSONDecoder().decode(RouteAdvice.self, from: data),
+               let reason = advice.reason,
+               !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return reason.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            return cleaned.isEmpty ? local : cleaned
+        } catch {
+            return local
+        }
+    }
+
+    /// Câu giải thích offline (không cần AI) — luôn có sẵn.
+    nonisolated static func localAdvice(routes: [RouteOption], scores: [RouteScore]) -> String? {
+        guard let best = scores.first,
+              let route = routes.first(where: { $0.id == best.routeID }) else { return nil }
+
+        var text = "Nên đi \(route.name): \(route.formattedDuration), \(route.formattedDistance)"
+        if let second = scores.dropFirst().first {
+            let gap = Int((best.total - second.total).rounded())
+            if gap > 0 {
+                text += " — điểm \(Int(best.total.rounded())) so với \(Int(second.total.rounded())) của phương án sau"
+            }
+        }
+        text += "."
+        if !best.summary.isEmpty {
+            text += " " + best.summary + "."
+        }
+        return text
+    }
+
     nonisolated static func localSummary(route: RouteOption, originName: String, destinationName: String) -> String {
         var text = "Tuyến \(route.mode.title.lowercased()) từ \(originName) đến \(destinationName) dài "
             + "\(route.formattedDistance), dự kiến \(route.formattedDuration)."
@@ -168,14 +237,15 @@ final class AIRoutePlanner {
       "origin": string hoặc null,
       "destination": string hoặc null,
       "waypoints": [string],
-      "mode": "automobile" | "walking" | "transit" | null,
+      "mode": "automobile" | "motorcycle" | "walking" | "transit" | null,
       "avoid": [string],
       "explanation": string
     }
     Quy tắc:
     - Giữ nguyên tên địa danh người dùng nói, viết đúng dấu tiếng Việt, không bịa thêm.
     - Không nói rõ điểm đi thì để null (ứng dụng sẽ dùng vị trí hiện tại).
-    - "xe máy", "ô tô", "xe hơi", "lái xe" → automobile; "đi bộ", "xe đạp" → walking;
+    - "xe máy", "xe mô tô", "motorbike", "xe hai bánh" → motorcycle;
+      "ô tô", "xe hơi", "lái xe" → automobile; "đi bộ", "xe đạp" → walking;
       "xe buýt", "tàu", "công cộng" → transit.
     - "tránh đường đông", "tránh cao tốc", "tránh phà" → đưa vào avoid.
     - explanation: một câu ngắn (dưới 25 từ) giải thích lựa chọn.
@@ -187,5 +257,13 @@ final class AIRoutePlanner {
     hãy viết 2–3 câu tiếng Việt tự nhiên: nhận xét tuyến (nhanh hay chậm, có nên đi giờ cao điểm),
     một mẹo di chuyển thực tế, và gợi ý một điểm dừng dọc đường nếu phù hợp.
     Không bịa số liệu mới, không markdown, không gạch đầu dòng, tối đa 60 từ.
+    """
+
+    static let advicePrompt = """
+    Bạn là trợ lý dẫn đường người Việt, đang giúp người dùng chọn giữa các phương án tuyến.
+    Dữ liệu gồm điểm số 0–100 (cao hơn tốt hơn), số camera, % đường cao tốc.
+    Với xe máy, tuyến có cao tốc là KHÔNG hợp lệ. Ưu tiên an toàn và ít camera.
+    Trả về DUY NHẤT JSON: {"recommended": số thứ tự phương án, "reason": "1–2 câu tiếng Việt"}
+    Không markdown, không giải thích ngoài JSON, tối đa 45 từ.
     """
 }

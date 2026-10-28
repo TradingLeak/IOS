@@ -1,0 +1,70 @@
+{
+  "_comment": "TỆP VÍ DỤ — KHÔNG được nạp vào app (script build bỏ qua mọi tệp *.example.json). Hãy sao chép thành ten-file.json rồi sửa số liệu thật của địa phương bạn, sau đó chạy: python3 scripts/build-alert-data.py",
+  "schema": 2,
+  "source": "example",
+  "sources": [
+    {
+      "id": "example",
+      "name": "Ví dụ (không dùng trong bản phát hành)",
+      "url": "https://github.com/TradingLeak/IOS/blob/main/docs/ALERTS.md",
+      "license": "MIT",
+      "note": "Minh hoạ định dạng JSON"
+    }
+  ],
+  "alerts": [
+    {
+      "id": "example-zone-1",
+      "kind": "speed_zone",
+      "lat": 21.0333,
+      "lng": 105.8000,
+      "speedLimit": 50,
+      "length": 800,
+      "bearing": 180,
+      "road": "Xuân Thuỷ",
+      "name": "VÍ DỤ: vùng 50 km/h Xuân Thuỷ",
+      "detail": "Vùng bắt đầu tại toạ độ này và kéo dài 800 m theo chiều đi",
+      "confidence": 0.5,
+      "source": "example"
+    },
+    {
+      "id": "example-sign-1",
+      "kind": "speed_sign",
+      "lat": 21.0245,
+      "lng": 105.8412,
+      "speedLimit": 40,
+      "bearing": 90,
+      "road": "Phố Huế",
+      "name": "VÍ DỤ: biển 40 km/h Phố Huế",
+      "source": "example"
+    },
+    {
+      "id": "example-camera-1",
+      "kind": "speed_camera",
+      "lat": 21.0285,
+      "lng": 105.8542,
+      "bearing": 270,
+      "road": "Điện Biên Phủ",
+      "name": "VÍ DỤ: camera tốc độ Điện Biên Phủ",
+      "confidence": 0.4,
+      "source": "example"
+    },
+    {
+      "id": "example-residential-1",
+      "kind": "residential_zone",
+      "lat": 21.0300,
+      "lng": 105.8500,
+      "speedLimit": 50,
+      "length": 1500,
+      "name": "VÍ DỤ: khu đông dân cư R.420",
+      "source": "example"
+    },
+    {
+      "id": "example-toll-1",
+      "kind": "toll_station",
+      "lat": 20.9656,
+      "lng": 105.8613,
+      "name": "VÍ DỤ: trạm thu phí",
+      "source": "example"
+    }
+  ]
+}

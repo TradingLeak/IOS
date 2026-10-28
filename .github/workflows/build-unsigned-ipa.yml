@@ -45,9 +45,12 @@ jobs:
       - uses: actions/checkout@v7
       - name: Self-check + test đóng gói IPA
         run: |
-          chmod +x scripts/*.sh
+          chmod +x scripts/*.sh scripts/build-alert-data.py
           ./scripts/selfcheck.sh
           ./scripts/test-pack.sh
+
+      - name: Kiểm tra dữ liệu cảnh báo (camera/tốc độ)
+        run: python3 scripts/build-alert-data.py --check
 
   # ---------------------------------------------------------------- tests
   unit-tests:

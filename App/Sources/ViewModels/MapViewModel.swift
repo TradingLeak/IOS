@@ -21,45 +21,83 @@ struct AIChatMessage: Identifiable {
 final class MapViewModel: ObservableObject {
 
     // MARK: Dịch vụ
+
     let location: LocationService
     let searchService = SearchService()
-    private let directions = DirectionsService()
     private let store = PlacesStore()
     private lazy var planner = AIRoutePlanner(search: searchService)
+    private let voice = VoiceAlertService()
+
+    // MARK: Dữ liệu cảnh báo
+
+    private let bundledAlerts: [RoadAlert]
+    private let bundledSources: [AlertSource]
+    @Published private(set) var alertDatabase: AlertDatabase
+    private var importedAlerts: [RoadAlert] = []
+    private var preferences = AlertPreferences.all
 
     // MARK: Cấu hình AI (đồng bộ từ AppSettings)
+
     private(set) var config = AIConfig(baseURL: "", model: "", apiKey: "", temperature: 0.2)
+    private(set) var vietmapKey = ""
+    private var didApplyDefaultMode = false
 
     // MARK: Bản đồ
+
     @Published var selectedPreset: MapPreset = .vietnam
     @Published var fitToken = 0
     @Published var focusCoordinate: CLLocationCoordinate2D?
     @Published var focusToken = 0
 
     // MARK: Tuyến đường
+
     @Published var origin: Place?
     @Published var destination: Place?
     @Published var waypoints: [Place] = []
-    @Published var mode: TravelMode = .automobile
+    @Published var mode: TravelMode = .motorcycle
     @Published var routes: [RouteOption] = []
     @Published var selectedRouteID: UUID?
     @Published var isPlanning = false
     @Published var isNavigating = false
     @Published var navigationStepIndex = 0
 
+    // MARK: Dẫn đường thông minh
+
+    @Published var routeScores: [RouteScore] = []
+    @Published var aiAdvice: String?
+    @Published var aiAdviceThinking = false
+    @Published var suggestedStops: [Place] = []
+    @Published var isLoadingStops = false
+
+    // MARK: Cảnh báo tốc độ / camera
+
+    @Published var routeAlerts: [ActiveAlert] = []
+    @Published var aheadAlerts: [ActiveAlert] = []
+    @Published var nearbyAlertPoints: [RoadAlert] = []
+    @Published var speedContext = SpeedContext()
+    @Published var speedKmh: Double = 0
+    @Published var showHUD = false
+    @Published var isLoadingAlerts = false
+    @Published var alertStatusMessage: String?
+
+    private var routeGeometry: RouteGeometry?
+
     // MARK: AI
+
     @Published var aiThinking = false
     @Published var aiSummary: String?
     @Published var aiError: String?
     @Published var transcript: [AIChatMessage] = []
 
     // MARK: Địa điểm
+
     @Published var nearbyPlaces: [Place] = []
     @Published var activeCategory: NearbyCategory?
     @Published var recents: [Place] = []
     @Published var favorites: [Place] = []
 
     // MARK: UI
+
     @Published var toast: String?
     @Published var errorMessage: String?
     @Published var showRouteSheet = false
@@ -69,6 +107,14 @@ final class MapViewModel: ObservableObject {
 
     init(location: LocationService = LocationService()) {
         self.location = location
+        let database = AlertDatabase.loadBundled()
+        self.bundledAlerts = database.alerts
+        self.bundledSources = database.sources
+        self.alertDatabase = database
+        self.importedAlerts = AlertFileStore.loadImported()
+        if !importedAlerts.isEmpty {
+            rebuildDatabase()
+        }
     }
 
     func bootstrap() {
@@ -77,13 +123,46 @@ final class MapViewModel: ObservableObject {
         location.requestLocation()
         transcript = [
             AIChatMessage(role: .assistant,
-                          text: "Chào bạn! Nhắn kiểu \"đi từ Cầu Giấy đến Hồ Tây\" hoặc "
-                              + "\"chỉ đường đi bộ từ Hồ Hoàn Kiếm đến Nhà thờ Lớn\", mình sẽ tìm tuyến trên bản đồ.")
+                          text: "Chào bạn! Nhắn kiểu \"đi xe máy từ Cầu Giấy đến Hồ Tây\" hoặc "
+                              + "\"chỉ đường đi bộ từ Hồ Hoàn Kiếm đến Nhà thờ Lớn\", mình sẽ tìm tuyến, "
+                              + "chấm điểm từng phương án và cảnh báo tốc độ, camera trên đường.")
         ]
     }
 
     func syncConfig(_ config: AIConfig) {
         self.config = config
+    }
+
+    /// Đồng bộ toàn bộ cài đặt (AI, cảnh báo, VietMap).
+    func syncSettings(_ settings: AppSettings) {
+        config = settings.config
+        vietmapKey = settings.vietmapKey
+        preferences = settings.alertPreferences
+        voice.isEnabled = preferences.voiceEnabled
+        if !didApplyDefaultMode {
+            mode = settings.defaultMode
+            didApplyDefaultMode = true
+        }
+        if !isNavigating {
+            speedContext.tolerance = preferences.overspeedTolerance
+        }
+        if !preferences.showOnMap {
+            nearbyAlertPoints = []
+        }
+    }
+
+    // MARK: - Dịch vụ dẫn xuất
+
+    private var routing: RoutingService {
+        RoutingService(vietmapKey: vietmapKey)
+    }
+
+    private var scorer: RouteScorer {
+        RouteScorer(database: alertDatabase, preferences: preferences)
+    }
+
+    private var engine: AlertEngine {
+        AlertEngine(database: alertDatabase, preferences: preferences)
     }
 
     // MARK: - Dữ liệu dẫn xuất
@@ -104,6 +183,14 @@ final class MapViewModel: ObservableObject {
                      coordinate: coordinate)
     }
 
+    func score(for route: RouteOption) -> RouteScore? {
+        routeScores.first { $0.routeID == route.id }
+    }
+
+    var recommendedScore: RouteScore? {
+        routeScores.first
+    }
+
     var mapPins: [MapPin] {
         var pins: [MapPin] = []
         if let origin {
@@ -122,7 +209,24 @@ final class MapViewModel: ObservableObject {
             pins.append(MapPin(id: place.id.uuidString, coordinate: place.coordinate,
                                title: place.name, subtitle: place.displaySubtitle, kind: .poi))
         }
+        if preferences.showOnMap {
+            for alert in alertPins {
+                pins.append(MapPin(id: "alert-\(alert.id)",
+                                   coordinate: alert.coordinate,
+                                   title: alert.displayName,
+                                   subtitle: alert.displaySubtitle,
+                                   kind: .camera))
+            }
+        }
         return pins
+    }
+
+    /// Cảnh báo được vẽ trên bản đồ: trên tuyến (nếu có) hoặc quanh vị trí hiện tại.
+    private var alertPins: [RoadAlert] {
+        if !routeAlerts.isEmpty {
+            return routeAlerts.prefix(40).map(\.alert)
+        }
+        return Array(nearbyAlertPoints.prefix(40))
     }
 
     var routePolylines: [MapPolyline] {
@@ -149,6 +253,25 @@ final class MapViewModel: ObservableObject {
         return route.steps[navigationStepIndex + 1]
     }
 
+    var nextAlert: ActiveAlert? {
+        speedContext.nextAlert ?? aheadAlerts.first
+    }
+
+    var alertDataSummary: String {
+        let total = alertDatabase.count
+        let cameras = alertDatabase.cameraCount
+        let imported = importedAlerts.count
+        if total == 0 { return "Chưa có dữ liệu cảnh báo" }
+        if imported > 0 {
+            return "\(total) điểm · \(cameras) camera · \(imported) điểm do bạn nhập/OSM"
+        }
+        return "\(total) điểm · \(cameras) camera"
+    }
+
+    var alertSources: [AlertSource] { alertDatabase.sources }
+
+    var importedAlertCount: Int { importedAlerts.count }
+
     // MARK: - Bản đồ
 
     func selectPreset(_ preset: MapPreset) {
@@ -160,6 +283,11 @@ final class MapViewModel: ObservableObject {
 
     func focus(on place: Place) {
         focusCoordinate = place.coordinate
+        focusToken += 1
+    }
+
+    func focus(on coordinate: CLLocationCoordinate2D) {
+        focusCoordinate = coordinate
         focusToken += 1
     }
 
@@ -209,11 +337,20 @@ final class MapViewModel: ObservableObject {
         destination = nil
         waypoints = []
         routes = []
+        routeScores = []
         selectedRouteID = nil
         aiSummary = nil
+        aiAdvice = nil
+        suggestedStops = []
+        routeAlerts = []
+        aheadAlerts = []
+        routeGeometry = nil
         isNavigating = false
+        showHUD = false
         navigationStepIndex = 0
         showRouteSheet = false
+        voice.stop()
+        location.stopUpdating()
     }
 
     func planRoute() async {
@@ -223,21 +360,39 @@ final class MapViewModel: ObservableObject {
         defer { isPlanning = false }
 
         do {
-            let result = try await directions.routes(from: origin,
-                                                     to: destination,
-                                                     mode: mode,
-                                                     waypoints: waypoints)
+            let result = try await routing.routes(from: origin,
+                                                  to: destination,
+                                                  mode: mode,
+                                                  waypoints: waypoints)
             routes = result
-            selectedRouteID = result.first?.id
+            routeScores = scorer.score(result)
+            selectedRouteID = routeScores.first?.routeID ?? result.first?.id
             fitToken += 1
             aiSummary = nil
-            if let route = result.first {
+            aiAdvice = nil
+            suggestedStops = []
+            applySelectedRoute()
+
+            if let route = selectedRoute {
                 await generateSummary(for: route)
             }
+            await generateAdvice()
         } catch {
             routes = []
+            routeScores = []
             selectedRouteID = nil
+            routeAlerts = []
+            routeGeometry = nil
             errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Đổi phương tiện mặc định trong Cài đặt (áp dụng ngay nếu đang rảnh).
+    func applyDefaultMode(_ newMode: TravelMode) {
+        guard !isNavigating, mode != newMode else { return }
+        mode = newMode
+        if hasRoute {
+            Task { await planRoute() }
         }
     }
 
@@ -248,38 +403,254 @@ final class MapViewModel: ObservableObject {
     }
 
     func selectRoute(_ route: RouteOption) {
+        guard selectedRouteID != route.id else { return }
         selectedRouteID = route.id
         fitToken += 1
+        applySelectedRoute()
+        Task { await generateAdvice() }
+    }
+
+    /// Tính lại hình học tuyến + cảnh báo dọc tuyến cho phương án đang chọn.
+    private func applySelectedRoute() {
+        guard let route = selectedRoute else {
+            routeGeometry = nil
+            routeAlerts = []
+            aheadAlerts = []
+            return
+        }
+        let geometry = RouteGeometry(coordinates: route.coordinates)
+        routeGeometry = geometry
+        routeAlerts = engine.alertsAlongRoute(route)
+        if let coordinate = location.coordinate {
+            let along = geometry.projection(of: coordinate)?.along ?? 0
+            aheadAlerts = engine.aheadAlerts(from: along, alerts: routeAlerts, speedKmh: speedKmh)
+        }
     }
 
     func startNavigation() {
         guard hasRoute else { return }
         navigationStepIndex = 0
         isNavigating = true
-        if let route = selectedRoute, let first = route.steps.first {
+        voice.reset()
+        voice.isEnabled = preferences.voiceEnabled
+        if preferences.hudAutoOpen {
+            showHUD = true
+        }
+        location.startUpdating()
+        applySelectedRoute()
+        if let first = selectedRoute?.steps.first {
             focusCoordinate = first.endCoordinate
             focusToken += 1
+            speak(first.instruction, key: "step-0", cooldown: 0)
         }
     }
 
     func stopNavigation() {
         isNavigating = false
         navigationStepIndex = 0
+        showHUD = false
+        voice.stop()
+        location.stopUpdating()
     }
 
-    /// Cập nhật bước đi hiện tại theo vị trí thật.
+    func presentHUD() {
+        showHUD = true
+        if !isNavigating {
+            location.startUpdating()
+        }
+    }
+
+    /// Cập nhật bước đi + tốc độ + cảnh báo theo vị trí thật.
     func updateNavigation(with coordinate: CLLocationCoordinate2D) {
-        guard isNavigating, let route = selectedRoute, !route.steps.isEmpty else { return }
-        let current = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        while navigationStepIndex < route.steps.count - 1 {
-            let step = route.steps[navigationStepIndex]
-            let end = CLLocation(latitude: step.endCoordinate.latitude,
-                                 longitude: step.endCoordinate.longitude)
-            if current.distance(from: end) < 40 {
-                navigationStepIndex += 1
-            } else {
-                break
+        speedKmh = location.speedKmh
+
+        guard let geometry = routeGeometry else {
+            updateSpeedContextWithoutRoute(coordinate: coordinate)
+            return
+        }
+
+        let projection = geometry.projection(of: coordinate)
+        let along = projection?.along ?? 0
+
+        if isNavigating, let route = selectedRoute, !route.steps.isEmpty {
+            let current = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+            while navigationStepIndex < route.steps.count - 1 {
+                let step = route.steps[navigationStepIndex]
+                let end = CLLocation(latitude: step.endCoordinate.latitude,
+                                     longitude: step.endCoordinate.longitude)
+                let threshold = max(35, min(90, step.distance * 0.25))
+                if current.distance(from: end) < threshold {
+                    navigationStepIndex += 1
+                } else {
+                    break
+                }
             }
+        }
+
+        let context = engine.speedContext(coordinate: coordinate,
+                                          speedKmh: speedKmh,
+                                          route: selectedRoute,
+                                          geometry: geometry,
+                                          alerts: routeAlerts,
+                                          currentStep: currentStep,
+                                          nextStep: nextStep,
+                                          mode: mode)
+        speedContext = context
+        aheadAlerts = engine.aheadAlerts(from: along, alerts: routeAlerts, speedKmh: speedKmh)
+
+        guard isNavigating else { return }
+
+        if let next = context.nextAlert, next.isImminent, next.alert.kind.isSafetyCritical {
+            speak(AlertEngine.announcement(for: next, mode: mode),
+                  key: "alert-\(next.id)",
+                  cooldown: 60)
+        }
+        if context.isOverLimit, let text = AlertEngine.overspeedAnnouncement(context) {
+            speak(text, key: "overspeed-\(context.limit ?? 0)", cooldown: 45)
+        }
+    }
+
+    private func updateSpeedContextWithoutRoute(coordinate: CLLocationCoordinate2D) {
+        let nearby = alertDatabase.nearby(around: coordinate,
+                                          radius: 350,
+                                          kinds: preferences.enabledKinds,
+                                          limit: 20)
+        let limitAlert = nearby.first { $0.speedLimit != nil }
+        var context = SpeedContext()
+        context.speedKmh = speedKmh
+        context.tolerance = preferences.overspeedTolerance
+        context.limit = limitAlert?.speedLimit
+        context.limitSource = limitAlert == nil ? .estimated : .sign
+        context.roadName = limitAlert?.road
+        speedContext = context
+    }
+
+    // MARK: - Cảnh báo
+
+    func loadNearbyAlerts() {
+        let center = location.coordinate ?? selectedPreset.coordinate
+        nearbyAlertPoints = alertDatabase.nearby(around: center,
+                                                 radius: 3_500,
+                                                 kinds: preferences.enabledKinds,
+                                                 limit: 80)
+        if nearbyAlertPoints.isEmpty {
+            alertStatusMessage = "Không có cảnh báo nào quanh đây trong bộ dữ liệu."
+        } else {
+            alertStatusMessage = "\(nearbyAlertPoints.count) điểm cảnh báo quanh bạn (bán kính 3,5 km)."
+        }
+    }
+
+    func clearNearbyAlerts() {
+        nearbyAlertPoints = []
+        alertStatusMessage = nil
+    }
+
+    /// Nhập tệp JSON do người dùng chọn trong ứng dụng Files.
+    func importAlerts(from data: Data) throws -> String {
+        let result = try AlertDatabase.fromJSON(data)
+        guard result.database.count > 0 else {
+            throw SearchError.failed("Tệp JSON không có cảnh báo hợp lệ nào.")
+        }
+
+        var merged = importedAlerts.filter { existing in
+            !result.database.alerts.contains { $0.id == existing.id }
+        }
+        merged.append(contentsOf: result.database.alerts)
+        importedAlerts = merged
+
+        try AlertFileStore.saveImported(importedAlerts)
+        rebuildDatabase()
+        applySelectedRoute()
+
+        var message = "Đã nhập \(result.database.count) cảnh báo. Tổng dữ liệu nhập: \(importedAlerts.count)."
+        if !result.warnings.isEmpty {
+            message += " " + result.warnings.joined(separator: " ")
+        }
+        alertStatusMessage = message
+        return message
+    }
+
+    func clearImportedAlerts() {
+        importedAlerts = []
+        try? AlertFileStore.clearImported()
+        rebuildDatabase()
+        applySelectedRoute()
+        alertStatusMessage = "Đã xoá dữ liệu cảnh báo do bạn nhập."
+    }
+
+    /// Xuất toàn bộ dữ liệu cảnh báo đang dùng ra tệp để chia sẻ.
+    func exportAlerts() throws -> URL {
+        try AlertFileStore.writeExport(alerts: alertDatabase.alerts, sources: alertDatabase.sources)
+    }
+
+    /// Tải biển tốc độ + camera từ OpenStreetMap cho khu vực quanh tuyến đang chọn.
+    func downloadOSMAlerts() async {
+        guard let route = selectedRoute else {
+            alertStatusMessage = "Hãy chọn tuyến đường trước khi tải dữ liệu OpenStreetMap."
+            return
+        }
+        isLoadingAlerts = true
+        alertStatusMessage = nil
+        defer { isLoadingAlerts = false }
+
+        do {
+            let alerts = try await OSMAlertService().fetchAlerts(around: route.coordinates)
+            guard !alerts.isEmpty else {
+                alertStatusMessage = "OpenStreetMap chưa có biển tốc độ/camera trong khu vực này."
+                return
+            }
+
+            // Thay thế các mục OSM cũ, giữ nguyên dữ liệu người dùng tự nhập.
+            var merged = importedAlerts.filter { $0.source != "osm" }
+            merged.append(contentsOf: alerts)
+            importedAlerts = merged
+            try AlertFileStore.saveImported(importedAlerts)
+            rebuildDatabase()
+            applySelectedRoute()
+            alertStatusMessage = "Đã thêm \(alerts.count) điểm từ OpenStreetMap (© OSM contributors, ODbL)."
+        } catch {
+            alertStatusMessage = error.localizedDescription
+        }
+    }
+
+    private func rebuildDatabase() {
+        let database = AlertDatabase(alerts: bundledAlerts + importedAlerts,
+                                     sources: bundledSources,
+                                     generatedAt: alertDatabase.generatedAt,
+                                     version: alertDatabase.datasetVersion)
+        alertDatabase = database
+    }
+
+    // MARK: - Điểm dừng dọc đường
+
+    func suggestStopsAlongRoute() async {
+        guard let geometry = routeGeometry, !geometry.isEmpty else { return }
+        isLoadingStops = true
+        defer { isLoadingStops = false }
+
+        let fractions: [Double] = [0.25, 0.5, 0.75]
+        var places: [Place] = []
+        let categories: [NearbyCategory] = NearbyCategory.all.filter { $0.id == "fuel" }
+            + NearbyCategory.all.filter { $0.id == "cafe" }
+
+        for fraction in fractions {
+            guard let point = geometry.point(at: geometry.totalDistance * fraction) else { continue }
+            for category in categories {
+                if let found = try? await searchService.nearby(category, around: point, radiusMeters: 2_500),
+                   let first = found.first {
+                    places.append(first)
+                }
+            }
+        }
+
+        var unique: [Place] = []
+        for place in places where !unique.contains(where: { $0.name == place.name }) {
+            unique.append(place)
+        }
+
+        suggestedStops = Array(unique.prefix(4))
+        if suggestedStops.isEmpty {
+            toast = "Không tìm thấy điểm dừng nào dọc tuyến."
         }
     }
 
@@ -380,6 +751,9 @@ final class MapViewModel: ObservableObject {
             if let route = selectedRoute {
                 reply += " Tổng \(route.formattedDistance), khoảng \(route.formattedDuration)."
             }
+            if let advice = aiAdvice {
+                reply += " " + advice
+            }
             transcript.append(AIChatMessage(role: .assistant, text: reply))
             remember(resolved.destination)
         } catch {
@@ -403,6 +777,33 @@ final class MapViewModel: ObservableObject {
     func refreshSummary() async {
         guard let route = selectedRoute else { return }
         await generateSummary(for: route)
+        await generateAdvice()
+    }
+
+    /// AI giải thích vì sao nên chọn tuyến này (có tính cảnh báo + cao tốc).
+    func generateAdvice() async {
+        guard routes.count > 1 else {
+            aiAdvice = nil
+            return
+        }
+        aiAdviceThinking = true
+        defer { aiAdviceThinking = false }
+        aiAdvice = await planner.advise(routes: routes,
+                                        scores: routeScores,
+                                        originName: origin?.name ?? "vị trí của bạn",
+                                        destinationName: destination?.name ?? "điểm đến",
+                                        config: config)
+    }
+
+    // MARK: - Giọng nói
+
+    func speak(_ text: String, key: String, cooldown: TimeInterval = 40) {
+        voice.isEnabled = preferences.voiceEnabled
+        voice.announce(text, key: key, cooldown: cooldown)
+    }
+
+    func stopSpeaking() {
+        voice.stop()
     }
 
     // MARK: - Tiện ích

@@ -3,8 +3,8 @@
 # pack-ipa.sh — Đóng gói một .app đã build thành file .ipa (unsigned).
 # KHÔNG cần macOS: chạy được trên Linux/macOS/WSL, vì chỉ dùng zip + đọc plist.
 #
-#   ./scripts/pack-ipa.sh /đường/dẫn/HelloIPA.app
-#   ./scripts/pack-ipa.sh build/HelloIPA.app --output dist --build-number 7
+#   ./scripts/pack-ipa.sh /đường/dẫn/VietMap.app
+#   ./scripts/pack-ipa.sh build/VietMap.app --output dist --build-number 7
 #
 # Kết quả: <output>/<App>-<version>-<build>-unsigned.ipa và file .sha256
 #

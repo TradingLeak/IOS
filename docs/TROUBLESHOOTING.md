@@ -2,7 +2,7 @@
 
 ## Build / CI
 
-### `Signing for "HelloIPA" requires a development team`
+### `Signing for "VietMap" requires a development team`
 Bạn đang build mà không truyền đủ cờ tắt ký.
 
 ```bash
@@ -22,7 +22,7 @@ brew install xcodegen
 Scheme trong workflow/lệnh không khớp. Kiểm tra:
 
 ```bash
-xcodebuild -list -project HelloIPA.xcodeproj
+xcodebuild -list -project VietMap.xcodeproj
 ```
 
 Sửa `SCHEME` trong workflow hoặc truyền `--scheme`.
@@ -132,7 +132,7 @@ Apple ID miễn phí giới hạn 3 app + 10 App ID/tuần. Gỡ bớt app hoặ
 ```bash
 make distclean          # xoá build/, dist/, project đã sinh
 xcodegen generate       # sinh lại project
-rm -rf ~/Library/Developer/Xcode/DerivedData/HelloIPA-*
+rm -rf ~/Library/Developer/Xcode/DerivedData/VietMap-*
 ./scripts/make-ipa.sh --verbose
 ```
 
@@ -235,3 +235,42 @@ App vẫn có IPA dùng được; lỗi nằm ở test logic (parser/format/AI c
 ### Muốn bỏ test cho nhanh
 `Run workflow` → tắt `run_tests`, hoặc push với commit chỉ sửa docs (workflow vẫn chạy
 nhưng bạn có thể cancel job test).
+
+---
+
+## Phần 3 — Lỗi riêng của cảnh báo tốc độ / camera / xe máy
+
+### Không thấy giới hạn tốc độ (HUD hiện "chưa rõ biển báo")
+
+- Đây là hành vi đúng khi: đường chưa có biển/vùng trong dữ liệu **và** tên đường trong chỉ
+  dẫn không nhận diện được loại đường (xem `SpeedLimitRules.classify`).
+- Cách xử lý: nhập JSON vùng tốc độ cho địa phương bạn (`docs/ALERTS.md` mục 5–6), hoặc tải
+  thêm từ OpenStreetMap khi đang có tuyến.
+- Kiểm tra nhanh dữ liệu: `python3 scripts/build-alert-data.py --check`.
+
+### Bấm "Tải biển tốc độ từ OpenStreetMap" bị lỗi/timeout
+
+- Overpass API là dịch vụ công cộng, hay quá tải. App chỉ tải quanh tuyến trong hộp
+  0,6° × 0,6° (~65 km) và timeout 30 giây.
+- Đứng ở Việt Nam tải có thể chậm hơn; thử lại sau vài phút hoặc dùng VPN.
+- Lỗi `HTTP 429` = bị giới hạn tần suất, chờ 5–10 phút.
+
+### Tuyến xe máy vẫn đi vào cao tốc
+
+- Chưa nhập API key VietMap → app đang ước lượng từ Apple Maps. Tên đường trong chỉ dẫn
+  không chứa chữ "cao tốc" thì không lọc được.
+- Nhập key VietMap trong Cài đặt → **Dẫn đường xe máy** để dùng hồ sơ `vehicle=motorcycle`
+  thật. Nếu VietMap trả lỗi, app tự quay về Apple Maps và ghi chú lý do trên thẻ tuyến.
+
+### VietMap trả về `HTTP 401/403`
+
+- Key sai/hết hạn hoặc chưa bật dịch vụ Route v4 trong console VietMap.
+- Kiểm tra key trong Cài đặt (nút con mắt để xem lại), rồi thử trên
+  <https://tools.vietmap.vn/playground/route>.
+
+### Giọng đọc cảnh báo không kêu
+
+- iOS → Cài đặt → **Âm thanh & Cảm ứng** → kiểm tra âm lượng; tắt chế độ im lặng thì
+  AVSpeechSynthesizer vẫn đọc (audio session `.ambient`).
+- Trong app: HUD có nút **Giọng nói / Im lặng**; Cài đặt → Cảnh báo & HUD có toggle riêng.
+- Nếu đang mở nhạc, app dùng `.duckOthers` nên nhạc sẽ nhỏ lại khi đọc cảnh báo.

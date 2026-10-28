@@ -10,6 +10,7 @@ struct MapPin: Identifiable {
         case waypoint
         case poi
         case favorite
+        case camera
     }
 
     let id: String

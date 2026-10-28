@@ -146,7 +146,33 @@ xcodebuild test -project VietMap.xcodeproj -scheme VietMap \
 
 CI chạy test trên Simulator ở job `unit-tests` (bỏ qua khi chọn `run_tests: false`).
 
-## 10. Deploy lên máy thật
+Bộ test hiện có:
+
+| File | Nội dung |
+|---|---|
+| `ModelTests` | định dạng km/phút, model tuyến, lưu lịch sử/yêu thích |
+| `RouteIntentParserTests` | parser tiếng Việt offline (gồm cả "xe máy") |
+| `AIIntentTests` | schema JSON của AI + `TravelMode.parse` |
+| `AIClientTests` | dựng URL, parse phản hồi, xử lý lỗi |
+| `AlertTests` | giải mã dữ liệu cảnh báo, chỉ mục lưới, `D_warn`, TT 38/2024, chấm điểm tuyến |
+| `RoutingTests` | hồ sơ xe máy, lọc tuyến cao tốc, giải mã polyline VietMap Route v4 |
+
+## 10. Dữ liệu cảnh báo (camera / biển tốc độ)
+
+Dữ liệu nhúng nằm ở `App/Resources/Data/vn_alerts.json` (sinh tự động, **commit vào repo**):
+
+```bash
+python3 scripts/build-alert-data.py           # gộp data/sources + data/curated
+python3 scripts/build-alert-data.py --check   # chỉ kiểm tra (CI + selfcheck dùng lệnh này)
+```
+
+`project.yml` đã khai báo `App/Resources` là nguồn, nên tệp JSON tự vào app bundle — không
+cần sửa gì thêm. Nếu thêm thư mục dữ liệu mới, giữ nó trong `App/Resources/` để XcodeGen
+đóng gói.
+
+Chi tiết schema, nguồn và giấy phép: [ALERTS.md](ALERTS.md).
+
+## 11. Deploy lên máy thật
 
 Simulator không cần ký, nên phát triển UI nhanh nhất là chạy Simulator. Với máy thật:
 

@@ -45,7 +45,7 @@ final class AIIntentTests: XCTestCase {
         XCTAssertNil(intent.origin)
         XCTAssertTrue(intent.waypoints.isEmpty)
         XCTAssertTrue(intent.avoid.isEmpty)
-        XCTAssertEqual(intent.travelMode, .automobile)
+        XCTAssertEqual(intent.travelMode, .motorcycle)
     }
 
     func testWaypointsAsCommaSeparatedString() throws {
@@ -55,7 +55,8 @@ final class AIIntentTests: XCTestCase {
 
     func testModeParsing() {
         XCTAssertEqual(TravelMode.parse("automobile"), .automobile)
-        XCTAssertEqual(TravelMode.parse("xe máy"), .automobile)
+        XCTAssertEqual(TravelMode.parse("xe máy"), .motorcycle)
+        XCTAssertEqual(TravelMode.parse("xe mô tô"), .motorcycle)
         XCTAssertEqual(TravelMode.parse("walking"), .walking)
         XCTAssertEqual(TravelMode.parse("đi bộ"), .walking)
         XCTAssertEqual(TravelMode.parse("transit"), .transit)

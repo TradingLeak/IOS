@@ -6,9 +6,15 @@ import UIKit
 enum AppTheme {
     static let accent = Color(red: 0.16, green: 0.47, blue: 0.98)
     static let accentDeep = Color(red: 0.47, green: 0.25, blue: 0.95)
+    static let cyan = Color(red: 0.18, green: 0.78, blue: 0.93)
     static let success = Color(red: 0.09, green: 0.68, blue: 0.45)
     static let warning = Color(red: 0.95, green: 0.60, blue: 0.08)
     static let danger = Color(red: 0.90, green: 0.25, blue: 0.28)
+
+    /// Nền tối cho HUD khi lái xe (luôn tối, kể cả khi máy đang ở chế độ sáng).
+    static let hudTop = Color(red: 0.05, green: 0.06, blue: 0.10)
+    static let hudBottom = Color(red: 0.02, green: 0.03, blue: 0.05)
+    static let hudCard = Color(white: 1.0, opacity: 0.08)
 
     static let accentGradient = LinearGradient(
         colors: [accent, accentDeep],
@@ -20,6 +26,19 @@ enum AppTheme {
         colors: [Color(red: 0.10, green: 0.55, blue: 1.00), Color(red: 0.42, green: 0.24, blue: 0.98)],
         startPoint: .leading,
         endPoint: .trailing
+    )
+
+    /// Gradient nhấn cho HUD / cảnh báo.
+    static let alertGradient = LinearGradient(
+        colors: [Color(red: 0.95, green: 0.36, blue: 0.18), Color(red: 0.86, green: 0.12, blue: 0.30)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    static let hudGradient = LinearGradient(
+        colors: [hudTop, hudBottom],
+        startPoint: .top,
+        endPoint: .bottom
     )
 
     /// Nền của các "card nổi" trên bản đồ.
@@ -61,6 +80,24 @@ extension View {
 
     func softShadow() -> some View {
         shadow(color: Color.black.opacity(0.14), radius: 10, x: 0, y: 4)
+    }
+
+    /// Card "kính mờ" hiện đại (iOS 15+): vật liệu mờ + viền sáng mảnh.
+    func glassCard(cornerRadius: CGFloat = AppTheme.cardRadius) -> some View {
+        self.background(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(colors: [Color.white.opacity(0.35), Color.white.opacity(0.04)],
+                                           startPoint: .topLeading,
+                                           endPoint: .bottomTrailing),
+                            lineWidth: 1
+                        )
+                )
+        )
+        .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 8)
     }
 
     /// Nền gradient cho các nút chính.
