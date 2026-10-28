@@ -201,8 +201,8 @@ Script sẽ **dừng và không ghi** nếu: thiếu < 300 camera, id trùng, to
   thực tế; người lái luôn phải tuân theo biển báo và hiệu lệnh của CSGT.
 - Việc cảnh báo vị trí camera không bị pháp luật Việt Nam cấm; app hiển thị dòng
   “dữ liệu tham khảo” trong phần Nguồn dữ liệu.
-- Toàn bộ tính toán cảnh báo chạy **trên máy**, không gửi vị trí đi đâu (trừ khi bạn bật
-  trợ lý AI và gửi câu lệnh — xem `docs/AI.md`).
+- Toàn bộ tính toán cảnh báo chạy **trên máy**, không gửi vị trí đi đâu — app không có
+  máy chủ riêng và không có tính năng nào gửi dữ liệu ra ngoài.
 - Mức phạt tham khảo (Nghị định 168/2024/NĐ-CP, xe máy): vượt 5–10 km/h phạt 800.000 –
   1.000.000 đ; 10–20 km/h phạt 4–6 triệu và tước GPLX 1–3 tháng; trên 20 km/h phạt 6–8
   triệu, tước GPLX 1–3 tháng.

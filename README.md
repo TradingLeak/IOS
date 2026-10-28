@@ -1,29 +1,34 @@
-# 🗺️ Bản đồ & Chỉ đường Việt Nam (iOS) — MapKit + AI tuỳ chỉnh
+# 🗺️ Bản đồ & Chỉ đường Việt Nam (iOS) — MapKit 3D + cảnh báo giao thông
 
 [![Build unsigned IPA](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml/badge.svg)](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml)
 
 App chỉ đường cho Việt Nam, giao diện **kính mờ hiện đại** (card nổi, HUD tốc độ, bottom
-sheet), dùng **Apple Maps (MapKit)** để vẽ bản đồ và tính tuyến, **VietMap Route v4** cho
-hồ sơ xe máy, cảnh báo **tốc độ / biển báo / camera** và **AI model tuỳ chỉnh**
-(mặc định **ckey.vn**, chuẩn OpenAI) để hiểu câu lệnh tiếng Việt và chọn tuyến thông minh.
+sheet), dùng **Apple Maps (MapKit)** để vẽ bản đồ và tính tuyến, **camera dẫn đường 3D/2D
+xoay theo hướng đi và tốc độ thời gian thực**, **VietMap Route v4** cho hồ sơ xe máy,
+cảnh báo **tốc độ / biển báo / camera**.
+
+**Không cần mạng để tính điểm tuyến, không cần API key nào để dùng app** — mọi tính năng
+dẫn đường chạy offline trên máy (chỉ có VietMap là tuỳ chọn nếu bạn muốn tuyến xe máy chính xác).
 
 Build ra **file IPA unsigned trên GitHub Actions** — không cần máy Mac, không cần tài khoản
 Apple Developer.
 
 ```
-┌──────────────┐   MKLocalSearch    ┌──────────────┐   MKDirections   ┌──────────────┐
-│  Câu tiếng   │ ─────────────────► │  Ý định JSON │ ───────────────► │  Tuyến thật  │
-│  Việt tự     │   AI (tuỳ chỉnh)   │  điểm đi/đến │   Apple Maps     │  + turn-by-  │
-│  nhiên       │   ckey.vn / khác   │  + waypoint  │                  │  turn        │
-└──────────────┘                    └──────────────┘                  └──────────────┘
+┌───────────────┐   MKDirections   ┌───────────────┐   so sánh + chấm điểm   ┌────────────────┐
+│ Tuyến thật từ │ ───────────────► │ 0–100 điểm,   │ ──────────────────────► │ Chọn tuyến →   │
+│ Apple Maps /  │   + cảnh báo     │ camera/cao tốc│   nhận xét offline      │ dẫn đường 3D   │
+│ VietMap v4    │   dọc tuyến      │ /phí cầu đường│                         │ bám vị trí     │
+└───────────────┘                  └───────────────┘                         └────────────────┘
 ```
 
 ## 📥 Tải IPA
 
 **[https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa](https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa)**
 
+Phiên bản hiện tại: **2.1.0 (3)** · ~3,5 MB · `arm64` · iOS ≥ 16.0 · không cần đăng nhập.
+
 Link cố định, cập nhật mỗi lần build. Hoặc vào tab **Actions** → *Build unsigned IPA* →
-**Run workflow** để tự build với bundle ID / model AI riêng.
+**Run workflow** để tự build với bundle ID / tên hiển thị riêng.
 
 Cài lên iPhone: xem **[docs/INSTALL.md](docs/INSTALL.md)** (TrollStore nếu iOS ≤ 17.0, hoặc
 Sideloadly/SideStore với Apple ID miễn phí).
@@ -43,9 +48,19 @@ Sideloadly/SideStore với Apple ID miễn phí).
   tải thêm biển tốc độ/camera từ **OpenStreetMap**, hoặc **nhập JSON** tự làm.
 - **Ngưỡng cảnh báo động** `D_warn = clamp(v × 3 m; 150; 500)`, đọc bằng **giọng tiếng Việt**
   (offline), có cooldown chống nói lặp.
-- **Tìm đường thông minh**: chấm điểm 0–100 cho từng phương án (thời gian, quãng đường, mật
-  độ camera, % cao tốc, phí cầu đường), AI giải thích nên chọn tuyến nào, gợi ý điểm dừng
-  (xăng/cà phê) dọc đường.
+- **Tìm đường thông minh (offline)**: chấm điểm 0–100 cho từng phương án (thời gian, quãng
+  đường, mật độ camera, % cao tốc, phí cầu đường), nhận xét vì sao nên chọn tuyến đó, gợi ý
+  điểm dừng (xăng/cà phê) dọc đường.
+
+**🆕 2.1 — dẫn đường kiểu ứng dụng thương mại**
+- **Bản đồ 3D / 2D theo thời gian thực**: khi dẫn đường, camera nghiêng 55° và **xoay theo
+  hướng đi**, tự **phóng to khi chậm, thu nhỏ khi nhanh** (180 m → 900 m), cập nhật mượt
+  theo GPS. Bấm nút `view.3d` để chuyển 2D nhìn từ trên xuống.
+- **Kéo bản đồ để xem trước, bấm mũi tên để bám lại** — giống Google Maps/Apple Maps.
+- **Banner chỉ dẫn thương mại**: khoảng cách tới ngã rẽ kế tiếp, còn bao xa, còn bao lâu,
+  **giờ tới nơi dự kiến** và thanh tiến độ chuyến đi.
+- **Bỏ hoàn toàn phần AI**: không cần API key, không gọi máy chủ ngoài, không gửi dữ liệu đi.
+  Nhận xét tuyến vẫn có, nhưng tính trực tiếp từ số liệu trên máy.
 
 **Bản đồ (Apple Maps / MapKit — miễn phí, không cần API key)**
 - Bản đồ toàn Việt Nam, 12 thành phố preset (Hà Nội, TP.HCM, Đà Nẵng, Đà Lạt, Phú Quốc…).
@@ -61,54 +76,16 @@ Sideloadly/SideStore với Apple ID miễn phí).
 - Chế độ điều hướng: banner bước kế tiếp, tự chuyển bước khi bạn tới gần (GPS).
 - Lưu lịch sử tìm kiếm và địa điểm yêu thích (UserDefaults + JSON).
 
-**AI (model và base URL tuỳ chỉnh)**
-- Gõ/speak câu tự nhiên: *“đi từ Cầu Giấy đến Hồ Tây, tránh đường đông”* → app tìm địa
-  điểm thật, tính tuyến thật và tóm tắt lộ trình bằng tiếng Việt.
-- Chuẩn **OpenAI `/chat/completions`**: ckey.vn, OpenAI, Groq, OpenRouter, Ollama (LAN)…
-  đổi nhà cung cấp chỉ bằng base URL + model.
-- **Không có key vẫn dùng được**: có bộ phân tích tiếng Việt offline cho câu cơ bản.
-- Key lưu trong **Keychain**, không nằm trong repo, không ghi log.
-
-## ⚙️ Cấu hình AI
-
-Mặc định app trỏ tới **ckey.vn**:
-
-| Trường | Giá trị |
-|---|---|
-| Base URL | `https://api.xah.io/v1` |
-| Model | `gpt-4o-mini` (đổi được) |
-| Endpoint | `POST https://api.xah.io/v1/chat/completions` |
-| Auth | `Authorization: Bearer <API key>` |
-
-Ba cách cấu hình:
-
-**1. Trong app (khuyến nghị)**
-Mở app → menu ☰ → **Cài đặt AI & bản đồ** → dán API key → bấm **Kiểm tra kết nối**.
-Key lưu trong Keychain của máy, không ai khác đọc được.
-
-**2. GitHub Secrets (nhúng sẵn vào bản build)**
-Repo → **Settings → Secrets and variables → Actions**:
-
-| Loại | Tên | Ý nghĩa |
-|---|---|---|
-| Secret | `AI_API_KEY` | API key (KHÔNG commit vào code) |
-| Variable | `AI_BASE_URL` | vd `https://api.xah.io/v1` |
-| Variable | `AI_MODEL` | vd `gpt-4o-mini` |
-
-Build tự đọc và nhúng vào `Info.plist`. ⚠️ Repo public thì key nhúng sẽ nằm trong file IPA
-phát hành — ai tải cũng trích ra được. Chỉ dùng cách này cho bản build cá nhân, hoặc chỉ
-nhúng base URL/model rồi nhập key trong app.
-
-**3. Khi bấm Run workflow**
-Điền `ai_base_url`, `ai_model` cho từng lần build (key vẫn lấy từ secret).
-
-Chi tiết kỹ thuật, prompt, schema JSON: **[docs/AI.md](docs/AI.md)**.
+**Quyền riêng tư**
+- Không có tài khoản, không telemetry, không quảng cáo.
+- Vị trí chỉ dùng trong máy để dẫn đường; không gửi lên máy chủ nào.
+- API key VietMap (tuỳ chọn) lưu trong **Keychain**, không nằm trong repo, không ghi log.
 
 ## 🧱 Cấu trúc mã nguồn
 
 ```
 App/
-├── Info.plist                     # quyền vị trí + placeholder cấu hình AI
+├── Info.plist                     # quyền vị trí, phiên bản, commit build
 ├── Resources/Assets.xcassets      # AppIcon 1024×1024, màu nhấn, nền launch
 ├── Sources/
 │   ├── App/VietMapApp.swift       # entry point
@@ -124,20 +101,18 @@ App/
 │   │   ├── VietMapRoutingService.swift # Route v4, hồ sơ xe máy
 │   │   ├── OSMAlertService.swift  # tải biển tốc độ/camera từ Overpass
 │   │   ├── VoiceAlertService.swift# đọc cảnh báo bằng AVSpeechSynthesizer
-│   │   ├── AIClient.swift         # gọi {base_url}/chat/completions, parse phản hồi
-│   │   ├── AIRoutePlanner.swift   # prompt → JSON ý định → địa điểm thật → tóm tắt
-│   │   ├── RouteIntentParser.swift# parser tiếng Việt offline (dự phòng khi không có key)
+│   │   ├── RouteInsight.swift     # nhận xét + đề xuất tuyến soạn offline (không cần mạng)
 │   │   ├── SearchService.swift    # MKLocalSearchCompleter + MKLocalSearch + reverse geocode
 │   │   ├── DirectionsService.swift# MKDirections, ghép chặng, đổi sang model của app
 │   │   ├── LocationService.swift  # CLLocationManager, quyền, cập nhật vị trí
-│   │   ├── AppSettings.swift      # base URL/model/temperature + AIConfig
+│   │   ├── AppSettings.swift      # cài đặt: cảnh báo, xe hai bánh, camera 3D/2D
 │   │   ├── KeychainStore.swift    # lưu API key an toàn
 │   │   └── PlacesStore.swift      # lịch sử + yêu thích
-│   ├── ViewModels/MapViewModel.swift  # trạng thái trung tâm (tuyến, AI, bản đồ)
-│   └── Views/                     # MapScreen, MapContainer (MKMapView), HUDView, AlertsSheet,
-│                                  # RouteSheet, SearchSheet, AIAssistantSheet, SettingsView…
+│   ├── ViewModels/MapViewModel.swift  # trạng thái trung tâm (tuyến, camera dẫn đường, cảnh báo)
+│   └── Views/                     # MapScreen, MapContainer (MKMapView + camera 3D), HUDView,
+│                                  # AlertsSheet, RouteSheet, SearchSheet, SettingsView…
 ├── Resources/Data/vn_alerts.json  # 795 camera + dữ liệu cảnh báo (sinh bằng script)
-└── Tests/                         # parser, AI client, cảnh báo, tốc độ, polyline, chấm điểm
+└── Tests/                         # cảnh báo, tốc độ, xe máy, polyline, chấm điểm, format
 ```
 
 ## 🚀 Build
@@ -150,8 +125,7 @@ App/
 ```bash
 brew install xcodegen
 ./scripts/setup-macos.sh          # kiểm tra Xcode + sinh VietMap.xcodeproj
-./scripts/make-ipa.sh             # → dist/VietMap-2.0.0-2-unsigned.ipa
-AI_BASE_URL=https://api.xah.io/v1 AI_MODEL=gpt-4o-mini ./scripts/make-ipa.sh
+./scripts/make-ipa.sh             # → dist/VietMap-2.1.0-3-unsigned.ipa
 ```
 
 **Kiểm tra không cần Xcode:**
@@ -166,17 +140,17 @@ python3 scripts/build-alert-data.py --check   # kiểm tra App/Resources/Data/vn
 
 Workflow giải nén IPA và **fail nếu sai**: binary phải có `arm64`, platform `IOS`
 (không phải Simulator), `Info.plist` đủ khoá, không còn dấu chữ ký.
-Unit test chạy trên Simulator cho parser, AI client, format, lưu trữ.
+Unit test chạy trên Simulator cho cảnh báo, giới hạn tốc độ, tuyến xe máy, format và lưu trữ.
 
 ## 📚 Tài liệu
 
 | File | Nội dung |
 |---|---|
-| [docs/AI.md](docs/AI.md) | Tích hợp AI: schema JSON, prompt, đổi model/nhà cung cấp, xử lý lỗi |
+| [docs/NAVIGATION.md](docs/NAVIGATION.md) | Camera dẫn đường 2D/3D, bám vị trí, ETA, tiến độ |
 | [docs/ALERTS.md](docs/ALERTS.md) | Cảnh báo tốc độ/camera: nguồn dữ liệu, định dạng JSON, TT 38/2024, D_warn |
 | [docs/BUILD.md](docs/BUILD.md) | Cơ chế build IPA unsigned, tuỳ biến project, thêm package |
 | [docs/INSTALL.md](docs/INSTALL.md) | Cài IPA lên iPhone: TrollStore, Sideloadly, SideStore… |
-| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Lỗi thường gặp (build, MapKit, AI) |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Lỗi thường gặp (build, MapKit, GPS, cảnh báo) |
 
 ## 🔧 Cấu hình xe máy (VietMap)
 
@@ -193,7 +167,7 @@ tuyến cao tốc). Key lưu trong Keychain, không nằm trong repo.
   thông Việt Nam có thể chưa đầy đủ như Google Maps/Goong — app nêu rõ khi không tìm được tuyến.
 - **Cảnh báo chỉ để tham khảo**: giới hạn tốc độ có thể lệch so với biển báo thực tế. Luôn
   tuân theo biển báo và hiệu lệnh của CSGT. Chi tiết + giấy phép dữ liệu: [docs/ALERTS.md](docs/ALERTS.md).
-- Ứng dụng gửi **câu lệnh dạng văn bản** (không phải vị trí) tới máy chủ AI bạn cấu hình,
-  chỉ khi bạn dùng tính năng trợ lý. Không có key → không có dữ liệu nào rời khỏi máy.
+- Ứng dụng **không gửi dữ liệu nào lên máy chủ của chúng tôi** (không có máy chủ). Dữ liệu
+  cảnh báo nhúng sẵn trong app; OpenStreetMap chỉ tải khi bạn bấm.
 - IPA phát hành **không có chữ ký Apple**; cài đặt cần TrollStore hoặc ký lại bằng Apple ID
   miễn phí. Chi tiết trong docs/INSTALL.md.

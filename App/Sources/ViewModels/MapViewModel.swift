@@ -4,18 +4,6 @@ import MapKit
 import CoreLocation
 import Combine
 
-struct AIChatMessage: Identifiable {
-    enum Role {
-        case user
-        case assistant
-    }
-
-    let id = UUID()
-    let role: Role
-    let text: String
-    var isError: Bool = false
-}
-
 /// Trạng thái trung tâm của màn hình bản đồ.
 @MainActor
 final class MapViewModel: ObservableObject {
@@ -25,7 +13,6 @@ final class MapViewModel: ObservableObject {
     let location: LocationService
     let searchService = SearchService()
     private let store = PlacesStore()
-    private lazy var planner = AIRoutePlanner(search: searchService)
     private let voice = VoiceAlertService()
 
     // MARK: Dữ liệu cảnh báo
@@ -36,10 +23,11 @@ final class MapViewModel: ObservableObject {
     private var importedAlerts: [RoadAlert] = []
     private var preferences = AlertPreferences.all
 
-    // MARK: Cấu hình AI (đồng bộ từ AppSettings)
+    // MARK: Cấu hình (đồng bộ từ AppSettings)
 
-    private(set) var config = AIConfig(baseURL: "", model: "", apiKey: "", temperature: 0.2)
     private(set) var vietmapKey = ""
+    /// Tự bám theo vị trí khi bắt đầu dẫn đường (đồng bộ từ Cài đặt).
+    private var followOnStart = true
     private var didApplyDefaultMode = false
 
     // MARK: Bản đồ
@@ -61,11 +49,11 @@ final class MapViewModel: ObservableObject {
     @Published var isNavigating = false
     @Published var navigationStepIndex = 0
 
-    // MARK: Dẫn đường thông minh
+    // MARK: Dẫn đường thông minh (chấm điểm + nhận xét offline)
 
     @Published var routeScores: [RouteScore] = []
-    @Published var aiAdvice: String?
-    @Published var aiAdviceThinking = false
+    @Published var routeAdvice: String?
+    @Published var routeSummary: String?
     @Published var suggestedStops: [Place] = []
     @Published var isLoadingStops = false
 
@@ -82,19 +70,22 @@ final class MapViewModel: ObservableObject {
 
     private var routeGeometry: RouteGeometry?
 
-    // MARK: AI
-
-    @Published var aiThinking = false
-    @Published var aiSummary: String?
-    @Published var aiError: String?
-    @Published var transcript: [AIChatMessage] = []
-
     // MARK: Địa điểm
 
     @Published var nearbyPlaces: [Place] = []
     @Published var activeCategory: NearbyCategory?
     @Published var recents: [Place] = []
     @Published var favorites: [Place] = []
+
+    // MARK: Camera dẫn đường (2D / 3D theo thời gian thực)
+
+    /// Bám theo vị trí + hướng đi; người dùng kéo bản đồ sẽ tạm tắt.
+    @Published var isFollowingUser = true
+    @Published var followToken = 0
+    /// Hướng di chuyển hiện tại (độ) để xoay bản đồ.
+    @Published var courseDegrees: Double = 0
+    /// Vị trí đang dùng cho camera khi dẫn đường.
+    @Published var navigationCoordinate: CLLocationCoordinate2D?
 
     // MARK: UI
 
@@ -121,22 +112,12 @@ final class MapViewModel: ObservableObject {
         recents = store.recents()
         favorites = store.favorites()
         location.requestLocation()
-        transcript = [
-            AIChatMessage(role: .assistant,
-                          text: "Chào bạn! Nhắn kiểu \"đi xe máy từ Cầu Giấy đến Hồ Tây\" hoặc "
-                              + "\"chỉ đường đi bộ từ Hồ Hoàn Kiếm đến Nhà thờ Lớn\", mình sẽ tìm tuyến, "
-                              + "chấm điểm từng phương án và cảnh báo tốc độ, camera trên đường.")
-        ]
     }
 
-    func syncConfig(_ config: AIConfig) {
-        self.config = config
-    }
-
-    /// Đồng bộ toàn bộ cài đặt (AI, cảnh báo, VietMap).
+    /// Đồng bộ toàn bộ cài đặt (VietMap, cảnh báo, camera dẫn đường).
     func syncSettings(_ settings: AppSettings) {
-        config = settings.config
         vietmapKey = settings.vietmapKey
+        followOnStart = settings.followUserInNavigation
         preferences = settings.alertPreferences
         voice.isEnabled = preferences.voiceEnabled
         if !didApplyDefaultMode {
@@ -339,8 +320,8 @@ final class MapViewModel: ObservableObject {
         routes = []
         routeScores = []
         selectedRouteID = nil
-        aiSummary = nil
-        aiAdvice = nil
+        routeSummary = nil
+        routeAdvice = nil
         suggestedStops = []
         routeAlerts = []
         aheadAlerts = []
@@ -368,15 +349,11 @@ final class MapViewModel: ObservableObject {
             routeScores = scorer.score(result)
             selectedRouteID = routeScores.first?.routeID ?? result.first?.id
             fitToken += 1
-            aiSummary = nil
-            aiAdvice = nil
+            routeSummary = nil
+            routeAdvice = nil
             suggestedStops = []
             applySelectedRoute()
-
-            if let route = selectedRoute {
-                await generateSummary(for: route)
-            }
-            await generateAdvice()
+            refreshInsights()
         } catch {
             routes = []
             routeScores = []
@@ -407,7 +384,7 @@ final class MapViewModel: ObservableObject {
         selectedRouteID = route.id
         fitToken += 1
         applySelectedRoute()
-        Task { await generateAdvice() }
+        refreshInsights()
     }
 
     /// Tính lại hình học tuyến + cảnh báo dọc tuyến cho phương án đang chọn.
@@ -427,10 +404,26 @@ final class MapViewModel: ObservableObject {
         }
     }
 
+    /// Nhận xét + đề xuất tuyến soạn offline, cập nhật ngay khi đổi phương án.
+    func refreshInsights() {
+        guard let route = selectedRoute else {
+            routeSummary = nil
+            routeAdvice = nil
+            return
+        }
+        routeSummary = RouteInsight.summary(route: route,
+                                            originName: origin?.name ?? "vị trí của bạn",
+                                            destinationName: destination?.name ?? "điểm đến",
+                                            alerts: routeAlerts)
+        routeAdvice = RouteInsight.advice(routes: routes, scores: routeScores)
+    }
+
     func startNavigation() {
         guard hasRoute else { return }
         navigationStepIndex = 0
         isNavigating = true
+        isFollowingUser = followOnStart
+        followToken += 1
         voice.reset()
         voice.isEnabled = preferences.voiceEnabled
         if preferences.hudAutoOpen {
@@ -439,8 +432,6 @@ final class MapViewModel: ObservableObject {
         location.startUpdating()
         applySelectedRoute()
         if let first = selectedRoute?.steps.first {
-            focusCoordinate = first.endCoordinate
-            focusToken += 1
             speak(first.instruction, key: "step-0", cooldown: 0)
         }
     }
@@ -463,6 +454,10 @@ final class MapViewModel: ObservableObject {
     /// Cập nhật bước đi + tốc độ + cảnh báo theo vị trí thật.
     func updateNavigation(with coordinate: CLLocationCoordinate2D) {
         speedKmh = location.speedKmh
+        navigationCoordinate = coordinate
+        if let course = location.courseDegrees {
+            courseDegrees = Self.smoothHeading(old: courseDegrees, new: course)
+        }
 
         guard let geometry = routeGeometry else {
             updateSpeedContextWithoutRoute(coordinate: coordinate)
@@ -474,6 +469,7 @@ final class MapViewModel: ObservableObject {
 
         if isNavigating, let route = selectedRoute, !route.steps.isEmpty {
             let current = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+            var advanced = false
             while navigationStepIndex < route.steps.count - 1 {
                 let step = route.steps[navigationStepIndex]
                 let end = CLLocation(latitude: step.endCoordinate.latitude,
@@ -481,9 +477,24 @@ final class MapViewModel: ObservableObject {
                 let threshold = max(35, min(90, step.distance * 0.25))
                 if current.distance(from: end) < threshold {
                     navigationStepIndex += 1
+                    advanced = true
                 } else {
                     break
                 }
+            }
+
+            if advanced, let step = currentStep {
+                speak(RouteInsight.nextStepAnnouncement(step: step),
+                      key: "step-\(navigationStepIndex)",
+                      cooldown: 0)
+            }
+
+            // Nhắc trước ngã rẽ ~250 m (mỗi bước một lần).
+            let toStep = distanceToNextStep
+            if toStep > 45, toStep <= 250, let step = currentStep {
+                speak(RouteInsight.turnAnnouncement(step: step, distance: toStep),
+                      key: "turn-\(navigationStepIndex)",
+                      cooldown: 120)
             }
         }
 
@@ -508,6 +519,80 @@ final class MapViewModel: ObservableObject {
         if context.isOverLimit, let text = AlertEngine.overspeedAnnouncement(context) {
             speak(text, key: "overspeed-\(context.limit ?? 0)", cooldown: 45)
         }
+    }
+
+    /// Làm mượt hướng đi để bản đồ không bị giật khi GPS nhảy.
+    static func smoothHeading(old: Double, new: Double) -> Double {
+        guard new.isFinite, new >= 0, new <= 360 else { return old }
+        var delta = new - old
+        while delta > 180 { delta -= 360 }
+        while delta < -180 { delta += 360 }
+        // Giữ nguyên hướng cũ nếu lệch quá 60° (rẽ gấp thường do nhiễu GPS).
+        if abs(delta) > 60, old != 0 { return old + delta * 0.35 }
+        return (old + delta * 0.55).truncatingRemainder(dividingBy: 360)
+    }
+
+    // MARK: - Camera dẫn đường
+
+    /// Khoảng cách camera tới điểm nhìn — xa dần khi đi nhanh (giống app dẫn đường thương mại).
+    var navigationCameraDistance: Double {
+        let speed = max(0, speedKmh)
+        return min(900, max(180, 150 + speed * 4.2))
+    }
+
+    /// Tạm dừng bám theo (người dùng vừa kéo bản đồ).
+    func pauseFollowing() {
+        guard isNavigating, isFollowingUser else { return }
+        isFollowingUser = false
+    }
+
+    /// Bám theo vị trí trở lại.
+    func resumeFollowing() {
+        isFollowingUser = true
+        followToken += 1
+        if let coordinate = location.coordinate ?? navigationCoordinate {
+            navigationCoordinate = coordinate
+        }
+    }
+
+    // MARK: - Tiến độ dẫn đường
+
+    /// Quãng đường còn lại tới điểm đến (mét).
+    var remainingDistance: Double {
+        guard let route = selectedRoute else { return 0 }
+        guard isNavigating, let geometry = routeGeometry, let coordinate = location.coordinate,
+              let projection = geometry.projection(of: coordinate) else {
+            return route.distance
+        }
+        return max(0, geometry.totalDistance - projection.along)
+    }
+
+    /// Thời gian còn lại ước tính (giây).
+    var remainingTime: TimeInterval {
+        guard let route = selectedRoute else { return 0 }
+        guard route.distance > 1 else { return route.expectedTravelTime }
+        let ratio = remainingDistance / route.distance
+        return route.expectedTravelTime * max(0, min(1, ratio))
+    }
+
+    /// Tỉ lệ đã đi 0…1 (cho thanh tiến độ).
+    var navigationProgress: Double {
+        guard let route = selectedRoute, route.distance > 1 else { return 0 }
+        return max(0, min(1, 1 - remainingDistance / route.distance))
+    }
+
+    /// Còn bao xa tới cuối bước hiện tại (mét) — số lớn hiển thị trên banner.
+    var distanceToNextStep: Double {
+        guard let route = selectedRoute,
+              navigationStepIndex < route.steps.count,
+              let coordinate = location.coordinate else { return 0 }
+        let end = route.steps[navigationStepIndex].endCoordinate
+        return Self.distance(from: coordinate, to: end)
+    }
+
+    static func distance(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> Double {
+        CLLocation(latitude: from.latitude, longitude: from.longitude)
+            .distance(from: CLLocation(latitude: to.latitude, longitude: to.longitude))
     }
 
     private func updateSpeedContextWithoutRoute(coordinate: CLLocationCoordinate2D) {
@@ -715,84 +800,6 @@ final class MapViewModel: ObservableObject {
         if origin == nil { origin = currentPlace }
         toast = "Điểm đến: \(place.name)"
         await planRoute()
-    }
-
-    // MARK: - AI
-
-    func askAI(_ text: String) async {
-        let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prompt.isEmpty else { return }
-
-        transcript.append(AIChatMessage(role: .user, text: prompt))
-        aiThinking = true
-        aiError = nil
-        defer { aiThinking = false }
-
-        do {
-            let intent = try await planner.interpret(prompt, config: config)
-            let resolved = try await planner.resolve(intent: intent,
-                                                     originFallback: currentPlace,
-                                                     region: selectedPreset.region)
-
-            origin = resolved.origin ?? origin
-            destination = resolved.destination
-            waypoints = resolved.waypoints
-            mode = resolved.mode
-            showRouteSheet = true
-
-            await planRoute()
-
-            let originName = origin?.name ?? "vị trí của bạn"
-            var reply = resolved.explanation
-                ?? "Đã tìm tuyến \(resolved.mode.title.lowercased()) từ \(originName) đến \(resolved.destination.name)."
-            if !resolved.waypoints.isEmpty {
-                reply += " Có dừng tại \(resolved.waypoints.map(\.name).joined(separator: ", "))."
-            }
-            if let route = selectedRoute {
-                reply += " Tổng \(route.formattedDistance), khoảng \(route.formattedDuration)."
-            }
-            if let advice = aiAdvice {
-                reply += " " + advice
-            }
-            transcript.append(AIChatMessage(role: .assistant, text: reply))
-            remember(resolved.destination)
-        } catch {
-            let message = error.localizedDescription
-            aiError = message
-            transcript.append(AIChatMessage(role: .assistant, text: message, isError: true))
-        }
-    }
-
-    func generateSummary(for route: RouteOption) async {
-        let originName = origin?.name ?? "vị trí của bạn"
-        let destinationName = destination?.name ?? "điểm đến"
-        aiThinking = true
-        defer { aiThinking = false }
-        aiSummary = await planner.summarize(route: route,
-                                            originName: originName,
-                                            destinationName: destinationName,
-                                            config: config)
-    }
-
-    func refreshSummary() async {
-        guard let route = selectedRoute else { return }
-        await generateSummary(for: route)
-        await generateAdvice()
-    }
-
-    /// AI giải thích vì sao nên chọn tuyến này (có tính cảnh báo + cao tốc).
-    func generateAdvice() async {
-        guard routes.count > 1 else {
-            aiAdvice = nil
-            return
-        }
-        aiAdviceThinking = true
-        defer { aiAdviceThinking = false }
-        aiAdvice = await planner.advise(routes: routes,
-                                        scores: routeScores,
-                                        originName: origin?.name ?? "vị trí của bạn",
-                                        destinationName: destination?.name ?? "điểm đến",
-                                        config: config)
     }
 
     // MARK: - Giọng nói

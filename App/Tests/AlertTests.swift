@@ -361,7 +361,7 @@ final class RouteScorerTests: XCTestCase {
         let routes = [makeRoute(name: "Tuyến A", distance: 5_000, time: 600, stepText: "Đường Láng"),
                       makeRoute(name: "Tuyến B", distance: 7_000, time: 900, stepText: "Đường Láng")]
         let scores = scorer.score(routes)
-        let advice = AIRoutePlanner.localAdvice(routes: routes, scores: scores)
+        let advice = RouteInsight.advice(routes: routes, scores: scores)
         XCTAssertNotNil(advice)
         XCTAssertTrue(advice?.contains("Tuyến A") ?? false)
     }

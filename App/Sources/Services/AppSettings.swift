@@ -1,41 +1,11 @@
 import Foundation
 import Combine
 
-/// Cấu hình AI: tương thích chuẩn OpenAI (chat/completions),
-/// nên đổi nhà cung cấp chỉ cần đổi base URL + model.
-struct AIConfig {
-    var baseURL: String
-    var model: String
-    var apiKey: String
-    var temperature: Double
-
-    /// ckey.vn cung cấp endpoint tương thích OpenAI.
-    static let ckeyBaseURL = "https://api.xah.io/v1"
-    static let defaultModel = "gpt-4o-mini"
-
-    var trimmedBaseURL: String { baseURL.trimmingCharacters(in: .whitespacesAndNewlines) }
-    var trimmedModel: String { model.trimmingCharacters(in: .whitespacesAndNewlines) }
-    var trimmedKey: String { apiKey.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-    var isConfigured: Bool {
-        !trimmedKey.isEmpty && !trimmedBaseURL.isEmpty && !trimmedModel.isEmpty
-    }
-
-    var chatCompletionsURL: URL? {
-        AIClient.chatCompletionsURL(baseURL: trimmedBaseURL)
-    }
-}
-
-/// Cài đặt người dùng: base URL/model nằm trong UserDefaults,
-/// API key nằm trong Keychain (không bao giờ ghi vào repo hay file log).
+/// Cài đặt người dùng: lưu trong UserDefaults; API key VietMap nằm trong Keychain
+/// (không bao giờ ghi vào repo hay file log).
 @MainActor
 final class AppSettings: ObservableObject {
     private enum Keys {
-        static let baseURL = "vietmap.ai.baseURL"
-        static let model = "vietmap.ai.model"
-        static let temperature = "vietmap.ai.temperature"
-        static let apiKey = "ai.api.key"
-        static let useAI = "vietmap.ai.enabled"
         static let mapType = "vietmap.map.type"
         static let traffic = "vietmap.map.traffic"
         static let pois = "vietmap.map.pois"
@@ -49,23 +19,10 @@ final class AppSettings: ObservableObject {
         static let defaultMode = "vietmap.route.mode"
         static let alertsImported = "vietmap.alert.importedCount"
         static let vehicleClass = "vietmap.alert.vehicleClass"
+        static let navigationPitch = "vietmap.map.navigationPitch"
+        static let followOnStart = "vietmap.map.followOnStart"
     }
 
-    @Published var baseURL: String {
-        didSet { defaults.set(baseURL, forKey: Keys.baseURL) }
-    }
-    @Published var model: String {
-        didSet { defaults.set(model, forKey: Keys.model) }
-    }
-    @Published var temperature: Double {
-        didSet { defaults.set(temperature, forKey: Keys.temperature) }
-    }
-    @Published var apiKey: String {
-        didSet { KeychainStore.save(apiKey, for: Keys.apiKey) }
-    }
-    @Published var useAI: Bool {
-        didSet { defaults.set(useAI, forKey: Keys.useAI) }
-    }
     @Published var mapTypeIndex: Int {
         didSet { defaults.set(mapTypeIndex, forKey: Keys.mapType) }
     }
@@ -104,6 +61,14 @@ final class AppSettings: ObservableObject {
     @Published var vehicleClass: VehicleClass {
         didSet { defaults.set(vehicleClass.rawValue, forKey: Keys.vehicleClass) }
     }
+    /// Bản đồ nghiêng 3D khi dẫn đường (tắt = chế độ 2D nhìn từ trên xuống).
+    @Published var navigationPitch3D: Bool {
+        didSet { defaults.set(navigationPitch3D, forKey: Keys.navigationPitch) }
+    }
+    /// Tự bám theo vị trí khi bắt đầu dẫn đường.
+    @Published var followUserInNavigation: Bool {
+        didSet { defaults.set(followUserInNavigation, forKey: Keys.followOnStart) }
+    }
     /// Phương tiện mặc định khi mở app.
     @Published var defaultMode: TravelMode {
         didSet { defaults.set(defaultMode.rawValue, forKey: Keys.defaultMode) }
@@ -114,20 +79,6 @@ final class AppSettings: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
-        let bundledBaseURL = AppSettings.bundledValue("AIBaseURL")
-        let bundledModel = AppSettings.bundledValue("AIModel")
-        let bundledKey = AppSettings.bundledValue("AIApiKey")
-
-        baseURL = defaults.string(forKey: Keys.baseURL) ?? bundledBaseURL ?? AIConfig.ckeyBaseURL
-        model = defaults.string(forKey: Keys.model) ?? bundledModel ?? AIConfig.defaultModel
-
-        let savedTemperature = defaults.object(forKey: Keys.temperature) as? Double
-        temperature = savedTemperature ?? 0.2
-
-        let savedKey = KeychainStore.read(Keys.apiKey)
-        apiKey = savedKey.isEmpty ? (bundledKey ?? "") : savedKey
-
-        useAI = defaults.object(forKey: Keys.useAI) as? Bool ?? true
         mapTypeIndex = defaults.object(forKey: Keys.mapType) as? Int ?? 0
         showTraffic = defaults.object(forKey: Keys.traffic) as? Bool ?? false
         showPOIs = defaults.object(forKey: Keys.pois) as? Bool ?? true
@@ -143,11 +94,9 @@ final class AppSettings: ObservableObject {
         alertKinds = Set(kinds.isEmpty ? AlertKind.allCases : kinds)
 
         vehicleClass = VehicleClass(rawValue: defaults.string(forKey: Keys.vehicleClass) ?? "") ?? .motorcycle
+        navigationPitch3D = defaults.object(forKey: Keys.navigationPitch) as? Bool ?? true
+        followUserInNavigation = defaults.object(forKey: Keys.followOnStart) as? Bool ?? true
         defaultMode = TravelMode(rawValue: defaults.string(forKey: Keys.defaultMode) ?? "") ?? .motorcycle
-    }
-
-    var config: AIConfig {
-        AIConfig(baseURL: baseURL, model: model, apiKey: apiKey, temperature: temperature)
     }
 
     /// API key VietMap đã chuẩn hoá (rỗng = chưa có).
@@ -186,21 +135,5 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    /// Đặt nhanh cấu hình theo nhà cung cấp.
-    func applyPreset(baseURL: String, model: String) {
-        self.baseURL = baseURL
-        self.model = model
-    }
 
-    func clearAPIKey() {
-        apiKey = ""
-    }
-
-    /// Giá trị nhúng lúc build (từ GitHub Secrets). Trả nil nếu chưa cấu hình.
-    static func bundledValue(_ key: String, bundle: Bundle = .main) -> String? {
-        guard let raw = bundle.object(forInfoDictionaryKey: key) as? String else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty || trimmed.hasPrefix("$(") { return nil }
-        return trimmed
-    }
 }

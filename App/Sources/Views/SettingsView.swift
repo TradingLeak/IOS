@@ -8,26 +8,13 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var showAPIKey = false
     @State private var showVietMapKey = false
-    @State private var testState: TestState = .idle
     @State private var showAlertsManager = false
-
-    private let client = AIClient()
-
-    enum TestState {
-        case idle
-        case testing
-        case success(String)
-        case failure(String)
-    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
-                    aiCard
-                    presetsCard
                     routingCard
                     alertsCard
                     mapCard
@@ -49,170 +36,6 @@ struct SettingsView: View {
                 AlertsSheet(model: model, settings: settings)
             }
         }
-    }
-
-    // MARK: - AI
-
-    private var aiCard: some View {
-        SectionCard(title: "Kết nối AI", symbol: "sparkles") {
-            VStack(alignment: .leading, spacing: 14) {
-                labeledField(title: "Base URL") {
-                    TextField("https://api.xah.io/v1", text: $settings.baseURL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                        .font(.system(size: 14, design: .monospaced))
-                }
-
-                labeledField(title: "Model") {
-                    TextField("gpt-4o-mini", text: $settings.model)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(.system(size: 14, design: .monospaced))
-                }
-
-                labeledField(title: "API key") {
-                    HStack(spacing: 8) {
-                        Group {
-                            if showAPIKey {
-                                TextField("sk-…", text: $settings.apiKey)
-                            } else {
-                                SecureField("sk-…", text: $settings.apiKey)
-                            }
-                        }
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(.system(size: 14, design: .monospaced))
-
-                        Button {
-                            showAPIKey.toggle()
-                        } label: {
-                            Image(systemName: showAPIKey ? "eye.slash" : "eye")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                Text("Key được lưu trong Keychain của máy, không gửi đi đâu ngoài máy chủ AI bạn cấu hình.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Độ sáng tạo (temperature)")
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer()
-                        Text(String(format: "%.1f", settings.temperature))
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(value: $settings.temperature, in: 0...1, step: 0.1)
-                        .tint(AppTheme.accent)
-                }
-
-                HStack(spacing: 10) {
-                    Button {
-                        runTest()
-                    } label: {
-                        HStack(spacing: 6) {
-                            if case .testing = testState {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Image(systemName: "bolt.horizontal.circle.fill")
-                            }
-                            Text("Kiểm tra kết nối")
-                        }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .primaryGradientBackground(cornerRadius: 14)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!settings.config.isConfigured || isTesting)
-
-                    Button {
-                        settings.apiKey = ""
-                        testState = .idle
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(AppTheme.danger)
-                            .frame(width: 44, height: 44)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(AppTheme.danger.opacity(0.10))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Xoá API key")
-                }
-
-                switch testState {
-                case .idle:
-                    EmptyView()
-                case .testing:
-                    InfoBanner(kind: .info, text: "Đang gọi thử \(settings.model)…")
-                case .success(let reply):
-                    InfoBanner(kind: .success, text: "Kết nối OK. Model trả lời: “\(reply)”")
-                case .failure(let message):
-                    InfoBanner(kind: .error, text: message)
-                }
-            }
-        }
-    }
-
-    private var presetsCard: some View {
-        SectionCard(title: "Cấu hình nhanh", symbol: "bolt.fill") {
-            VStack(spacing: 8) {
-                presetRow(title: "ckey.vn (mặc định)",
-                          detail: AIConfig.ckeyBaseURL + " · gpt-4o-mini",
-                          baseURL: AIConfig.ckeyBaseURL,
-                          modelName: AIConfig.defaultModel)
-                presetRow(title: "OpenAI",
-                          detail: "https://api.openai.com/v1 · gpt-4o-mini",
-                          baseURL: "https://api.openai.com/v1",
-                          modelName: "gpt-4o-mini")
-                presetRow(title: "Groq",
-                          detail: "https://api.groq.com/openai/v1 · llama-3.3-70b-versatile",
-                          baseURL: "https://api.groq.com/openai/v1",
-                          modelName: "llama-3.3-70b-versatile")
-                presetRow(title: "Ollama trên máy (LAN)",
-                          detail: "http://192.168.1.10:11434/v1 · qwen2.5",
-                          baseURL: "http://192.168.1.10:11434/v1",
-                          modelName: "qwen2.5")
-            }
-        }
-    }
-
-    private func presetRow(title: String, detail: String, baseURL: String, modelName: String) -> some View {
-        Button {
-            settings.applyPreset(baseURL: baseURL, model: modelName)
-            testState = .idle
-        } label: {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.primary)
-                    Text(detail)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: settings.baseURL == baseURL ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(settings.baseURL == baseURL ? AppTheme.accent : Color.secondary)
-            }
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(AppTheme.subtleFill)
-            )
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Dẫn đường xe máy
@@ -406,6 +229,27 @@ struct SettingsView: View {
                         .font(.system(size: 13))
                 }
                 .tint(AppTheme.accent)
+
+                Divider()
+
+                Toggle(isOn: $settings.navigationPitch3D) {
+                    Label("Bản đồ 3D khi dẫn đường", systemImage: "view.3d")
+                        .font(.system(size: 13))
+                }
+                .tint(AppTheme.accent)
+
+                Toggle(isOn: $settings.followUserInNavigation) {
+                    Label("Tự bám theo vị trí khi bắt đầu", systemImage: "location.north.line.fill")
+                        .font(.system(size: 13))
+                }
+                .tint(AppTheme.accent)
+
+                Text("Khi dẫn đường, bản đồ tự xoay theo hướng đi và phóng to/thu nhỏ theo tốc độ "
+                     + "(3D nghiêng 55°, hoặc 2D nhìn từ trên xuống). Kéo bản đồ để xem trước, "
+                     + "bấm nút mũi tên để bám lại.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -467,7 +311,7 @@ struct SettingsView: View {
                 infoRow("Bản đồ", "Apple Maps (MapKit)")
                 infoRow("Xe máy", settings.hasVietMapKey ? "VietMap Route v4" : "ước lượng Apple Maps")
                 infoRow("Cảnh báo", "\(model.alertDatabase.count) điểm")
-                infoRow("AI", settings.config.isConfigured ? settings.model : "chưa cấu hình")
+                infoRow("Dẫn đường", settings.navigationPitch3D ? "3D xoay theo hướng" : "2D")
 
                 Text("Bản IPA này không có chữ ký Apple: dùng TrollStore (iOS ≤ 17.0) "
                      + "hoặc ký lại bằng Apple ID miễn phí (Sideloadly/SideStore) để cài.")
@@ -509,22 +353,5 @@ struct SettingsView: View {
         }
     }
 
-    private var isTesting: Bool {
-        if case .testing = testState { return true }
-        return false
-    }
 
-    private func runTest() {
-        testState = .testing
-        let config = settings.config
-        Task {
-            let result = await client.ping(config: config)
-            switch result {
-            case .success(let reply):
-                testState = .success(String(reply.prefix(60)))
-            case .failure(let error):
-                testState = .failure(error.localizedDescription)
-            }
-        }
-    }
 }

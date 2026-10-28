@@ -23,7 +23,6 @@ struct MapScreen: View {
     enum ActiveSheet: Identifiable {
         case search(SearchTarget)
         case route
-        case ai
         case settings
         case favorites
         case cities
@@ -33,7 +32,6 @@ struct MapScreen: View {
             switch self {
             case .search(let target): return "search-\(target.rawValue)"
             case .route: return "route"
-            case .ai: return "ai"
             case .settings: return "settings"
             case .favorites: return "favorites"
             case .cities: return "cities"
@@ -60,6 +58,14 @@ struct MapScreen: View {
                          mapTypeIndex: settings.mapTypeIndex,
                          showTraffic: settings.showTraffic,
                          showPOIs: settings.showPOIs,
+                         isNavigating: model.isNavigating,
+                         navigationCoordinate: model.navigationCoordinate,
+                         navigationHeading: model.courseDegrees,
+                         navigationDistance: model.navigationCameraDistance,
+                         navigationPitch3D: settings.navigationPitch3D,
+                         isFollowingUser: model.isFollowingUser,
+                         followToken: model.followToken,
+                         onFollowBroken: { model.pauseFollowing() },
                          onSelectPin: handlePinTap,
                          onLongPress: { coordinate in
                              Task { await model.setDestinationFromMap(coordinate) }
@@ -101,16 +107,13 @@ struct MapScreen: View {
             model.bootstrap()
             model.syncSettings(settings)
         }
-        .onChange(of: settings.baseURL) { _ in model.syncSettings(settings) }
-        .onChange(of: settings.model) { _ in model.syncSettings(settings) }
-        .onChange(of: settings.apiKey) { _ in model.syncSettings(settings) }
-        .onChange(of: settings.temperature) { _ in model.syncSettings(settings) }
         .onChange(of: settings.vietmapAPIKey) { _ in model.syncSettings(settings) }
         .onChange(of: settings.voiceAlerts) { _ in model.syncSettings(settings) }
         .onChange(of: settings.hudAutoOpen) { _ in model.syncSettings(settings) }
         .onChange(of: settings.showAlertPins) { _ in model.syncSettings(settings) }
         .onChange(of: settings.overspeedTolerance) { _ in model.syncSettings(settings) }
         .onChange(of: settings.alertKinds) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.followUserInNavigation) { _ in model.syncSettings(settings) }
         .onChange(of: settings.defaultMode) { value in
             model.syncSettings(settings)
             model.applyDefaultMode(value)
@@ -160,10 +163,6 @@ struct MapScreen: View {
                 } onPickDestination: {
                     activeSheet = .search(.destination)
                 }
-            case .ai:
-                AIAssistantSheet(model: model, settings: settings) {
-                    activeSheet = nil
-                }
             case .settings:
                 SettingsView(settings: settings, model: model)
             case .favorites:
@@ -193,11 +192,6 @@ struct MapScreen: View {
     private var header: some View {
         HStack(spacing: 10) {
             Menu {
-                Section("Trợ lý") {
-                    Button { activeSheet = .ai } label: {
-                        Label("Hỏi trợ lý AI", systemImage: "sparkles")
-                    }
-                }
                 Section("Địa điểm") {
                     Button { activeSheet = .favorites } label: {
                         Label("Yêu thích & gần đây", systemImage: "star")
@@ -223,7 +217,7 @@ struct MapScreen: View {
                 }
                 Section {
                     Button { activeSheet = .settings } label: {
-                        Label("Cài đặt AI & bản đồ", systemImage: "gearshape")
+                        Label("Cài đặt", systemImage: "gearshape")
                     }
                 }
             } label: {
@@ -316,37 +310,52 @@ struct MapScreen: View {
                           limit: model.speedContext.limit,
                           isOverspeed: model.speedContext.isOverLimit)
             }
+
+            // Bám lại vị trí khi người dùng vừa kéo bản đồ.
+            if model.isNavigating, !model.isFollowingUser {
+                FloatingIconButton(symbol: "location.north.fill",
+                                   active: true,
+                                   accessibilityLabel: "Bám theo vị trí") {
+                    model.resumeFollowing()
+                }
+            }
+
             FloatingIconButton(symbol: "camera.fill",
                                active: !model.routeAlerts.isEmpty,
                                badge: model.routeAlerts.isEmpty ? nil : "\(model.routeAlerts.count)",
                                accessibilityLabel: "Cảnh báo giao thông") {
                 activeSheet = .alerts
             }
-            FloatingIconButton(symbol: "location.fill",
-                               active: location.isAuthorized,
-                               accessibilityLabel: "Về vị trí của tôi") {
-                model.focusOnUser()
-            }
+
             if model.isNavigating {
+                FloatingIconButton(symbol: settings.navigationPitch3D ? "view.3d" : "map",
+                                   active: settings.navigationPitch3D,
+                                   accessibilityLabel: settings.navigationPitch3D
+                                   ? "Đang 3D — chuyển sang 2D" : "Đang 2D — chuyển sang 3D") {
+                    settings.navigationPitch3D.toggle()
+                    model.resumeFollowing()
+                }
                 FloatingIconButton(symbol: "gauge.with.dots.needle.67percent",
                                    active: true,
                                    accessibilityLabel: "Mở HUD tốc độ") {
                     model.showHUD = true
                 }
-            }
-            FloatingIconButton(symbol: model.hasRoute ? "arrow.up.left.and.arrow.down.right" : "square.stack.3d.up.fill",
-                               accessibilityLabel: model.hasRoute ? "Xem toàn bộ tuyến" : "Đổi kiểu bản đồ") {
-                if model.hasRoute {
-                    model.fitToken += 1
-                } else {
-                    settings.mapTypeIndex = (settings.mapTypeIndex + 1) % 4
+            } else {
+                FloatingIconButton(symbol: "location.fill",
+                                   active: location.isAuthorized,
+                                   accessibilityLabel: "Về vị trí của tôi") {
+                    model.focusOnUser()
+                }
+                FloatingIconButton(symbol: model.hasRoute ? "arrow.up.left.and.arrow.down.right" : "square.stack.3d.up.fill",
+                                   accessibilityLabel: model.hasRoute ? "Xem toàn bộ tuyến" : "Đổi kiểu bản đồ") {
+                    if model.hasRoute {
+                        model.fitToken += 1
+                    } else {
+                        settings.mapTypeIndex = (settings.mapTypeIndex + 1) % 4
+                    }
                 }
             }
-            FloatingIconButton(symbol: "sparkles",
-                               active: model.aiThinking,
-                               accessibilityLabel: "Trợ lý AI") {
-                activeSheet = .ai
-            }
+
             FloatingIconButton(symbol: settings.showTraffic ? "car.2.fill" : "car.fill",
                                active: settings.showTraffic,
                                accessibilityLabel: "Bật/tắt mật độ giao thông") {
@@ -369,17 +378,15 @@ struct MapScreen: View {
     private var actionBar: some View {
         HStack(spacing: 10) {
             Button {
-                activeSheet = .ai
+                activeSheet = .route
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
                         .font(.system(size: 17, weight: .semibold))
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Trợ lý AI")
+                        Text("Chỉ đường")
                             .font(.system(size: 15, weight: .semibold))
-                        Text(settings.config.isConfigured
-                             ? "Model: \(settings.model)"
-                             : "Nhập câu tiếng Việt để tìm tuyến")
+                        Text(model.destination?.name ?? "Nhập điểm đến để tìm tuyến")
                             .font(.system(size: 11))
                             .opacity(0.85)
                             .lineLimit(1)
@@ -394,16 +401,16 @@ struct MapScreen: View {
             .buttonStyle(.plain)
 
             Button {
-                activeSheet = .route
+                activeSheet = .favorites
             } label: {
-                Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
+                Image(systemName: "star.fill")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(AppTheme.accent)
                     .frame(width: 56, height: 56)
-                    .primaryGradientBackground(cornerRadius: 18)
+                    .floatingCard(cornerRadius: 18)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Chỉ đường")
+            .accessibilityLabel("Yêu thích & gần đây")
         }
     }
 
@@ -417,6 +424,9 @@ struct MapScreen: View {
                     HStack(spacing: 10) {
                         Label(route.formattedDuration, systemImage: "clock.fill")
                         Label(route.formattedDistance, systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                        if let arrival = route.arrivalText() {
+                            Text("· \(arrival)")
+                        }
                         Label(route.mode.title, systemImage: route.mode.symbol)
                     }
                     .font(.system(size: 12, weight: .medium))
@@ -448,9 +458,9 @@ struct MapScreen: View {
             }
             .font(.system(size: 11, weight: .medium))
 
-            if let advice = model.aiAdvice, !advice.isEmpty {
+            if let advice = model.routeAdvice, !advice.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(AppTheme.accentDeep)
                     Text(advice)
@@ -460,9 +470,9 @@ struct MapScreen: View {
                 }
             }
 
-            if let summary = model.aiSummary, !summary.isEmpty {
+            if let summary = model.routeSummary, !summary.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "text.bubble.fill")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(AppTheme.accent)
                     Text(summary)
@@ -535,36 +545,65 @@ struct MapScreen: View {
     // MARK: - Navigation banner
 
     private var navigationBanner: some View {
-        HStack(spacing: 12) {
-            Image(systemName: model.currentStep?.symbol ?? "location.north.fill")
-                .font(.system(size: 19, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 42, height: 42)
-                .background(Circle().fill(AppTheme.accentGradient))
+        VStack(spacing: 9) {
+            HStack(spacing: 12) {
+                Image(systemName: model.currentStep?.symbol ?? "location.north.fill")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(AppTheme.accentGradient))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(model.currentStep?.instruction ?? "Đang di chuyển")
-                    .font(.system(size: 14, weight: .semibold))
-                    .lineLimit(2)
-                if let next = model.nextStep {
-                    Text("Sau đó: \(next.instruction)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        if model.distanceToNextStep > 0 {
+                            Text(Format.hudDistance(model.distanceToNextStep))
+                                .font(.system(size: 17, weight: .heavy, design: .rounded))
+                                .monospacedDigit()
+                        }
+                        Text(model.currentStep?.instruction ?? "Đang di chuyển")
+                            .font(.system(size: 14, weight: .semibold))
+                            .lineLimit(2)
+                    }
+                    if let next = model.nextStep {
+                        Text("Sau đó: \(next.instruction)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+
+                Button {
+                    model.stopNavigation()
+                } label: {
+                    Text("Kết thúc")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(AppTheme.danger)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(AppTheme.danger.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 12) {
+                Label("Còn \(Format.distance(model.remainingDistance))",
+                      systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                Label(Format.remaining(model.remainingTime), systemImage: "clock.fill")
+                if let arrival = Format.arrival(after: model.remainingTime) {
+                    Text("· \(arrival)")
+                }
+                Spacer(minLength: 0)
+                if let limit = model.speedContext.limit {
+                    SpeedLimitSignView(limit: limit, size: 24, muted: true)
                 }
             }
-            Spacer(minLength: 0)
-            Button {
-                model.stopNavigation()
-            } label: {
-                Text("Kết thúc")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(AppTheme.danger)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Capsule().fill(AppTheme.danger.opacity(0.12)))
-            }
-            .buttonStyle(.plain)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+
+            ProgressView(value: model.navigationProgress)
+                .tint(AppTheme.accent)
+                .scaleEffect(x: 1, y: 0.7, anchor: .center)
         }
         .padding(12)
         .floatingCard()

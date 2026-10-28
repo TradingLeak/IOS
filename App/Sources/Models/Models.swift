@@ -201,6 +201,11 @@ struct RouteOption: Identifiable {
     /// Tốc độ trung bình theo km/h (dễ đọc hơn cho người dùng).
     var averageSpeedKmh: Double { averageSpeed * 3.6 }
 
+    /// Giờ tới nơi (giờ hiện tại + thời gian dự kiến).
+    func arrivalText(from date: Date = Date()) -> String? {
+        Format.arrival(after: expectedTravelTime, from: date)
+    }
+
     var tollCostText: String? {
         guard let tollCost, tollCost > 0 else { return nil }
         let formatter = NumberFormatter()
@@ -246,6 +251,21 @@ enum Format {
     static func speed(_ kmh: Double) -> String {
         guard kmh.isFinite, kmh >= 0 else { return "0 km/h" }
         return "\(Int(kmh.rounded())) km/h"
+    }
+
+    /// Giờ tới nơi dạng "14:35" (24h). `nil` nếu thời lượng không hợp lệ.
+    static func arrival(after seconds: TimeInterval, from now: Date = Date()) -> String? {
+        guard seconds.isFinite, seconds > 0 else { return nil }
+        let date = now.addingTimeInterval(seconds)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    /// Thời lượng còn lại đã trừ phần đã đi: "12 phút".
+    static func remaining(_ seconds: TimeInterval) -> String {
+        duration(max(0, seconds))
     }
 
     /// Khoảng cách ngắn gọn cho HUD: "320 m", "1,4 km".

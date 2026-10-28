@@ -44,15 +44,6 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Ứng dụng dùng vị trí của bạn để chỉ đường và cập nhật lộ trình khi đang di chuyển.</string>
 
-	<!-- Cấu hình AI, được truyền vào lúc build từ biến môi trường/GitHub Secrets.
-	     Để trống thì người dùng tự nhập trong màn hình Cài đặt (lưu bằng Keychain). -->
-	<key>AIBaseURL</key>
-	<string>$(AI_BASE_URL)</string>
-	<key>AIModel</key>
-	<string>$(AI_MODEL)</string>
-	<key>AIApiKey</key>
-	<string>$(AI_API_KEY)</string>
-
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

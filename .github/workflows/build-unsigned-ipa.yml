@@ -17,12 +17,6 @@ on:
       display_name:
         description: "Tên app hiển thị (để trống = giữ nguyên)"
         required: false
-      ai_base_url:
-        description: "AI base URL nhúng vào bản build (vd https://api.xah.io/v1)"
-        required: false
-      ai_model:
-        description: "Tên model AI nhúng vào bản build (vd gpt-4o-mini)"
-        required: false
       run_tests:
         description: "Chạy unit test (lâu hơn ~3 phút)"
         type: boolean
@@ -104,9 +98,6 @@ jobs:
       SCHEME: ${{ inputs.scheme || 'VietMap' }}
       BUNDLE_ID: ${{ inputs.bundle_id || '' }}
       DISPLAY_NAME: ${{ inputs.display_name || '' }}
-      AI_BASE_URL: ${{ inputs.ai_base_url || vars.AI_BASE_URL }}
-      AI_MODEL: ${{ inputs.ai_model || vars.AI_MODEL }}
-      AI_API_KEY: ${{ secrets.AI_API_KEY }}
 
     steps:
       - name: Checkout

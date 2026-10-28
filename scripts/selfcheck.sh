@@ -178,7 +178,7 @@ for needle in ["INFOPLIST_FILE: App/Info.plist", "ASSETCATALOG_COMPILER_APPICON_
 try:
     with open(os.path.join(root, "App/Info.plist"), "rb") as fh:
         info2 = plistlib.load(fh)
-    for key in ["NSLocationWhenInUseUsageDescription", "AIBaseURL", "AIModel", "AIApiKey"]:
+    for key in ["NSLocationWhenInUseUsageDescription", "CFBundleDisplayName", "UIRequiredDeviceCapabilities"]:
         if key not in info2:
             no("Info.plist thiếu khoá: " + key)
         else:
@@ -202,7 +202,7 @@ PY
 if [[ $? -ne 0 ]]; then FAIL=1; fi
 
 printf '\n\033[1m3. Tài liệu\033[0m\n'
-for f in README.md docs/BUILD.md docs/INSTALL.md docs/TROUBLESHOOTING.md docs/ALERTS.md data/README.md; do
+for f in README.md docs/BUILD.md docs/INSTALL.md docs/TROUBLESHOOTING.md docs/ALERTS.md docs/NAVIGATION.md data/README.md; do
   if [[ -s "$f" ]]; then pass "$f"; else fail "thiếu $f"; fi
 done
 

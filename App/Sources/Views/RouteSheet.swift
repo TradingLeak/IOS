@@ -21,7 +21,7 @@ struct RouteSheet: View {
                         summaryCard(route)
                         if model.routes.count > 1 { routeOptionsCard }
                         smartAdviceCard
-                        if let summary = model.aiSummary { aiCard(summary) }
+                        if let summary = model.routeSummary { insightCard(summary) }
                         alertsCard
                         stopsCard
                         stepsCard(route)
@@ -198,7 +198,7 @@ struct RouteSheet: View {
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
                                 if model.recommendedScore?.routeID == route.id {
-                                    Text("AI đề xuất")
+                                    Text("Đề xuất")
                                         .font(.system(size: 9, weight: .bold))
                                         .foregroundStyle(.white)
                                         .padding(.horizontal, 6)
@@ -229,20 +229,17 @@ struct RouteSheet: View {
 
     @ViewBuilder
     private var smartAdviceCard: some View {
-        if let advice = model.aiAdvice, !advice.isEmpty {
+        if let advice = model.routeAdvice, !advice.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 7) {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(AppTheme.accentDeep)
-                    Text("AI ĐỀ XUẤT TUYẾN")
+                    Text("TUYẾN NÊN ĐI")
                         .font(.system(size: 10, weight: .bold))
                         .tracking(0.8)
                         .foregroundStyle(.secondary)
                     Spacer(minLength: 0)
-                    if model.aiAdviceThinking {
-                        ProgressView().controlSize(.mini)
-                    }
                 }
                 Text(advice)
                     .font(.system(size: 13, weight: .medium))
@@ -333,7 +330,7 @@ struct RouteSheet: View {
                         if model.isLoadingStops {
                             ProgressView().controlSize(.mini)
                         } else {
-                            Image(systemName: "sparkles")
+                            Image(systemName: "arrow.triangle.2.circlepath")
                                 .font(.system(size: 10, weight: .bold))
                         }
                         Text("Gợi ý")
@@ -378,40 +375,27 @@ struct RouteSheet: View {
         .floatingCard()
     }
 
-    private func aiCard(_ summary: String) -> some View {
+    private func insightCard(_ summary: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
-                Image(systemName: "sparkles")
+                Image(systemName: "text.bubble.fill")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(AppTheme.accent)
-                Text("TÓM TẮT BẰNG AI")
+                Text("NHẬN XÉT TUYẾN")
                     .font(.system(size: 10, weight: .bold))
                     .tracking(0.8)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
-                if model.aiThinking {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    Button {
-                        Task { await model.refreshSummary() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(AppTheme.accent)
-                    }
-                    .buttonStyle(.plain)
-                }
             }
             Text(summary)
                 .font(.system(size: 13))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !settings.config.isConfigured {
-                Text("Đang dùng tóm tắt mặc định. Nhập API key trong Cài đặt để AI viết nhận xét riêng.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
+            Text("Nhận xét được tính trực tiếp từ số liệu tuyến trên máy — không cần mạng, không cần tài khoản.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

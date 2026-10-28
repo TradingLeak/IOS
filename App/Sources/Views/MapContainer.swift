@@ -19,7 +19,8 @@ final class PinAnnotation: NSObject, MKAnnotation {
     }
 }
 
-/// Bọc MKMapView (Apple Maps) cho SwiftUI: vẽ tuyến, ghim, nhấn giữ để chọn điểm.
+/// Bọc MKMapView (Apple Maps) cho SwiftUI: vẽ tuyến, ghim, nhấn giữ để chọn điểm,
+/// và **camera dẫn đường thời gian thực** (3D nghiêng + xoay theo hướng đi, hoặc 2D).
 struct MapContainer: UIViewRepresentable {
     var pins: [MapPin] = []
     var polylines: [MapPolyline] = []
@@ -29,6 +30,26 @@ struct MapContainer: UIViewRepresentable {
     var mapTypeIndex: Int = 0
     var showTraffic: Bool = false
     var showPOIs: Bool = true
+
+    // MARK: Camera dẫn đường
+
+    /// Đang dẫn đường → camera bám vị trí thay vì hiển thị toàn tuyến.
+    var isNavigating: Bool = false
+    /// Vị trí hiện tại dùng cho camera.
+    var navigationCoordinate: CLLocationCoordinate2D? = nil
+    /// Hướng đi (độ) để xoay bản đồ.
+    var navigationHeading: Double = 0
+    /// Khoảng cách camera → điểm nhìn (mét), do tốc độ quyết định.
+    var navigationDistance: Double = 600
+    /// `true` = nghiêng 3D, `false` = nhìn từ trên xuống (2D).
+    var navigationPitch3D: Bool = true
+    /// Còn bám theo vị trí hay người dùng đã kéo bản đồ.
+    var isFollowingUser: Bool = true
+    /// Tăng lên khi người dùng bấm "bám lại" để camera nhảy về vị trí.
+    var followToken: Int = 0
+    /// Người dùng vừa kéo bản đồ → tạm dừng bám theo.
+    var onFollowBroken: (() -> Void)? = nil
+
     var onSelectPin: ((MapPin) -> Void)? = nil
     var onLongPress: ((CLLocationCoordinate2D) -> Void)? = nil
 
@@ -42,6 +63,10 @@ struct MapContainer: UIViewRepresentable {
         mapView.showsBuildings = true
         mapView.isRotateEnabled = true
         mapView.isPitchEnabled = true
+        mapView.showsBuildings = true
+        // Cho phép nghiêng sâu như chế độ 3D của app dẫn đường.
+        mapView.cameraZoomRange = MKMapView.CameraZoomRange(minCenterCoordinateDistance: 120,
+                                                           maxCenterCoordinateDistance: 120_000)
         mapView.pointOfInterestFilter = .includingAll
         mapView.setRegion(MapPreset.vietnam.region, animated: false)
 
@@ -67,6 +92,14 @@ struct MapContainer: UIViewRepresentable {
 
         updatePins(mapView, context: context)
         updateOverlays(mapView, context: context)
+        updateNavigationCamera(mapView, context: context)
+
+        if isNavigating {
+            // Đang dẫn đường: camera do updateNavigationCamera quản lý, bỏ qua focus/fit.
+            context.coordinator.lastFocusToken = focusToken
+            context.coordinator.lastFitToken = fitToken
+            return
+        }
 
         if context.coordinator.lastFocusToken != focusToken, let coordinate = focusCoordinate {
             context.coordinator.lastFocusToken = focusToken
@@ -84,6 +117,30 @@ struct MapContainer: UIViewRepresentable {
                                           animated: true)
             }
         }
+    }
+
+    // MARK: - Camera dẫn đường
+
+    /// Cập nhật camera theo vị trí + hướng đi thật. Chỉ nhảy khi cần thiết để không giật.
+    private func updateNavigationCamera(_ mapView: MKMapView, context: Context) {
+        guard isNavigating, isFollowingUser, let coordinate = navigationCoordinate else { return }
+
+        let heading = navigationPitch3D ? navigationHeading : 0
+        let pitch: CGFloat = navigationPitch3D ? 55 : 0
+        let distance = max(160, min(1_200, navigationDistance))
+
+        guard context.coordinator.shouldUpdateCamera(coordinate: coordinate,
+                                                     heading: heading,
+                                                     distance: distance,
+                                                     pitch: pitch,
+                                                     pitch3D: navigationPitch3D,
+                                                     token: followToken) else { return }
+
+        let camera = MKMapCamera(lookingAtCenter: coordinate,
+                                 fromDistance: distance,
+                                 pitch: pitch,
+                                 heading: heading)
+        mapView.setCamera(camera, animated: true)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -159,6 +216,67 @@ struct MapContainer: UIViewRepresentable {
         var lastFocusToken = -1
         var lastFitToken = -1
         var lastPOISetting: Bool?
+
+        // Camera dẫn đường
+        private var lastCameraCoordinate: CLLocationCoordinate2D?
+        private var lastCameraHeading: Double = 0
+        private var lastCameraDistance: Double = 0
+        private var lastCameraPitch: CGFloat = -1
+        private var lastCameraToken = -1
+
+        /// Giới hạn tần suất cập nhật camera: bỏ qua thay đổi quá nhỏ.
+        func shouldUpdateCamera(coordinate: CLLocationCoordinate2D,
+                                heading: Double,
+                                distance: Double,
+                                pitch: CGFloat,
+                                pitch3D: Bool,
+                                token: Int) -> Bool {
+            defer {
+                lastCameraCoordinate = coordinate
+                lastCameraHeading = heading
+                lastCameraDistance = distance
+                lastCameraPitch = pitch
+                lastCameraToken = token
+            }
+
+            if token != lastCameraToken { return true }
+            if abs(pitch - lastCameraPitch) > 0.5 { return true }
+            guard let previous = lastCameraCoordinate else { return true }
+
+            let moved = CLLocation(latitude: previous.latitude, longitude: previous.longitude)
+                .distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+            if moved > 5 { return true }
+            if pitch3D, abs(Self.angleDelta(lastCameraHeading, heading)) > 4 { return true }
+            if abs(distance - lastCameraDistance) > max(40, lastCameraDistance * 0.15) { return true }
+            return false
+        }
+
+        static func angleDelta(_ a: Double, _ b: Double) -> Double {
+            var delta = b - a
+            while delta > 180 { delta -= 360 }
+            while delta < -180 { delta += 360 }
+            return delta
+        }
+
+        /// Người dùng đang kéo / zoom bản đồ bằng tay hay không.
+        static func isUserInteracting(_ mapView: MKMapView) -> Bool {
+            let recognizers = (mapView.subviews.first?.gestureRecognizers ?? []) + (mapView.gestureRecognizers ?? [])
+            for recognizer in recognizers {
+                switch recognizer.state {
+                case .began, .changed:
+                    return true
+                default:
+                    continue
+                }
+            }
+            return false
+        }
+
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            guard parent.isNavigating, parent.isFollowingUser else { return }
+            guard Self.isUserInteracting(mapView) else { return }
+            parent.onFollowBroken?()
+        }
 
         init(_ parent: MapContainer) {
             self.parent = parent
