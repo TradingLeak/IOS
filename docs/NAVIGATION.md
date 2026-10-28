@@ -81,16 +81,21 @@ Thẻ tuyến ngoài bản đồ cũng hiện giờ tới nơi dự kiến trư�
 
 ---
 
-## 4. HUD tốc độ
+## 4. Thanh tốc độ & cảnh báo trên màn hình chính
 
-Nút `gauge` mở **HUD toàn màn hình** (chữ lớn, nền tối, dùng khi gắn điện thoại lên xe):
+Từ 2.2 **không còn HUD toàn màn hình** — mọi thứ cần nhìn khi lái nằm ngay trên bản đồ:
 
-- Tốc độ hiện tại (đổi màu đỏ khi vượt ngưỡng).
-- Biển giới hạn tốc độ kiểu P.127 + nguồn (biển báo / vùng / OSM / bảng TT 38/2024).
-- Cảnh báo gần nhất (camera, biển báo, khu dân cư…) kèm khoảng cách.
-- Chỉ dẫn rẽ hiện tại.
+- **Thanh trạng thái** ở đáy màn hình (chỉ hiện khi đã có tuyến hoặc đang dẫn đường):
+  tốc độ hiện tại (đổi màu đỏ khi vượt ngưỡng), biển giới hạn tốc độ kiểu P.127 +
+  nguồn (biển báo / vùng / OSM / bảng TT 38/2024), và **2 cảnh báo gần nhất** kèm khoảng
+  cách, tô màu theo mức nguy hiểm (`xanh → vàng → cam → đỏ`).
+- **Biển báo và camera nằm trực tiếp trên bản đồ** dưới dạng marker/nhãn ruột (glyph + số
+  km/h), phóng to khi tới gần; bấm vào marker để xem chi tiết.
+- **Băng cảnh báo** hiện phía trên khi cảnh báo kế tiếp đã vào ngưỡng `D_warn`.
+- Khoảng cách ước tính cập nhật theo tốc độ thật, không cần mở màn hình phụ.
 
-HUD tự mở khi bắt đầu dẫn đường nếu bật **Cài đặt → Cảnh báo & HUD → Tự mở HUD**.
+Nút `view.3d` / `map` trên mép phải đổi **3D ↔ 2D bất cứ lúc nào** (cả khi chỉ xem bản đồ
+lẫn khi đang dẫn đường); lựa chọn được nhớ trong Cài đặt.
 
 ---
 
@@ -100,7 +105,7 @@ HUD tự mở khi bắt đầu dẫn đường nếu bật **Cài đặt → C�
   kể từ lần tính lại trước), app tự tính lại tuyến từ chỗ đang đứng, giữ nguyên chế độ dẫn
   đường và camera, rồi hiện thông báo *“Đã tính lại tuyến theo vị trí hiện tại”*.
 - **Tới nơi**: khi còn ≤ 45 m tới điểm đến, app đọc *“Đã đến nơi.”*, hiện tên điểm đến và tự
-  kết thúc dẫn đường (HUD đóng theo).
+  kết thúc dẫn đường.
 - **Rung cảnh báo**: vừa vượt quá tốc độ cho phép → rung nhẹ kiểu `warning` (không rung lặp
   lại cho tới khi bạn giảm xuống dưới ngưỡng).
 
@@ -134,4 +139,4 @@ miễn phí) — xem [README](../README.md#-cấu-hình-xe-máy-vietmap).
 | Bản đồ không bám lại | Bạn vừa kéo bản đồ | Bấm nút mũi tên `location.north.fill` |
 | Không thấy 3D | Đang ở chế độ 2D | Bấm nút `view.3d` hoặc bật trong Cài đặt |
 | Tự tính lại tuyến liên tục | GPS sai số lớn hoặc đường mới chưa có trên bản đồ | Đi chậm lại; app giới hạn 1 lần/25 giây để không lặp |
-| Tốn pin | Màn hình sáng + GPS + 3D | Giảm độ sáng, dùng 2D, tắt HUD khi không cần |
+| Tốn pin | Màn hình sáng + GPS + 3D | Giảm độ sáng, chuyển 2D bằng nút `map` |

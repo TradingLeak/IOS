@@ -25,14 +25,14 @@ cách nhập/xuất, cách app chọn giới hạn tốc độ, và những gi�
 Mỗi cảnh báo được cảnh báo theo 3 kênh:
 
 1. **Trên bản đồ**: ghim camera/cảnh báo dọc tuyến (bật/tắt trong Cài đặt).
-2. **Băng cảnh báo + HUD**: hiện khoảng cách còn lại và biển giới hạn.
+2. **Trên bản đồ + thanh trạng thái**: marker biển báo/camera, băng cảnh báo sắp tới và biển giới hạn (không cần HUD).
 3. **Giọng nói tiếng Việt** (AVSpeechSynthesizer, chạy offline).
 
 ---
 
 ## 2. Ngưỡng cảnh báo động `D_warn`
 
-Công thức lấy từ các HUD dẫn đường Việt Nam, tính theo tốc độ hiện tại:
+Công thức lấy từ các app dẫn đường Việt Nam (VietHUD…), tính theo tốc độ hiện tại:
 
 ```
 D_warn = clamp(v_kmh × 3,0 m; 150 m; 500 m)
@@ -156,7 +156,7 @@ Một tệp có thể chứa toàn bộ hoặc một phần các trường sau:
 | `speedLimit` | với `speed_sign` / `speed_zone` | km/h, một trong 20…120 |
 | `length` | nên có với `speed_zone` | Chiều dài vùng (m), vùng bắt đầu tại `lat/lng` và kéo dài **theo chiều đi** |
 | `bearing` | không | Hướng áp dụng 0–360° (0 = Bắc). Bỏ trống = cả hai chiều |
-| `road`, `name`, `detail` | không | Hiển thị trong danh sách / HUD |
+| `road`, `name`, `detail` | không | Hiển thị trong danh sách / nhãn trên bản đồ |
 | `imageUrl` | không | Ảnh minh hoạ (chỉ `http/https`) |
 | `confidence` | không | 0–1, hiện trong chi tiết |
 | `source` | không | Khoá nguồn, hiển thị ở phần “Nguồn dữ liệu” |

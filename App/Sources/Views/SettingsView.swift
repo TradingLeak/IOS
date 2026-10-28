@@ -16,6 +16,7 @@ struct SettingsView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     routingCard
+                    AISettingsSection(settings: settings, model: model)
                     alertsCard
                     mapCard
                     dataCard
@@ -116,10 +117,10 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Cảnh báo & HUD
+    // MARK: - Cảnh báo trên bản đồ
 
     private var alertsCard: some View {
-        SectionCard(title: "Cảnh báo & HUD", symbol: "exclamationmark.shield") {
+        SectionCard(title: "Cảnh báo trên bản đồ", symbol: "exclamationmark.shield") {
             VStack(alignment: .leading, spacing: 14) {
                 Toggle(isOn: $settings.voiceAlerts) {
                     Label("Đọc cảnh báo bằng giọng tiếng Việt", systemImage: "speaker.wave.2.fill")
@@ -127,14 +128,8 @@ struct SettingsView: View {
                 }
                 .tint(AppTheme.accent)
 
-                Toggle(isOn: $settings.hudAutoOpen) {
-                    Label("Tự mở HUD tốc độ khi bắt đầu dẫn đường", systemImage: "gauge.with.dots.needle.67percent")
-                        .font(.system(size: 13))
-                }
-                .tint(AppTheme.accent)
-
                 Toggle(isOn: $settings.showAlertPins) {
-                    Label("Hiện camera/cảnh báo trên bản đồ", systemImage: "camera.fill")
+                    Label("Ghim camera/biển báo lên bản đồ", systemImage: "camera.fill")
                         .font(.system(size: 13))
                 }
                 .tint(AppTheme.accent)

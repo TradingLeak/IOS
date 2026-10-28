@@ -8,6 +8,10 @@ final class PinAnnotation: NSObject, MKAnnotation {
     let subtitle: String?
     let kind: MapPin.Kind
     let pinID: String
+    /// Riêng cho ghim cảnh báo giao thông (biển tốc độ, camera…).
+    let alertKind: AlertKind?
+    let limit: Int?
+    let severity: Int
 
     init(pin: MapPin) {
         coordinate = pin.coordinate
@@ -15,7 +19,69 @@ final class PinAnnotation: NSObject, MKAnnotation {
         subtitle = pin.subtitle
         kind = pin.kind
         pinID = pin.id
+        alertKind = pin.alertKind
+        limit = pin.limit
+        severity = pin.severity
         super.init()
+    }
+}
+
+// MARK: - Kiểu vẽ marker cảnh báo
+
+/// Màu + hình cho marker cảnh báo hiển thị **trực tiếp trên bản đồ** (không cần HUD):
+/// mức nguy hiểm quyết định màu, loại cảnh báo quyết định hình, biển tốc độ vẽ số km/h.
+enum AlertMapStyle {
+
+    private static let cache = NSCache<NSString, UIImage>()
+
+    /// 0 xám (tham khảo) · 1 màu theo loại · 2 cam (sắp tới) · 3 đỏ (rất gần / nguy hiểm).
+    static func color(severity: Int, kind: AlertKind?) -> UIColor {
+        switch severity {
+        case 3: return UIColor(red: 0.86, green: 0.16, blue: 0.18, alpha: 1)
+        case 2: return UIColor(red: 0.94, green: 0.48, blue: 0.10, alpha: 1)
+        case 1: return UIColor(kind?.tint ?? AppTheme.warning)
+        default: return UIColor(red: 0.42, green: 0.47, blue: 0.55, alpha: 1)
+        }
+    }
+
+    /// Ảnh glyph: biển tròn có số km/h nếu có giới hạn, ngược lại icon theo loại cảnh báo.
+    static func glyph(for pin: PinAnnotation) -> UIImage? {
+        if let limit = pin.limit,
+           pin.alertKind?.carriesSpeedLimit ?? false,
+           let sign = signImage(limit: limit) {
+            return sign
+        }
+        let symbol = pin.alertKind?.symbol ?? (pin.kind == .camera ? "exclamationmark.triangle.fill" : "mappin")
+        return UIImage(systemName: symbol)
+    }
+
+    /// Biển P.127 thu nhỏ: nền trắng, viền đỏ, số đen — nhìn ra ngay trên bản đồ.
+    static func signImage(limit: Int, size: CGFloat = 26) -> UIImage? {
+        let key = "sign-\(limit)-\(Int(size))" as NSString
+        if let cached = cache.object(forKey: key) { return cached }
+
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
+        let image = renderer.image { _ in
+            let rect = CGRect(x: 1, y: 1, width: size - 2, height: size - 2)
+            let circle = UIBezierPath(ovalIn: rect)
+            UIColor.white.setFill()
+            circle.fill()
+            UIColor(red: 0.83, green: 0.10, blue: 0.14, alpha: 1).setStroke()
+            circle.lineWidth = max(2.4, size * 0.11)
+            circle.stroke()
+
+            let text = "\(limit)" as NSString
+            let font = UIFont.systemFont(ofSize: size * 0.52, weight: .heavy)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: UIColor.black
+            ]
+            let textSize = text.size(withAttributes: attributes)
+            text.draw(at: CGPoint(x: (size - textSize.width) / 2,
+                                  y: (size - textSize.height) / 2))
+        }
+        cache.setObject(image, forKey: key)
+        return image
     }
 }
 
@@ -307,6 +373,10 @@ struct MapContainer: UIViewRepresentable {
             view.annotation = annotation
             view.canShowCallout = true
             view.animatesWhenAdded = true
+            view.transform = .identity
+            view.titleVisibility = .hidden
+            view.subtitleVisibility = .hidden
+            view.glyphTintColor = UIColor.white
             view.displayPriority = pin.kind == .poi ? .defaultLow : .required
             view.clusteringIdentifier = pin.kind == .poi ? "poi" : nil
 
@@ -327,10 +397,18 @@ struct MapContainer: UIViewRepresentable {
                 view.markerTintColor = UIColor(AppTheme.warning)
                 view.glyphImage = UIImage(systemName: "mappin")
             case .camera:
-                view.markerTintColor = UIColor(red: 0.85, green: 0.28, blue: 0.20, alpha: 1)
-                view.glyphImage = UIImage(systemName: "camera.fill")
-                view.displayPriority = .defaultHigh
-                view.clusteringIdentifier = "alert"
+                // Biển báo / camera hiện ngay trên bản đồ: màu theo mức nguy hiểm,
+                // hình theo loại, số km/h nếu là biển giới hạn tốc độ.
+                view.markerTintColor = AlertMapStyle.color(severity: pin.severity, kind: pin.alertKind)
+                view.glyphImage = AlertMapStyle.glyph(for: pin)
+                view.glyphTintColor = pin.limit == nil ? UIColor.white : nil
+                view.displayPriority = pin.severity >= 2 ? .required : .defaultHigh
+                view.clusteringIdentifier = pin.severity >= 3 ? nil : "alert"
+                view.titleVisibility = .adaptive
+                view.subtitleVisibility = .adaptive
+                view.transform = pin.severity >= 3
+                    ? CGAffineTransform(scaleX: 1.18, y: 1.18)
+                    : .identity
             }
             return view
         }
@@ -368,7 +446,11 @@ struct MapContainer: UIViewRepresentable {
                                        coordinate: pin.coordinate,
                                        title: pin.title ?? "",
                                        subtitle: pin.subtitle ?? "",
-                                       kind: pin.kind))
+                                       kind: pin.kind,
+                                       alertKind: pin.alertKind,
+                                       limit: pin.limit,
+                                       severity: pin.severity,
+                                       distance: nil))
         }
     }
 }

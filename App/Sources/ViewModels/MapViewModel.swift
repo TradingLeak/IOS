@@ -15,6 +15,7 @@ final class MapViewModel: ObservableObject {
     let searchService = SearchService()
     private let store = PlacesStore()
     private let voice = VoiceAlertService()
+    private lazy var planner = AIRoutePlanner(search: searchService)
 
     // MARK: Dữ liệu cảnh báo
 
@@ -23,6 +24,21 @@ final class MapViewModel: ObservableObject {
     @Published private(set) var alertDatabase: AlertDatabase
     private var importedAlerts: [RoadAlert] = []
     private var preferences = AlertPreferences.all
+
+    // MARK: Trợ lý AI
+
+    @Published var aiConfig = AIConfig()
+    @Published var preference: RoutePreference = .fastest
+    /// AI đã chọn tuyến nào và vì sao (can thiệp sâu vào kết quả tìm tuyến).
+    @Published var aiDecision: AIDecision?
+    /// Kế hoạch chuyến đi AI dựng (điểm đi/đến/điểm dừng/phương tiện/giờ đi).
+    @Published var aiPlan: RoutePlan?
+    @Published var aiThinking = false
+    @Published var aiError: String?
+    @Published var transcript: [AIChatBubble] = []
+    @Published var aiNarration: String?
+    /// AI đang bật nhưng chưa nhập key.
+    var aiNeedsKey: Bool { aiConfig.needsKey }
 
     // MARK: Cấu hình (đồng bộ từ AppSettings)
 
@@ -65,7 +81,6 @@ final class MapViewModel: ObservableObject {
     @Published var nearbyAlertPoints: [RoadAlert] = []
     @Published var speedContext = SpeedContext()
     @Published var speedKmh: Double = 0
-    @Published var showHUD = false
     @Published var isLoadingAlerts = false
     @Published var alertStatusMessage: String?
 
@@ -123,6 +138,8 @@ final class MapViewModel: ObservableObject {
     /// Đồng bộ toàn bộ cài đặt (VietMap, cảnh báo, camera dẫn đường).
     func syncSettings(_ settings: AppSettings) {
         vietmapKey = settings.vietmapKey
+        aiConfig = settings.aiConfig
+        preference = settings.routePreference
         followOnStart = settings.followUserInNavigation
         preferences = settings.alertPreferences
         voice.isEnabled = preferences.voiceEnabled
@@ -197,23 +214,47 @@ final class MapViewModel: ObservableObject {
                                title: place.name, subtitle: place.displaySubtitle, kind: .poi))
         }
         if preferences.showOnMap {
-            for alert in alertPins {
+            for item in alertPinItems {
+                let alert = item.alert
+                var subtitle = alert.displaySubtitle
+                if let distance = item.distance, distance >= 0 {
+                    let gap = Format.hudDistance(distance)
+                    subtitle = subtitle.isEmpty ? "còn \(gap)" : "còn \(gap) · \(subtitle)"
+                }
                 pins.append(MapPin(id: "alert-\(alert.id)",
                                    coordinate: alert.coordinate,
                                    title: alert.displayName,
-                                   subtitle: alert.displaySubtitle,
-                                   kind: .camera))
+                                   subtitle: subtitle,
+                                   kind: .camera,
+                                   alertKind: alert.kind,
+                                   limit: alert.speedLimit,
+                                   severity: Self.severity(for: alert, level: item.level),
+                                   distance: item.distance))
             }
         }
         return pins
     }
 
     /// Cảnh báo được vẽ trên bản đồ: trên tuyến (nếu có) hoặc quanh vị trí hiện tại.
-    private var alertPins: [RoadAlert] {
+    private var alertPinItems: [(alert: RoadAlert, distance: Double?, level: ActiveAlert.Level?)] {
         if !routeAlerts.isEmpty {
-            return routeAlerts.prefix(40).map(\.alert)
+            return routeAlerts.prefix(40).map { ($0.alert, $0.distance, $0.level) }
         }
-        return Array(nearbyAlertPoints.prefix(40))
+        return nearbyAlertPoints.prefix(40).map { ($0, nil, nil) }
+    }
+
+    /// Mức nguy hiểm 0…3 để tô màu marker trên bản đồ (AI không liên quan — thuần dữ liệu).
+    static func severity(for alert: RoadAlert, level: ActiveAlert.Level?) -> Int {
+        if let level {
+            switch level {
+            case .close: return 3
+            case .approaching: return 2
+            case .far: return alert.kind.isSafetyCritical ? 1 : 0
+            case .passed: return 0
+            }
+        }
+        if alert.kind.isSafetyCritical { return alert.speedLimit != nil ? 2 : 1 }
+        return 0
     }
 
     var routePolylines: [MapPolyline] {
@@ -333,7 +374,6 @@ final class MapViewModel: ObservableObject {
         aheadAlerts = []
         routeGeometry = nil
         isNavigating = false
-        showHUD = false
         navigationStepIndex = 0
         showRouteSheet = false
         voice.stop()
@@ -353,13 +393,17 @@ final class MapViewModel: ObservableObject {
                                                   waypoints: waypoints)
             routes = result
             routeScores = scorer.score(result)
-            selectedRouteID = routeScores.first?.routeID ?? result.first?.id
+            aiDecision = nil
+            selectedRouteID = preferredRouteID(in: result) ?? result.first?.id
             fitToken += 1
             routeSummary = nil
             routeAdvice = nil
+            aiNarration = nil
             suggestedStops = []
             applySelectedRoute()
             refreshInsights()
+            Task { await requestAIRanking() }
+            Task { await requestAINarration() }
         } catch {
             routes = []
             routeScores = []
@@ -432,9 +476,6 @@ final class MapViewModel: ObservableObject {
         followToken += 1
         voice.reset()
         voice.isEnabled = preferences.voiceEnabled
-        if preferences.hudAutoOpen {
-            showHUD = true
-        }
         location.startUpdating()
         applySelectedRoute()
         if let first = selectedRoute?.steps.first {
@@ -445,19 +486,11 @@ final class MapViewModel: ObservableObject {
     func stopNavigation() {
         isNavigating = false
         navigationStepIndex = 0
-        showHUD = false
         isFollowingUser = true
         wasOverLimit = false
         offRouteSamples = 0
         voice.stop()
         location.stopUpdating()
-    }
-
-    func presentHUD() {
-        showHUD = true
-        if !isNavigating {
-            location.startUpdating()
-        }
     }
 
     /// Cập nhật bước đi + tốc độ + cảnh báo theo vị trí thật.
@@ -856,6 +889,222 @@ final class MapViewModel: ObservableObject {
         if origin == nil { origin = currentPlace }
         toast = "Điểm đến: \(place.name)"
         await planRoute()
+    }
+
+    // MARK: - AI: tìm tuyến, chọn tuyến, lập kế hoạch
+
+    /// Chọn tuyến theo mức ưu tiên hiện tại (dùng khi AI tắt hoặc chưa trả lời).
+    func preferredRouteID(in routes: [RouteOption]) -> UUID? {
+        guard !routes.isEmpty else { return nil }
+        guard routes.count > 1 else { return routes.first?.id }
+
+        func score(of route: RouteOption) -> RouteScore? {
+            routeScores.first { $0.routeID == route.id }
+        }
+
+        let sorted = routes.sorted { lhs, rhs in
+            switch preference {
+            case .fastest:
+                if abs(lhs.expectedTravelTime - rhs.expectedTravelTime) > 30 {
+                    return lhs.expectedTravelTime < rhs.expectedTravelTime
+                }
+                return lhs.distance < rhs.distance
+            case .fewestCameras:
+                let left = score(of: lhs)?.cameraCount ?? 0
+                let right = score(of: rhs)?.cameraCount ?? 0
+                if left != right { return left < right }
+                return lhs.expectedTravelTime < rhs.expectedTravelTime
+            case .avoidHighway:
+                let left = score(of: lhs)?.expresswayShare ?? RouteScorer.expresswayShare(lhs)
+                let right = score(of: rhs)?.expresswayShare ?? RouteScorer.expresswayShare(rhs)
+                if abs(left - right) > 0.01 { return left < right }
+                return lhs.expectedTravelTime < rhs.expectedTravelTime
+            case .easiest:
+                let left = score(of: lhs)?.comfortScore ?? 0
+                let right = score(of: rhs)?.comfortScore ?? 0
+                if abs(left - right) > 1 { return left > right }
+                return lhs.steps.count < rhs.steps.count
+            }
+        }
+        return sorted.first?.id
+    }
+
+    /// Người dùng đổi mức ưu tiên trong sheet chỉ đường.
+    func setPreference(_ newValue: RoutePreference) {
+        guard preference != newValue else { return }
+        preference = newValue
+        if let id = preferredRouteID(in: routes) {
+            selectedRouteID = id
+            fitToken += 1
+            applySelectedRoute()
+            refreshInsights()
+        }
+        Task { await requestAIRanking(force: true) }
+    }
+
+    /// Hỏi AI nên chọn tuyến nào; không có AI thì giữ lựa chọn theo mức ưu tiên.
+    func requestAIRanking(force: Bool = false) async {
+        guard routes.count > 1, aiConfig.isConfigured, aiConfig.deepPlanning else { return }
+        if !force, aiDecision != nil { return }
+
+        let decision = await planner.chooseRoute(routes: routes,
+                                                 scores: routeScores,
+                                                 preference: preference,
+                                                 originName: origin?.name ?? "vị trí của bạn",
+                                                 destinationName: destination?.name ?? "điểm đến",
+                                                 alerts: routeAlerts,
+                                                 config: aiConfig)
+        guard let decision else { return }
+        aiDecision = decision
+
+        if routes.indices.contains(decision.routeIndex) {
+            let chosen = routes[decision.routeIndex]
+            if selectedRouteID != chosen.id {
+                selectedRouteID = chosen.id
+                fitToken += 1
+                applySelectedRoute()
+                refreshInsights()
+            }
+        }
+        if !decision.warnings.isEmpty {
+            toast = decision.warnings.first
+        }
+    }
+
+    /// AI viết nhận xét tuyến (thay câu soạn sẵn khi có kết nối).
+    func requestAINarration() async {
+        guard let route = selectedRoute, let plan = aiPlan ?? currentPlan(route: route) else { return }
+        guard aiConfig.isConfigured else { return }
+        let text = await planner.narrate(plan: plan,
+                                         route: route,
+                                         score: score(for: route),
+                                         config: aiConfig)
+        aiNarration = text
+    }
+
+    private func currentPlan(route: RouteOption) -> RoutePlan? {
+        guard let destination else { return nil }
+        return RoutePlan(origin: origin,
+                         destination: destination,
+                         waypoints: waypoints,
+                         mode: mode,
+                         preference: preference,
+                         avoid: [],
+                         departAfter: nil,
+                         explanation: nil,
+                         usedAI: aiConfig.isConfigured,
+                         notice: nil)
+    }
+
+    /// Người dùng nhập câu lệnh tiếng Việt trong sheet trợ lý.
+    func askAI(_ text: String) async {
+        let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty else { return }
+
+        transcript.append(AIChatBubble(role: .user, text: prompt))
+        aiThinking = true
+        aiError = nil
+        defer { aiThinking = false }
+
+        let result = await planner.makePlan(prompt: prompt,
+                                            config: aiConfig,
+                                            originFallback: currentPlace,
+                                            region: selectedPreset.region)
+
+        switch result {
+        case .failure(let error):
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            aiError = message
+            transcript.append(AIChatBubble(role: .assistant, text: message, isError: true))
+
+        case .success(let plan):
+            aiPlan = plan
+            origin = plan.origin ?? origin ?? currentPlace
+            destination = plan.destination
+            waypoints = plan.waypoints
+            mode = plan.mode
+            preference = plan.preference
+            showRouteSheet = true
+            remember(plan.destination)
+
+            await planRoute()
+            await requestAINarration()
+
+            var reply: [String] = []
+            if let explanation = plan.explanation, !explanation.isEmpty {
+                reply.append(explanation)
+            } else {
+                reply.append("Đã hiểu: \(plan.mode.title.lowercased()) từ "
+                             + "\(plan.origin?.name ?? "vị trí của bạn") đến \(plan.destination.name).")
+            }
+            if !plan.waypoints.isEmpty {
+                reply.append("Dừng tại " + plan.waypoints.map { $0.name }.joined(separator: ", ") + ".")
+            }
+            if let route = selectedRoute {
+                reply.append("Tuyến \(route.formattedDistance), khoảng \(route.formattedDuration)"
+                             + (route.arrivalText().map { ", tới nơi \($0)." } ?? "."))
+            }
+            if let decision = aiDecision, !decision.reason.isEmpty {
+                reply.append("AI chọn: " + decision.reason)
+            } else if let narration = aiNarration, !narration.isEmpty {
+                reply.append(narration)
+            }
+            if let notice = plan.notice {
+                reply.append(notice)
+            }
+            transcript.append(AIChatBubble(role: .assistant, text: reply.joined(separator: " ")))
+        }
+    }
+
+    /// Gợi ý điểm dừng dọc tuyến — AI chọn loại điểm, app tra địa điểm thật.
+    func planStopsWithAI() async {
+        guard let route = selectedRoute else { return }
+        isLoadingStops = true
+        defer { isLoadingStops = false }
+
+        let places = await planner.plannedStops(for: route, preference: preference, config: aiConfig)
+        suggestedStops = places
+        if suggestedStops.isEmpty {
+            toast = "Không tìm thấy điểm dừng nào dọc tuyến."
+        }
+    }
+
+    /// Chèn một điểm dừng vào giữa hành trình (lập kế hoạch nhiều chặng).
+    func insertWaypoint(_ place: Place) {
+        guard destination != nil else { return }
+        waypoints.append(place)
+        Task { await planRoute() }
+    }
+
+    func removeWaypoint(_ place: Place) {
+        waypoints.removeAll { $0.id == place.id || $0.name == place.name }
+        Task { await planRoute() }
+    }
+
+    // MARK: - Tốc độ & cảnh báo trên màn hình chính
+
+    /// Tốc độ hiện tại (km/h) — 0 khi chưa có GPS.
+    var liveSpeedKmh: Double { speedContext.speedKmh }
+
+    /// Giới hạn tốc độ đang áp dụng (biển báo / vùng / ước tính TT 38).
+    var liveLimit: Int? { speedContext.limit }
+
+    var isOverLimit: Bool { speedContext.isOverLimit }
+
+    var speedLimitSourceText: String { speedContext.limitSource.rawValue }
+
+    /// 3 cảnh báo gần nhất phía trước, dùng cho thanh trạng thái ở màn hình chính.
+    var upcomingAlerts: [ActiveAlert] {
+        aheadAlerts
+            .filter { $0.distance >= -5 }
+            .sorted { $0.distance < $1.distance }
+            .prefix(3)
+            .map { $0 }
+    }
+
+    var nextAlertDistanceText: String? {
+        guard let alert = upcomingAlerts.first else { return nil }
+        return Format.hudDistance(max(0, alert.distance))
     }
 
     // MARK: - Giọng nói

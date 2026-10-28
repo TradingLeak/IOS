@@ -23,6 +23,7 @@ struct MapScreen: View {
     enum ActiveSheet: Identifiable {
         case search(SearchTarget)
         case route
+        case ai
         case settings
         case favorites
         case cities
@@ -32,6 +33,7 @@ struct MapScreen: View {
             switch self {
             case .search(let target): return "search-\(target.rawValue)"
             case .route: return "route"
+            case .ai: return "ai"
             case .settings: return "settings"
             case .favorites: return "favorites"
             case .cities: return "cities"
@@ -83,6 +85,9 @@ struct MapScreen: View {
                     alertBanner(alert)
                 }
                 Spacer(minLength: 0)
+                if model.hasRoute || model.isNavigating || location.isAuthorized {
+                    statusStrip
+                }
                 bottomPanel
             }
             .padding(.horizontal, 14)
@@ -112,11 +117,16 @@ struct MapScreen: View {
         }
         .onChange(of: settings.vietmapAPIKey) { _ in model.syncSettings(settings) }
         .onChange(of: settings.voiceAlerts) { _ in model.syncSettings(settings) }
-        .onChange(of: settings.hudAutoOpen) { _ in model.syncSettings(settings) }
         .onChange(of: settings.showAlertPins) { _ in model.syncSettings(settings) }
         .onChange(of: settings.overspeedTolerance) { _ in model.syncSettings(settings) }
         .onChange(of: settings.alertKinds) { _ in model.syncSettings(settings) }
         .onChange(of: settings.followUserInNavigation) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.aiBaseURL) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.aiModel) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.aiAPIKey) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.aiEnabled) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.aiDeepPlanning) { _ in model.syncSettings(settings) }
+        .onChange(of: settings.routePreference) { _ in model.syncSettings(settings) }
         .onChange(of: settings.defaultMode) { value in
             model.syncSettings(settings)
             model.applyDefaultMode(value)
@@ -166,6 +176,13 @@ struct MapScreen: View {
                 } onPickDestination: {
                     activeSheet = .search(.destination)
                 }
+            case .ai:
+                AIAssistantSheet(model: model, settings: settings) {
+                    activeSheet = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        activeSheet = .settings
+                    }
+                }
             case .settings:
                 SettingsView(settings: settings, model: model)
             case .favorites:
@@ -184,9 +201,6 @@ struct MapScreen: View {
             case .alerts:
                 AlertsSheet(model: model, settings: settings)
             }
-        }
-        .fullScreenCover(isPresented: $model.showHUD) {
-            HUDView(model: model, settings: settings)
         }
     }
 
@@ -308,13 +322,15 @@ struct MapScreen: View {
 
     private var sideControls: some View {
         VStack(spacing: 10) {
-            if model.isNavigating || model.speedContext.speedKmh > 5 {
-                SpeedPill(speedKmh: model.speedContext.speedKmh,
-                          limit: model.speedContext.limit,
-                          isOverspeed: model.speedContext.isOverLimit)
+            // 3D / 2D luôn đổi được, kể cả khi chỉ xem bản đồ
+            FloatingIconButton(symbol: settings.navigationPitch3D ? "view.3d" : "map",
+                               active: settings.navigationPitch3D,
+                               accessibilityLabel: settings.navigationPitch3D
+                               ? "Đang 3D — chuyển sang 2D" : "Đang 2D — chuyển sang 3D") {
+                settings.navigationPitch3D.toggle()
+                if model.isNavigating { model.resumeFollowing() }
             }
 
-            // Bám lại vị trí khi người dùng vừa kéo bản đồ.
             if model.isNavigating, !model.isFollowingUser {
                 FloatingIconButton(symbol: "location.north.fill",
                                    active: true,
@@ -330,20 +346,13 @@ struct MapScreen: View {
                 activeSheet = .alerts
             }
 
-            if model.isNavigating {
-                FloatingIconButton(symbol: settings.navigationPitch3D ? "view.3d" : "map",
-                                   active: settings.navigationPitch3D,
-                                   accessibilityLabel: settings.navigationPitch3D
-                                   ? "Đang 3D — chuyển sang 2D" : "Đang 2D — chuyển sang 3D") {
-                    settings.navigationPitch3D.toggle()
-                    model.resumeFollowing()
-                }
-                FloatingIconButton(symbol: "gauge.with.dots.needle.67percent",
-                                   active: true,
-                                   accessibilityLabel: "Mở HUD tốc độ") {
-                    model.showHUD = true
-                }
-            } else {
+            FloatingIconButton(symbol: "sparkles",
+                               active: model.aiThinking,
+                               accessibilityLabel: "Trợ lý AI") {
+                activeSheet = .ai
+            }
+
+            if !model.isNavigating {
                 FloatingIconButton(symbol: "location.fill",
                                    active: location.isAuthorized,
                                    accessibilityLabel: "Về vị trí của tôi") {
@@ -365,6 +374,83 @@ struct MapScreen: View {
                 settings.showTraffic.toggle()
             }
         }
+    }
+
+    // MARK: - Tốc độ hiện tại & cảnh báo sắp tới (màn hình chính)
+
+    private var statusStrip: some View {
+        HStack(alignment: .center, spacing: 12) {
+            // Tốc độ hiện tại
+            VStack(spacing: -2) {
+                Text("\(Int(model.liveSpeedKmh.rounded()))")
+                    .font(.system(size: 30, weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(model.isOverLimit ? AppTheme.danger : Color.primary)
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                Text("km/h")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 58)
+
+            if let limit = model.liveLimit {
+                SpeedLimitSignView(limit: limit, size: 38, muted: true)
+            } else {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 22))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 38, height: 38)
+            }
+
+            Rectangle()
+                .fill(AppTheme.cardStroke)
+                .frame(width: 1, height: 38)
+
+            // Danh sách cảnh báo sắp tới
+            VStack(alignment: .leading, spacing: 4) {
+                if model.upcomingAlerts.isEmpty {
+                    Text(model.isNavigating ? "Không có cảnh báo phía trước" : "Cảnh báo hiện trên bản đồ")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text(model.speedLimitSourceText)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                } else {
+                    ForEach(model.upcomingAlerts.prefix(2)) { alert in
+                        HStack(spacing: 6) {
+                            Image(systemName: alert.alert.kind.symbol)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 18, height: 18)
+                                .background(Circle().fill(alert.alert.kind.tint))
+                            Text(alert.alert.kind.shortTitle)
+                                .font(.system(size: 11, weight: .semibold))
+                                .lineLimit(1)
+                            Spacer(minLength: 2)
+                            Text(Format.hudDistance(max(0, alert.distance)))
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(alert.levelColor)
+                        }
+                    }
+                    if model.upcomingAlerts.count > 2 {
+                        Text("+\(model.upcomingAlerts.count - 2) cảnh báo nữa")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .floatingCard(cornerRadius: 18)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tốc độ \(Int(model.liveSpeedKmh.rounded())) km/h, giới hạn "
+                            + "\(model.liveLimit.map { "\($0)" } ?? "chưa rõ"), "
+                            + "\(model.upcomingAlerts.count) cảnh báo phía trước")
     }
 
     // MARK: - Bottom
@@ -505,9 +591,9 @@ struct MapScreen: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    model.showHUD = true
+                    activeSheet = .ai
                 } label: {
-                    Image(systemName: "gauge.with.dots.needle.67percent")
+                    Image(systemName: "sparkles")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(AppTheme.accent)
                         .frame(width: 44, height: 44)
@@ -517,7 +603,7 @@ struct MapScreen: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Mở HUD tốc độ")
+                .accessibilityLabel("Hỏi trợ lý AI về tuyến này")
 
                 Button {
                     model.startNavigation()

@@ -12,7 +12,6 @@ final class AppSettings: ObservableObject {
 
         static let vietmapKey = "vietmap.api.key"
         static let voiceAlerts = "vietmap.alert.voice"
-        static let hudAutoOpen = "vietmap.alert.hud"
         static let alertPins = "vietmap.alert.pins"
         static let tolerance = "vietmap.alert.tolerance"
         static let alertKinds = "vietmap.alert.kinds"
@@ -21,6 +20,16 @@ final class AppSettings: ObservableObject {
         static let vehicleClass = "vietmap.alert.vehicleClass"
         static let navigationPitch = "vietmap.map.navigationPitch"
         static let followOnStart = "vietmap.map.followOnStart"
+
+        // AI
+        static let aiBaseURL = "vietmap.ai.baseURL"
+        static let aiModel = "vietmap.ai.model"
+        static let aiTemperature = "vietmap.ai.temperature"
+        static let aiEnabled = "vietmap.ai.enabled"
+        static let aiDeep = "vietmap.ai.deep"
+        static let aiPreference = "vietmap.route.preference"
+        /// Key nằm trong Keychain, không bao giờ ghi vào UserDefaults.
+        static let aiKey = "ai.api.key"
     }
 
     @Published var mapTypeIndex: Int {
@@ -33,6 +42,35 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(showPOIs, forKey: Keys.pois) }
     }
 
+    // MARK: Trợ lý AI (Ckey.vn hoặc base URL tuỳ chỉnh)
+
+    /// Base URL kiểu OpenAI. Mặc định Ckey.vn: `https://api.xah.io/v1`.
+    @Published var aiBaseURL: String {
+        didSet { defaults.set(aiBaseURL, forKey: Keys.aiBaseURL) }
+    }
+    /// Tên model — gõ tay được, không giới hạn danh sách.
+    @Published var aiModel: String {
+        didSet { defaults.set(aiModel, forKey: Keys.aiModel) }
+    }
+    @Published var aiTemperature: Double {
+        didSet { defaults.set(aiTemperature, forKey: Keys.aiTemperature) }
+    }
+    @Published var aiEnabled: Bool {
+        didSet { defaults.set(aiEnabled, forKey: Keys.aiEnabled) }
+    }
+    /// Cho AI can thiệp sâu: chọn tuyến, thêm điểm dừng, đổi mức ưu tiên.
+    @Published var aiDeepPlanning: Bool {
+        didSet { defaults.set(aiDeepPlanning, forKey: Keys.aiDeep) }
+    }
+    /// API key AI (Keychain).
+    @Published var aiAPIKey: String {
+        didSet { KeychainStore.save(aiAPIKey, for: Keys.aiKey) }
+    }
+    /// Mức ưu tiên chọn tuyến mặc định.
+    @Published var routePreference: RoutePreference {
+        didSet { defaults.set(routePreference.rawValue, forKey: Keys.aiPreference) }
+    }
+
     // MARK: Cảnh báo giao thông
 
     /// API key VietMap (Keychain) — bật hồ sơ dẫn đường xe máy thật.
@@ -41,9 +79,6 @@ final class AppSettings: ObservableObject {
     }
     @Published var voiceAlerts: Bool {
         didSet { defaults.set(voiceAlerts, forKey: Keys.voiceAlerts) }
-    }
-    @Published var hudAutoOpen: Bool {
-        didSet { defaults.set(hudAutoOpen, forKey: Keys.hudAutoOpen) }
     }
     @Published var showAlertPins: Bool {
         didSet { defaults.set(showAlertPins, forKey: Keys.alertPins) }
@@ -79,13 +114,21 @@ final class AppSettings: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
+        aiBaseURL = defaults.string(forKey: Keys.aiBaseURL) ?? AIConfig.defaultBaseURL
+        aiModel = defaults.string(forKey: Keys.aiModel) ?? AIConfig.defaultModel
+        aiTemperature = defaults.object(forKey: Keys.aiTemperature) as? Double ?? 0.2
+        aiEnabled = defaults.object(forKey: Keys.aiEnabled) as? Bool ?? true
+        aiDeepPlanning = defaults.object(forKey: Keys.aiDeep) as? Bool ?? true
+        aiAPIKey = KeychainStore.read(Keys.aiKey)
+        routePreference = RoutePreference(rawValue: defaults.string(forKey: Keys.aiPreference) ?? "")
+            ?? .fastest
+
         mapTypeIndex = defaults.object(forKey: Keys.mapType) as? Int ?? 0
         showTraffic = defaults.object(forKey: Keys.traffic) as? Bool ?? false
         showPOIs = defaults.object(forKey: Keys.pois) as? Bool ?? true
 
         vietmapAPIKey = KeychainStore.read(Keys.vietmapKey)
         voiceAlerts = defaults.object(forKey: Keys.voiceAlerts) as? Bool ?? true
-        hudAutoOpen = defaults.object(forKey: Keys.hudAutoOpen) as? Bool ?? true
         showAlertPins = defaults.object(forKey: Keys.alertPins) as? Bool ?? true
         overspeedTolerance = defaults.object(forKey: Keys.tolerance) as? Int ?? 5
 
@@ -99,6 +142,38 @@ final class AppSettings: ObservableObject {
         defaultMode = TravelMode(rawValue: defaults.string(forKey: Keys.defaultMode) ?? "") ?? .motorcycle
     }
 
+    /// Cấu hình AI hiện tại (ghép từ các trường ở trên).
+    var aiConfig: AIConfig {
+        AIConfig(baseURL: aiBaseURL,
+                 model: aiModel,
+                 apiKey: aiAPIKey,
+                 temperature: aiTemperature,
+                 enabled: aiEnabled,
+                 deepPlanning: aiDeepPlanning)
+    }
+
+    var hasAIKey: Bool {
+        !aiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Tên hiển thị nhà cung cấp dựa trên base URL.
+    var aiProviderName: String {
+        let url = aiBaseURL.lowercased()
+        if url.contains("xah.io") || url.contains("ckey") { return "Ckey.vn" }
+        if url.contains("openai.com") { return "OpenAI" }
+        if url.contains("groq.com") { return "Groq" }
+        if url.contains("openrouter") { return "OpenRouter" }
+        if url.contains("11434") { return "Ollama" }
+        if url.contains("1234") { return "LM Studio" }
+        return aiConfig.host
+    }
+
+    func applyAIPreset(_ preset: AIProviderPreset) {
+        aiBaseURL = preset.baseURL
+        aiModel = preset.model
+        aiEnabled = true
+    }
+
     /// API key VietMap đã chuẩn hoá (rỗng = chưa có).
     var vietmapKey: String {
         vietmapAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -109,7 +184,6 @@ final class AppSettings: ObservableObject {
     var alertPreferences: AlertPreferences {
         var preferences = AlertPreferences()
         preferences.voiceEnabled = voiceAlerts
-        preferences.hudAutoOpen = hudAutoOpen
         preferences.showOnMap = showAlertPins
         preferences.overspeedTolerance = overspeedTolerance
         preferences.enabledKinds = alertKinds

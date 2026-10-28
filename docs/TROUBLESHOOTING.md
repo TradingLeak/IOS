@@ -210,7 +210,7 @@ vẫn có ETA ước lượng; nếu không có, banner sẽ bỏ trống phần
 
 ### Tốn pin khi dẫn đường
 GPS độ chính xác cao + màn hình sáng + dựng 3D đều tốn pin. Giảm bằng cách: dùng 2D, tắt
-HUD khi không cần, khoá màn hình khi không nhìn (app không chạy nền liên tục).
+chế độ 2D khi không cần, khoá màn hình khi không nhìn (app không chạy nền liên tục).
 
 ## Dữ liệu & quyền riêng tư
 
@@ -242,7 +242,7 @@ nhưng bạn có thể cancel job test).
 
 ## Phần 3 — Lỗi riêng của cảnh báo tốc độ / camera / xe máy
 
-### Không thấy giới hạn tốc độ (HUD hiện "chưa rõ biển báo")
+### Không thấy giới hạn tốc độ (thanh tốc độ hiện "chưa xác định")
 
 - Đây là hành vi đúng khi: đường chưa có biển/vùng trong dữ liệu **và** tên đường trong chỉ
   dẫn không nhận diện được loại đường (xem `SpeedLimitRules.classify`).
@@ -274,5 +274,5 @@ nhưng bạn có thể cancel job test).
 
 - iOS → Cài đặt → **Âm thanh & Cảm ứng** → kiểm tra âm lượng; tắt chế độ im lặng thì
   AVSpeechSynthesizer vẫn đọc (audio session `.ambient`).
-- Trong app: HUD có nút **Giọng nói / Im lặng**; Cài đặt → Cảnh báo & HUD có toggle riêng.
+- Trong app: Cài đặt → **Cảnh báo trên bản đồ** → *Đọc cảnh báo bằng giọng tiếng Việt*.
 - Nếu đang mở nhạc, app dùng `.duckOthers` nên nhạc sẽ nhỏ lại khi đọc cảnh báo.

@@ -18,6 +18,17 @@ struct MapPin: Identifiable {
     let title: String
     let subtitle: String
     let kind: Kind
+
+    // MARK: Thông tin riêng cho ghim cảnh báo giao thông
+
+    /// Loại cảnh báo (biển tốc độ, camera đèn đỏ, khu trường học…). `nil` với ghim thường.
+    var alertKind: AlertKind? = nil
+    /// Giới hạn tốc độ để vẽ biển tròn P.127 ngay trên marker.
+    var limit: Int? = nil
+    /// 0…3 — mức nguy hiểm quyết định màu marker (0 xám, 1 màu loại, 2 cam, 3 đỏ).
+    var severity: Int = 0
+    /// Khoảng cách còn lại (mét) khi đang dẫn đường — hiện trong nhãn phụ.
+    var distance: Double? = nil
 }
 
 /// Một đường vẽ trên bản đồ (tuyến chính, viền, hoặc tuyến thay thế).

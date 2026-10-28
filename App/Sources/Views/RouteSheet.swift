@@ -19,7 +19,9 @@ struct RouteSheet: View {
                     modeCard
                     if let route = model.selectedRoute {
                         summaryCard(route)
+                        preferenceCard
                         if model.routes.count > 1 { routeOptionsCard }
+                        aiDecisionCard
                         smartAdviceCard
                         if let summary = model.routeSummary { insightCard(summary) }
                         alertsCard
@@ -198,7 +200,7 @@ struct RouteSheet: View {
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
                                 if model.recommendedScore?.routeID == route.id {
-                                    Text("Đề xuất")
+                                    Text(model.aiDecision != nil ? "AI chọn" : "Đề xuất")
                                         .font(.system(size: 9, weight: .bold))
                                         .foregroundStyle(.white)
                                         .padding(.horizontal, 6)
@@ -223,6 +225,81 @@ struct RouteSheet: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .floatingCard()
+    }
+
+    // MARK: - Mức ưu tiên & AI chọn tuyến
+
+    private var preferenceCard: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 6) {
+                Text("ƯU TIÊN TUYẾN")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                if model.aiConfig.isConfigured, model.aiConfig.deepPlanning {
+                    Label("AI đang can thiệp", systemImage: "sparkles")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(AppTheme.accentDeep)
+                }
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 7) {
+                    ForEach(RoutePreference.allCases) { option in
+                        FilterChip(title: option.shortTitle,
+                                   symbol: option.symbol,
+                                   isSelected: model.preference == option) {
+                            model.setPreference(option)
+                        }
+                    }
+                }
+            }
+
+            Text(model.preference.detail)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .floatingCard()
+    }
+
+    @ViewBuilder
+    private var aiDecisionCard: some View {
+        if let decision = model.aiDecision {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 7) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(AppTheme.accentDeep)
+                    Text("AI CHỌN TUYẾN")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    if model.routes.indices.contains(decision.routeIndex) {
+                        Text(model.routes[decision.routeIndex].name)
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(AppTheme.accent)
+                            .lineLimit(1)
+                    }
+                }
+
+                Text(decision.reason)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(decision.warnings, id: \.self) { warning in
+                    InfoBanner(kind: .warning, text: warning)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .floatingCard()
+        }
     }
 
     // MARK: - Gợi ý thông minh
@@ -324,7 +401,7 @@ struct RouteSheet: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    Task { await model.suggestStopsAlongRoute() }
+                    Task { await model.planStopsWithAI() }
                 } label: {
                     HStack(spacing: 4) {
                         if model.isLoadingStops {

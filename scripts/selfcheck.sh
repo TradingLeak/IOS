@@ -202,7 +202,7 @@ PY
 if [[ $? -ne 0 ]]; then FAIL=1; fi
 
 printf '\n\033[1m3. Tài liệu\033[0m\n'
-for f in README.md docs/BUILD.md docs/INSTALL.md docs/TROUBLESHOOTING.md docs/ALERTS.md docs/NAVIGATION.md data/README.md; do
+for f in README.md docs/BUILD.md docs/INSTALL.md docs/TROUBLESHOOTING.md docs/ALERTS.md docs/NAVIGATION.md docs/AI.md data/README.md; do
   if [[ -s "$f" ]]; then pass "$f"; else fail "thiếu $f"; fi
 done
 

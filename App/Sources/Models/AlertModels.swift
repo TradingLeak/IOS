@@ -467,7 +467,6 @@ struct SpeedContext {
 struct AlertPreferences: Equatable {
     var voiceEnabled: Bool = true
     var speakOnlyCritical: Bool = true
-    var hudAutoOpen: Bool = true
     var showOnMap: Bool = true
     var overspeedTolerance: Int = 5
     var enabledKinds: Set<AlertKind> = Set(AlertKind.allCases)

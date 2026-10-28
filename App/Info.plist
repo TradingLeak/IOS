@@ -44,6 +44,15 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Ứng dụng dùng vị trí của bạn để chỉ đường và cập nhật lộ trình khi đang di chuyển.</string>
 
+	<!-- Trợ lý AI có thể trỏ tới server nội bộ (Ollama/LM Studio) qua HTTP trong LAN -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Ứng dụng kết nối tới máy chủ AI bạn tự cấu hình (ví dụ Ollama trong nhà) để xử lý câu lệnh tìm đường.</string>
+
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
