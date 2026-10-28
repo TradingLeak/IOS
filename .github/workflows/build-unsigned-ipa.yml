@@ -1,0 +1,140 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      scheme:
+        description: "Scheme cần build"
+        default: "HelloIPA"
+        required: true
+      bundle_id:
+        description: "Bundle ID ghi đè (để trống = giữ nguyên)"
+        required: false
+      display_name:
+        description: "Tên app hiển thị (để trống = giữ nguyên)"
+        required: false
+      keep_archive:
+        description: "Giữ .xcarchive trong artifact (dung lượng lớn hơn)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: unsigned-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Kiểm tra repo (nhanh, ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Self-check (shell, plist, icon, yml) + test đóng gói
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/selfcheck.sh
+          ./scripts/test-pack.sh
+
+  build:
+    name: Build IPA (không cần Apple ID)
+    needs: lint
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      SCHEME: ${{ inputs.scheme || 'HelloIPA' }}
+      BUNDLE_ID: ${{ inputs.bundle_id || '' }}
+      DISPLAY_NAME: ${{ inputs.display_name || '' }}
+      KEEP_ARCHIVE: ${{ inputs.keep_archive && '--keep-archive' || '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Chọn phiên bản Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          # Ghim phiên bản để build tất định (xem docs/TROUBLESHOOTING.md).
+          # Muốn SDK mới nhất: đổi thành "latest-stable" và nâng deployment
+          # target trong project.yml nếu Xcode yêu cầu.
+          xcode-version: "16.4"
+
+      - name: Thông tin môi trường
+        run: |
+          sw_vers
+          xcodebuild -version
+          echo "iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+
+      - name: Kiểm tra cú pháp script
+        run: bash -n scripts/make-ipa.sh
+
+      - name: Cài xcodegen
+        run: brew install xcodegen || brew upgrade xcodegen
+
+      - name: Sinh project Xcode từ project.yml
+        run: xcodegen generate
+
+      - name: Build IPA (unsigned)
+        shell: bash
+        run: |
+          chmod +x scripts/make-ipa.sh
+          args=(--scheme "$SCHEME" --output dist)
+          [[ -n "$BUNDLE_ID" ]] && args+=(--bundle-id "$BUNDLE_ID")
+          [[ -n "$DISPLAY_NAME" ]] && args+=(--display-name "$DISPLAY_NAME")
+          [[ -n "$KEEP_ARCHIVE" ]] && args+=("$KEEP_ARCHIVE")
+          set -x
+          ./scripts/make-ipa.sh "${args[@]}"
+
+      - name: Tóm tắt kết quả
+        if: always()
+        run: |
+          {
+            echo "## Kết quả build"
+            echo
+            if compgen -G "dist/*.ipa" > /dev/null; then
+              for f in dist/*.ipa; do
+                echo "- **$(basename "$f")** — $(du -h "$f" | awk '{print $1}')"
+                echo "- SHA-256: \`$(shasum -a 256 "$f" | awk '{print $1}')\`"
+              done
+              echo
+              echo "Tải file trong mục **Artifacts** ở trang này, giải nén và cài theo"
+              echo "[docs/INSTALL.md](../blob/${GITHUB_REF_NAME}/docs/INSTALL.md)."
+            else
+              echo "Không có IPA được tạo. Xem log bước *Build IPA (unsigned)*."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa-${{ github.run_number }}
+          path: |
+            dist/*.ipa
+            dist/*.sha256
+            build/xcodebuild.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload .xcarchive (tuỳ chọn)
+        if: success() && inputs.keep_archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcarchive-${{ github.run_number }}
+          path: build/*.xcarchive
+          retention-days: 7
+
+      - name: Gắn IPA vào GitHub Release (khi push tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.ipa
+            dist/*.sha256
+          fail_on_unmatched_files: true

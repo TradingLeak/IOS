@@ -1,0 +1,30 @@
+# ---- Xcode / build products ----
+build/
+.build/
+DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.xcscmblueprint
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# ---- Output của script ----
+dist/
+*.log
+
+# ---- macOS ----
+.DS_Store
+._*
+
+# ---- Swift Package Manager ----
+.swiftpm/
+Packages/
+Package.resolved
+
+# ---- Khác ----
+.env
+.env.*
