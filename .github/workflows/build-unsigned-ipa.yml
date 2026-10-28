@@ -265,8 +265,11 @@ jobs:
           esac
 
           # --- Kiểm tra tài nguyên bắt buộc nằm trong app (lỗi hay gặp: quên bundle dữ liệu)
-          DATA="$(find "$APP" -name vn_alerts.json -size +1M | head -1)"
+          DATA="$(find "$APP_DIR" -name vn_alerts.json -size +1M | head -1)"
           if [ -z "$DATA" ]; then
+            echo "::group::Nội dung .app"
+            ls -la "$APP_DIR" | head -30
+            echo "::endgroup::"
             echo "::error::App thiếu App/Resources/Data/vn_alerts.json (>1 MB) — bản build sẽ không có dữ liệu cảnh báo"
             exit 1
           fi
