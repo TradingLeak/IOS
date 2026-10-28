@@ -1,0 +1,1369 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>VietMap 3.0 — Demo giao diện (chưa compile IPA)</title>
+<style>
+  :root{
+    --accent:#2f7bff; --accent-2:#6b5cff; --danger:#ff4d4f; --warn:#ffb020;
+    --ok:#19c37d; --cyan:#22b8d8;
+    --land:#eef1f6; --block:#e2e7ef; --block-2:#dbe2ec;
+    --water:#c8e3f7; --park:#d9ecd9; --road:#ffffff; --road-edge:#dfe5ee;
+    --road-trunk:#ffffff; --road-trunk-edge:#d7dee9;
+    --label:#6b7787; --ink:#111826; --ink-2:#5b6675;
+    --glass:rgba(255,255,255,.86); --glass-stroke:rgba(17,24,38,.08);
+    --shadow:0 12px 30px rgba(17,24,38,.14), 0 2px 6px rgba(17,24,38,.06);
+  }
+  body.night{
+    --land:#0d1219; --block:#151d27; --block-2:#1a2330;
+    --water:#0b2233; --park:#12241b; --road:#232d3a; --road-edge:#1a222c;
+    --road-trunk:#2d3a49; --road-trunk-edge:#222c38;
+    --label:#7f8da1; --ink:#eef3fb; --ink-2:#9aa8bd;
+    --glass:rgba(18,24,34,.82); --glass-stroke:rgba(255,255,255,.08);
+    --shadow:0 14px 34px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:radial-gradient(1200px 700px at 20% 0%,#22304a 0%,#111826 45%,#080c12 100%);
+    color:#e8eef8;min-height:100vh;display:flex;justify-content:center;padding:26px 20px 40px;
+  }
+  body.night{background:radial-gradient(1200px 700px at 20% 0%,#1a2436 0%,#0b1017 45%,#05070b 100%)}
+
+  .app{display:flex;gap:34px;align-items:flex-start;max-width:1180px;width:100%}
+
+  /* ---------- Thiết bị ---------- */
+  .device{
+    position:relative;width:412px;height:866px;border-radius:56px;padding:11px;
+    background:linear-gradient(160deg,#2b3340,#0e1219 60%);
+    box-shadow:0 40px 90px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.08);
+    flex:0 0 auto;
+  }
+  .screen{
+    position:relative;width:390px;height:844px;border-radius:46px;overflow:hidden;
+    background:var(--land);color:var(--ink);isolation:isolate;
+  }
+  .notch{position:absolute;top:16px;left:50%;transform:translateX(-50%);width:118px;height:28px;border-radius:16px;background:#05070b;z-index:60}
+  .statusbar{position:absolute;top:0;left:0;right:0;height:46px;display:flex;align-items:center;justify-content:space-between;padding:14px 26px 0;font-size:12.5px;font-weight:600;color:var(--ink);z-index:55;pointer-events:none}
+  .statusbar .right{display:flex;gap:5px;align-items:center;opacity:.9}
+
+  /* ---------- Bản đồ ---------- */
+  .mapstage{position:absolute;inset:0;overflow:hidden;background:var(--land);perspective:1100px;perspective-origin:50% 60%}
+  #map{position:absolute;top:0;left:0;width:1000px;height:1000px;transform-origin:0 0;will-change:transform;transition:filter .35s}
+  .tiltwrap{position:absolute;inset:0;transform-origin:50% 58%;transition:transform .55s cubic-bezier(.2,.8,.2,1)}
+  .horizon{position:absolute;top:0;left:0;right:0;height:170px;pointer-events:none;opacity:0;transition:opacity .5s;
+    background:linear-gradient(180deg,rgba(13,18,25,.85),rgba(13,18,25,0));z-index:2}
+  body:not(.night) .horizon{background:linear-gradient(180deg,rgba(238,241,246,.92),rgba(238,241,246,0))}
+  .horizon.on{opacity:1}
+
+  svg text{font-family:-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;user-select:none}
+  .rd{fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .road-label{font-size:11.5px;fill:var(--label);font-weight:600;letter-spacing:.2px}
+  .road-label.big{font-size:13px;font-weight:700;fill:var(--ink-2)}
+  .mk{cursor:pointer}
+  .mk .halo{opacity:0;transition:opacity .3s}
+  .mk.active .halo{opacity:.85}
+  .mk.dim{opacity:.42}
+  .pinlabel{font-size:9.5px;font-weight:700;fill:#fff;text-anchor:middle}
+  .distlabel{font-size:10px;font-weight:800;text-anchor:middle;fill:var(--ink)}
+  .route-glow{opacity:.55}
+  #puck{transition:opacity .3s}
+
+  /* ---------- UI overlay ---------- */
+  .ui{position:absolute;inset:0;z-index:20;pointer-events:none}
+  .ui > *{pointer-events:auto}
+
+  .topbar{position:absolute;top:52px;left:12px;right:12px;display:flex;gap:8px;transition:transform .35s,opacity .3s}
+  .topbar.hide{transform:translateY(-130%);opacity:0;pointer-events:none}
+  .iconbtn{
+    width:46px;height:46px;border-radius:15px;border:1px solid var(--glass-stroke);background:var(--glass);
+    backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+    display:grid;place-items:center;box-shadow:var(--shadow);cursor:pointer;color:var(--ink);position:relative;
+    transition:transform .15s, background .2s;
+  }
+  .iconbtn:active{transform:scale(.94)}
+  .iconbtn.on{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+  .iconbtn svg{width:21px;height:21px}
+  .searchpill{
+    flex:1;height:46px;border-radius:15px;border:1px solid var(--glass-stroke);background:var(--glass);
+    backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+    box-shadow:var(--shadow);display:flex;align-items:center;gap:9px;padding:0 14px;cursor:pointer;
+    font-size:14.5px;color:var(--ink-2);overflow:hidden;white-space:nowrap;
+  }
+  .searchpill .spark{margin-left:auto;color:var(--accent)}
+
+  .chips{position:absolute;top:108px;left:12px;right:12px;display:flex;gap:7px;overflow:hidden;transition:transform .35s,opacity .3s}
+  .chips.hide{transform:translateY(-120%);opacity:0;pointer-events:none}
+  .chip{
+    display:flex;align-items:center;gap:5px;height:32px;padding:0 12px;border-radius:16px;font-size:12.5px;font-weight:600;
+    background:var(--glass);border:1px solid var(--glass-stroke);backdrop-filter:blur(14px);color:var(--ink-2);
+    box-shadow:0 4px 14px rgba(0,0,0,.10);white-space:nowrap;cursor:pointer;
+  }
+  .chip.on{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+
+  /* Thanh dẫn đường (thay HUD) */
+  .drivebar{
+    position:absolute;top:52px;left:12px;right:12px;border-radius:20px;background:var(--glass);
+    border:1px solid var(--glass-stroke);backdrop-filter:blur(20px) saturate(1.3);box-shadow:var(--shadow);
+    padding:11px 12px;display:flex;gap:11px;align-items:center;transform:translateY(-160%);opacity:0;
+    transition:transform .4s cubic-bezier(.2,.8,.2,1),opacity .3s;
+  }
+  .drivebar.on{transform:none;opacity:1}
+  .maneuver{
+    width:48px;height:48px;border-radius:16px;display:grid;place-items:center;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;font-size:24px;font-weight:800;
+    box-shadow:0 8px 20px rgba(47,123,255,.4);
+  }
+  .drivebar .txt{flex:1;min-width:0}
+  .drivebar .l1{display:flex;align-items:baseline;gap:7px}
+  .drivebar .big{font-size:19px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+  .drivebar .step{font-size:13.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .drivebar .l2{font-size:11.5px;color:var(--ink-2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .progress{position:absolute;left:12px;right:12px;top:44px;height:3.5px;border-radius:3px;background:rgba(127,141,161,.28);overflow:hidden;opacity:0;transition:opacity .3s}
+  .progress.on{opacity:1}
+  .progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:3px;transition:width .25s linear}
+
+  /* Callout cảnh báo trên bản đồ */
+  .callout{
+    position:absolute;transform:translate(-50%,-100%);min-width:120px;max-width:190px;
+    border-radius:14px;padding:8px 10px 9px;background:var(--glass);border:1px solid var(--glass-stroke);
+    backdrop-filter:blur(18px);box-shadow:var(--shadow);opacity:0;transition:opacity .2s, transform .2s;
+    pointer-events:none;z-index:8;
+  }
+  .callout.on{opacity:1}
+  .callout::after{
+    content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%) rotate(45deg);
+    width:11px;height:11px;background:var(--glass);border-right:1px solid var(--glass-stroke);border-bottom:1px solid var(--glass-stroke);
+  }
+  .callout .t{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.2px;text-transform:uppercase;color:var(--danger)}
+  .callout .n{font-size:12px;font-weight:650;margin-top:2px;line-height:1.25;color:var(--ink)}
+  .callout .d{font-size:15px;font-weight:850;font-variant-numeric:tabular-nums;margin-top:2px;color:var(--ink)}
+  .callout .d span{font-size:11px;font-weight:600;color:var(--ink-2)}
+  .callout.k-red .t{color:var(--danger)} .callout.k-amber .t{color:#f08c00}
+  .callout.k-cyan .t{color:#0d8fb0}
+  .callout.urgent{animation:pulseCallout 1.1s infinite}
+  @keyframes pulseCallout{0%,100%{box-shadow:0 0 0 0 rgba(255,77,79,.45), var(--shadow)}50%{box-shadow:0 0 0 12px rgba(255,77,79,0), var(--shadow)}}
+
+  /* Vòng tốc độ + biển giới hạn (hiện trên bản đồ, không phải HUD) */
+  .speedchip{
+    position:absolute;left:12px;bottom:26px;display:flex;align-items:center;gap:9px;opacity:0;transform:translateY(10px);
+    transition:opacity .3s,transform .3s;z-index:12;
+  }
+  .speedchip.on{opacity:1;transform:none}
+  .speeddial{
+    width:74px;height:74px;border-radius:50%;background:var(--glass);border:1px solid var(--glass-stroke);
+    backdrop-filter:blur(18px);box-shadow:var(--shadow);display:grid;place-items:center;position:relative;
+  }
+  .speeddial .v{font-size:25px;font-weight:850;letter-spacing:-1px;font-variant-numeric:tabular-nums;line-height:1}
+  .speeddial .u{font-size:9px;font-weight:700;color:var(--ink-2);letter-spacing:.4px}
+  .speeddial.over{background:linear-gradient(135deg,#ff4d4f,#d92b2e);border-color:transparent;color:#fff}
+  .speeddial.over .u{color:rgba(255,255,255,.85)}
+  .limitsign{
+    width:52px;height:52px;border-radius:50%;background:#fff;border:5px solid #e01f2b;display:grid;place-items:center;
+    font-size:19px;font-weight:850;color:#111;box-shadow:var(--shadow);
+  }
+  .limitsign.q{width:52px;height:52px;font-size:19px}
+
+  /* Cột nút phải */
+  .rightctl{position:absolute;right:12px;bottom:116px;display:flex;flex-direction:column;gap:9px;z-index:12}
+  .rightctl .iconbtn{width:46px;height:46px}
+  .rightctl .iconbtn.accent{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent}
+
+  /* Bottom sheet */
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;background:var(--glass);backdrop-filter:blur(26px) saturate(1.4);
+    -webkit-backdrop-filter:blur(26px) saturate(1.4);border-top:1px solid var(--glass-stroke);
+    border-radius:26px 26px 0 0;box-shadow:0 -14px 40px rgba(0,0,0,.28);padding:8px 16px 18px;
+    transform:translateY(calc(100% - 116px));transition:transform .42s cubic-bezier(.2,.8,.2,1);z-index:14;max-height:600px;overflow:hidden;
+  }
+  .sheet.open{transform:translateY(0)}
+  .sheet.gone{transform:translateY(112%)}
+  .grab{width:44px;height:5px;border-radius:3px;background:rgba(127,141,161,.45);margin:0 auto 10px;cursor:grab}
+  .sheet h3{margin:0 0 3px;font-size:17px;font-weight:800;letter-spacing:-.3px;color:var(--ink)}
+  .sheet .sub{font-size:12px;color:var(--ink-2);margin-bottom:10px}
+  .quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  .quick button{
+    border:1px solid var(--glass-stroke);background:rgba(127,141,161,.10);border-radius:15px;padding:10px 6px;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;font-weight:650;color:var(--ink);
+  }
+  .quick button svg{width:20px;height:20px;opacity:.85}
+  .airow{
+    display:flex;align-items:center;gap:9px;border:1px solid var(--glass-stroke);border-radius:15px;padding:11px 12px;
+    background:linear-gradient(135deg,rgba(47,123,255,.12),rgba(107,92,255,.10));cursor:pointer;
+  }
+  .airow .sp{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff}
+  .airow .tx{font-size:12.5px;font-weight:700;color:var(--ink)}
+  .airow .sb{font-size:10.5px;color:var(--ink-2)}
+
+  .tabs{display:flex;gap:6px;margin:2px 0 10px}
+  .tab{flex:1;height:32px;border-radius:10px;border:1px solid transparent;background:rgba(127,141,161,.12);color:var(--ink-2);font-size:11.5px;font-weight:700;cursor:pointer}
+  .tab.on{background:var(--ink);color:var(--land);border-color:transparent}
+
+  .rcard{
+    display:flex;gap:11px;align-items:center;padding:11px 12px;border-radius:16px;border:1px solid var(--glass-stroke);
+    background:rgba(127,141,161,.07);margin-bottom:8px;cursor:pointer;transition:border-color .2s,background .2s;
+  }
+  .rcard.on{border-color:var(--accent);background:rgba(47,123,255,.12);box-shadow:0 0 0 3px rgba(47,123,255,.12)}
+  .rcard .badge{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-weight:850;font-size:15px;color:#fff;flex:0 0 auto}
+  .rcard .b1{font-size:13.5px;font-weight:750;color:var(--ink);display:flex;align-items:center;gap:6px}
+  .rcard .rec{font-size:9px;font-weight:800;letter-spacing:.3px;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff}
+  .rcard .b2{font-size:11.5px;color:var(--ink-2);margin-top:2px}
+  .rcard .b3{font-size:10.5px;color:var(--ink-2);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap}
+  .rcard .b3 i{font-style:normal;opacity:.75}
+
+  .cta{
+    width:100%;height:52px;border:0;border-radius:17px;color:#fff;font-size:15.5px;font-weight:800;cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 12px 26px rgba(47,123,255,.38);
+    display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px;
+  }
+  .cta.ghost{background:rgba(127,141,161,.16);color:var(--ink);box-shadow:none}
+  .cta:active{transform:scale(.985)}
+
+  /* Toast / banner nhỏ */
+  .toast{
+    position:absolute;left:50%;transform:translate(-50%,10px);bottom:112px;background:#0f1722;color:#fff;font-size:12.5px;font-weight:650;
+    padding:10px 14px;border-radius:13px;box-shadow:0 10px 26px rgba(0,0,0,.4);opacity:0;transition:opacity .25s,transform .25s;z-index:30;
+    max-width:86%;text-align:center;
+  }
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+
+  /* Viền đỏ khi vượt tốc độ */
+  .vignette{position:absolute;inset:0;pointer-events:none;z-index:9;opacity:0;transition:opacity .35s;
+    box-shadow:inset 0 0 90px 18px rgba(255,77,79,.55)}
+  .vignette.on{opacity:1;animation:vig 1.4s infinite}
+  @keyframes vig{0%,100%{opacity:.55}50%{opacity:.95}}
+
+  /* Trạng thái tới nơi */
+  .arrive{position:absolute;inset:0;z-index:40;display:grid;place-items:center;background:rgba(8,12,18,.55);backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .3s}
+  .arrive.on{opacity:1;pointer-events:auto}
+  .arrive .card{width:300px;background:var(--glass);border:1px solid var(--glass-stroke);border-radius:26px;padding:20px;text-align:center;box-shadow:var(--shadow)}
+  .arrive .tick{width:64px;height:64px;border-radius:50%;margin:0 auto 12px;display:grid;place-items:center;background:linear-gradient(135deg,#19c37d,#0e9f63);color:#fff;font-size:30px}
+  .arrive h3{margin:0 0 4px;font-size:18px;font-weight:850;color:var(--ink)}
+  .arrive p{margin:0 0 14px;font-size:12.5px;color:var(--ink-2)}
+  .arrive .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+  .arrive .stats div{background:rgba(127,141,161,.12);border-radius:12px;padding:8px 4px}
+  .arrive .stats b{display:block;font-size:15px;font-weight:850;color:var(--ink)}
+  .arrive .stats span{font-size:9.5px;color:var(--ink-2)}
+
+  /* Panel AI */
+  .aipanel{
+    position:absolute;left:0;right:0;bottom:0;background:var(--glass);backdrop-filter:blur(26px) saturate(1.4);
+    border-radius:26px 26px 0 0;border-top:1px solid var(--glass-stroke);padding:14px 16px 18px;z-index:35;
+    transform:translateY(110%);transition:transform .4s cubic-bezier(.2,.8,.2,1);box-shadow:0 -14px 40px rgba(0,0,0,.3);
+  }
+  .aipanel.on{transform:none}
+  .aipanel .head{display:flex;align-items:center;gap:9px;margin-bottom:10px}
+  .aipanel .head .sp{width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#fff}
+  .aipanel h4{margin:0;font-size:14.5px;font-weight:800;color:var(--ink)}
+  .aipanel .head .x{margin-left:auto;color:var(--ink-2);cursor:pointer;font-size:18px;line-height:1}
+  .aipanel .field{display:flex;align-items:center;gap:8px;border:1px solid var(--glass-stroke);border-radius:13px;padding:10px 12px;background:rgba(127,141,161,.10);margin-bottom:8px}
+  .aipanel input{border:0;background:transparent;outline:none;font:inherit;font-size:13px;color:var(--ink);width:100%}
+  .aipanel .sugg{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+  .aipanel .sugg button{font-size:11px;font-weight:650;padding:7px 10px;border-radius:10px;border:1px solid var(--glass-stroke);background:rgba(127,141,161,.10);color:var(--ink);cursor:pointer;text-align:left}
+  .aipanel .reply{font-size:12px;line-height:1.45;color:var(--ink-2);background:rgba(47,123,255,.10);border:1px solid rgba(47,123,255,.25);border-radius:13px;padding:10px 12px;margin-bottom:10px;display:none}
+  .aipanel .reply.on{display:block}
+  .aipanel .reply b{color:var(--ink)}
+  .kv{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-2);padding:4px 0;border-bottom:1px dashed rgba(127,141,161,.25)}
+  .kv:last-child{border:0}
+  .kv b{color:var(--ink);font-weight:700}
+
+  /* ---------- Console demo ---------- */
+  .console{flex:1;min-width:320px;max-width:520px;color:#dbe6f5}
+  .console h1{font-size:21px;margin:4px 0 6px;letter-spacing:-.4px;font-weight:800}
+  .console .lead{font-size:13px;line-height:1.55;color:#9db0c9;margin:0 0 16px}
+  .card{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:14px 15px;margin-bottom:12px;backdrop-filter:blur(10px)}
+  .card h2{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8fa3bd;margin:0 0 10px;font-weight:800}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{
+    border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#e8f0fb;font-size:12.5px;font-weight:700;
+    padding:9px 12px;border-radius:11px;cursor:pointer;transition:.15s;
+  }
+  .btn:hover{background:rgba(255,255,255,.13)}
+  .btn.primary{background:linear-gradient(135deg,#2f7bff,#6b5cff);border-color:transparent;box-shadow:0 8px 20px rgba(47,123,255,.35)}
+  .btn.danger{background:rgba(255,77,79,.18);border-color:rgba(255,77,79,.4);color:#ffd3d4}
+  .btn.on{background:rgba(47,123,255,.28);border-color:rgba(47,123,255,.6)}
+  .slider{width:100%;accent-color:#2f7bff;margin-top:8px}
+  .lbl{display:flex;justify-content:space-between;font-size:12px;color:#9db0c9;margin-top:10px}
+  .lbl b{color:#eaf2ff;font-variant-numeric:tabular-nums}
+  .switchrow{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;padding:7px 0;color:#c7d6e8}
+  .sw{width:42px;height:24px;border-radius:12px;background:rgba(255,255,255,.15);position:relative;cursor:pointer;transition:.2s;flex:0 0 auto}
+  .sw i{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+  .sw.on{background:linear-gradient(135deg,#2f7bff,#6b5cff)}
+  .sw.on i{left:21px}
+  .note{font-size:11.5px;line-height:1.5;color:#8fa3bd;margin:8px 0 0}
+  .note b{color:#cfe0f5}
+  ul.diff{margin:0;padding-left:16px;font-size:12px;line-height:1.6;color:#b9cae0}
+  ul.diff b{color:#eaf2ff}
+  .tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.4px;padding:3px 7px;border-radius:7px;background:rgba(255,176,32,.18);color:#ffcf7a;border:1px solid rgba(255,176,32,.35);vertical-align:middle;margin-left:6px}
+  .mobilehint{display:none}
+
+  @media (max-width:1020px){
+    body{padding:14px 10px 30px}
+    .app{flex-direction:column;align-items:center;gap:22px}
+    .device{width:min(412px,96vw);height:min(866px,calc(96vw * 2.2));padding:8px;border-radius:48px}
+    .screen{width:100%;height:100%;border-radius:40px}
+    .console{max-width:520px;width:100%}
+  }
+</style>
+</head>
+<body class="night">
+<div class="app">
+  <!-- ================= ĐIỆN THOẠI ================= -->
+  <div class="device">
+    <div class="notch"></div>
+    <div class="screen" id="screen">
+      <div class="mapstage" id="mapstage">
+        <div class="tiltwrap" id="tiltwrap">
+          <svg id="map" viewBox="0 0 1000 1000" width="1000" height="1000" aria-label="Bản đồ demo">
+            <defs>
+              <linearGradient id="gRoute" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#2f7bff"/><stop offset="100%" stop-color="#6b5cff"/>
+              </linearGradient>
+              <filter id="fGlow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="6" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <filter id="fShadow" x="-40%" y="-40%" width="180%" height="180%">
+                <feDropShadow dx="0" dy="2" stdDeviation="2.4" flood-opacity=".35"/>
+              </filter>
+            </defs>
+            <g id="world">
+              <rect x="-200" y="-200" width="1400" height="1400" fill="var(--land)"/>
+              <g id="blocks"></g>
+              <g id="water"></g>
+              <g id="parks"></g>
+              <g id="zones"></g>
+              <g id="roads"></g>
+              <g id="labels"></g>
+              <g id="routes"></g>
+              <g id="markers"></g>
+              <g id="puck" style="opacity:0"></g>
+            </g>
+          </svg>
+        </div>
+        <div class="horizon" id="horizon"></div>
+      </div>
+
+      <div class="statusbar"><span>9:41</span><span class="right">● ●● ▮</span></div>
+
+      <div class="ui">
+        <div class="progress" id="progress"><i></i></div>
+
+        <!-- Thanh trên: tìm kiếm (chế độ duyệt) -->
+        <div class="topbar" id="topbar">
+          <div class="iconbtn" id="btnMenu" title="Menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/></svg>
+          </div>
+          <div class="searchpill" id="btnSearch">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5" stroke-linecap="round"/></svg>
+            <span>Tìm địa điểm, địa chỉ…</span>
+            <span class="spark" title="Trợ lý AI">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.3L19 9l-5.1 1.7L12 16l-1.9-5.3L5 9l5.1-1.7L12 2zm6.5 11l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6L15 17l2.6-.9.9-2.6z"/></svg>
+            </span>
+          </div>
+          <div class="iconbtn" id="btnLayersTop" title="Lớp bản đồ">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+
+        <div class="chips" id="chips">
+          <button class="chip on" data-cat="cameras">📷 Camera</button>
+          <button class="chip on" data-cat="signs">🛑 Biển báo</button>
+          <button class="chip on" data-cat="zones">🎯 Vùng 40</button>
+          <button class="chip" data-cat="fuel">⛽ Xăng</button>
+        </div>
+
+        <!-- Thanh dẫn đường (thay HUD) -->
+        <div class="drivebar" id="drivebar">
+          <div class="maneuver" id="mnv">↑</div>
+          <div class="txt">
+            <div class="l1"><span class="big" id="mnvDist">250 m</span><span class="step" id="mnvText">Đi thẳng</span></div>
+            <div class="l2" id="mnvNext">Sau đó: rẽ trái vào Đường Láng</div>
+          </div>
+          <div class="iconbtn" id="btnExit" title="Kết thúc">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+
+        <!-- Callout cảnh báo neo trên bản đồ -->
+        <div class="callout" id="callout">
+          <div class="t" id="coType">CAMERA TỐC ĐỘ</div>
+          <div class="n" id="coName">Ngã tư Sở</div>
+          <div class="d" id="coDist">180 <span>m · giới hạn 60</span></div>
+        </div>
+
+        <!-- Cột nút phải -->
+        <div class="rightctl">
+          <div class="iconbtn accent" id="btnPitch" title="3D / 2D">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+          </div>
+          <div class="iconbtn" id="btnLayers" title="Lớp hiển thị">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5" stroke-linecap="round"/></svg>
+          </div>
+          <div class="iconbtn" id="btnFollow" title="Bám theo vị trí" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v4M12 21a9 9 0 110-18 9 9 0 010 18z" stroke-linecap="round"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+          </div>
+          <div class="iconbtn" id="btnNight" title="Ngày / Đêm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 13.2A8.4 8.4 0 1110.8 3a6.8 6.8 0 0010.2 10.2z"/></svg>
+          </div>
+        </div>
+
+        <!-- Vòng tốc độ + biển giới hạn ngay trên bản đồ -->
+        <div class="speedchip" id="speedchip">
+          <div class="speeddial" id="speeddial"><div class="v" id="spdVal">38</div><div class="u">km/h</div></div>
+          <div class="limitsign" id="limitVal">60</div>
+        </div>
+
+        <div class="vignette" id="vignette"></div>
+
+        <!-- Bottom sheet -->
+        <div class="sheet" id="sheet">
+          <div class="grab" id="grab"></div>
+          <div id="sheetBody"></div>
+        </div>
+
+        <!-- Panel AI (tuỳ chọn) -->
+        <div class="aipanel" id="aipanel">
+          <div class="head">
+            <div class="sp"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.3L19 9l-5.1 1.7L12 16l-1.9-5.3L5 9l5.1-1.7L12 2z"/></svg></div>
+            <div>
+              <h4>Tìm tuyến bằng AI</h4>
+            </div>
+            <div class="x" id="btnAiClose">✕</div>
+          </div>
+          <div class="field">
+            <span>⌨️</span>
+            <input id="aiInput" placeholder="đi xe máy từ Cầu Giấy đến Hồ Hoàn Kiếm, tránh cao tốc" autocomplete="off">
+            <span id="btnAiSend" style="font-weight:800;color:var(--accent);cursor:pointer">Gửi</span>
+          </div>
+          <div class="sugg" id="aiSugg">
+            <button data-q="đi xe máy từ Cầu Giấy đến Hồ Hoàn Kiếm, tránh cao tốc">đi xe máy Cầu Giấy → Hồ Hoàn Kiếm, tránh cao tốc</button>
+            <button data-q="ô tô từ Ngã tư Sở đến sân bay Nội Bài, ít camera nhất">ô tô Ngã tư Sở → Nội Bài, ít camera</button>
+            <button data-q="đi bộ từ Hồ Tây đến phố cổ">đi bộ Hồ Tây → phố cổ</button>
+          </div>
+          <div class="reply" id="aiReply"></div>
+          <div>
+            <div class="kv"><span>Chế độ</span><b id="aiMode">AI bật · ckey.vn · gpt-4o-mini</b></div>
+            <div class="kv"><span>Không có key</span><b>Bộ phân tích offline (vẫn tìm được)</b></div>
+            <div class="kv"><span>Dữ liệu gửi đi</span><b>Chỉ câu lệnh, không gửi vị trí</b></div>
+          </div>
+        </div>
+
+        <div class="toast" id="toast"></div>
+
+        <div class="arrive" id="arrive">
+          <div class="card">
+            <div class="tick">✓</div>
+            <h3>Đã tới nơi</h3>
+            <p id="arriveSub">Hồ Hoàn Kiếm · 2,6 km</p>
+            <div class="stats">
+              <div><b id="arrT">14 phút</b><span>thời gian</span></div>
+              <div><b id="arrD">2,6 km</b><span>quãng đường</span></div>
+              <div><b id="arrC">4</b><span>cảnh báo</span></div>
+            </div>
+            <button class="cta" id="btnArriveOk">Xong</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CONSOLE ================= -->
+  <aside class="console">
+    <h1>VietMap 3.0 — demo giao diện <span class="tag">CHƯA BUILD IPA</span></h1>
+    <p class="lead">Bản dựng HTML để bạn duyệt bố cục trước khi mình sửa Swift và compile. Bấm các nút bên dưới để chạy kịch bản; điện thoại bên trái là giao diện thật sẽ làm.</p>
+
+    <div class="card">
+      <h2>Kịch bản</h2>
+      <div class="row">
+        <button class="btn" data-act="idle">Bản đồ tự do</button>
+        <button class="btn" data-act="route">Tìm tuyến</button>
+        <button class="btn primary" data-act="drive">Bắt đầu dẫn đường</button>
+        <button class="btn" data-act="overspeed">Vượt tốc độ</button>
+        <button class="btn" data-act="offroute">Đi lệch tuyến</button>
+        <button class="btn" data-act="arrive">Tới nơi</button>
+        <button class="btn" data-act="reset">Reset</button>
+      </div>
+      <div class="lbl"><span>Tốc độ mô phỏng</span><b id="spdOut">38 km/h</b></div>
+      <input class="slider" id="spdRange" type="range" min="0" max="80" step="1" value="38">
+      <p class="note">Camera/ biển báo hiện <b>trực tiếp trên bản đồ</b>; cảnh báo có callout bám theo điểm và khoảng cách đếm lùi. Không còn màn hình HUD riêng.</p>
+    </div>
+
+    <div class="card">
+      <h2>Hiển thị</h2>
+      <div class="switchrow"><span>Bản đồ 3D (nghiêng + xoay theo hướng)</span><div class="sw on" id="swPitch"><i></i></div></div>
+      <div class="switchrow"><span>Ban đêm</span><div class="sw on" id="swNight"><i></i></div></div>
+      <div class="switchrow"><span>Biển giới hạn tốc độ</span><div class="sw on" id="swSigns"><i></i></div></div>
+      <div class="switchrow"><span>Camera phạt nguội / giám sát</span><div class="sw on" id="swCams"><i></i></div></div>
+      <div class="switchrow"><span>Vùng tốc độ (trường học, khu dân cư)</span><div class="sw on" id="swZones"><i></i></div></div>
+    </div>
+
+    <div class="card">
+      <h2>AI (tuỳ chọn)</h2>
+      <div class="switchrow"><span>Bật AI để hiểu câu tiếng Việt</span><div class="sw on" id="swAi"><i></i></div></div>
+      <p class="note">AI chỉ <b>hiểu ý định</b> (đi/đến/phương tiện/tránh/ghé) rồi trả JSON; tuyến do MapKit/VietMap tính. Không có key vẫn dùng được bằng bộ phân tích offline.</p>
+    </div>
+
+    <div class="card">
+      <h2>Kế hoạch triển khai (sau khi bạn duyệt)</h2>
+      <ul class="diff">
+        <li><b>1. Bỏ HUD</b> — xoá <code>HUDView.swift</code> + nút “mở HUD”; chuyển sang lớp bản đồ: annotation biển báo (P.127), camera, overlay vùng tốc độ, callout khoảng cách.</li>
+        <li><b>2. Dữ liệu biển báo</b> — schema 3 cho <code>vn_alerts.json</code>: <code>speed_sign</code>, <code>speed_zone</code>, <code>school_zone</code>, <code>speed_camera</code>, <code>red_light_camera</code>; gộp OSM <code>maxspeed</code> + camera TP.HCM + JSON người dùng; script <code>build-alert-data.py</code> kiểm tra biển báo hợp lệ.</li>
+        <li><b>3. AI tuỳ chọn</b> — dựng lại <code>AIClient</code>/<code>AIRoutePlanner</code> (OpenAI-compatible, model đổi được), AI chỉ trả JSON ý định; không có key thì parser offline. Có công tắc trong Cài đặt.</li>
+        <li><b>4. Tuyến thông minh</b> — mở rộng <code>RouteScorer</code>: mật độ camera, % cao tốc, phí, số đèn đỏ; 3 chế độ xếp hạng (nhanh nhất / ít camera / tránh cao tốc) đúng như tab trong demo.</li>
+        <li><b>5. Camera dẫn đường</b> — giữ bản 2.1 (3D xoay theo hướng, zoom theo tốc độ, tự tính lại tuyến, tự kết thúc).</li>
+        <li><b>6. Kiểm thử &amp; phát hành</b> — unit test cho dữ liệu biển báo + xếp hạng tuyến, CI 3 job xanh rồi mới build IPA 3.0.0.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Khác gì bản 2.1</h2>
+      <ul class="diff">
+        <li><b>Bỏ HUD toàn màn hình</b> — biển báo, camera, vùng tốc độ và cảnh báo vẽ ngay trên bản đồ.</li>
+        <li><b>Biển báo P.127 thật trên đường</b>: 60 → 50 → 40 (trường học) → 50, đổi giới hạn đúng lúc đi qua.</li>
+        <li><b>Camera phạt nguội</b> có callout khoảng cách, viền đỏ khi vượt tốc độ, rung cảnh báo.</li>
+        <li><b>Tuyến thông minh như Google Maps</b>: 3 phương án + điểm 0–100 + “ít camera nhất / tránh cao tốc”, so sánh phí, ETA.</li>
+        <li><b>AI quay lại nhưng là tuỳ chọn</b>: câu lệnh tiếng Việt → JSON ý định → tuyến thật; không có key vẫn chạy.</li>
+        <li><b>3D/2D chuyển tức thì</b>, màn hình gọn khi chạy, không còn nút mở HUD.</li>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   VietMap 3.0 — demo giao diện (1 file, không cần mạng)
+   Bản mô phỏng để duyệt UX trước khi viết Swift.
+   ============================================================ */
+
+const SVGNS = "http://www.w3.org/2000/svg";
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const el = (tag, attrs = {}, parent) => {
+  const n = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+};
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const fmtM = (m) => (m >= 950 ? (m / 1000).toFixed(1).replace(".", ",") + " km" : Math.round(m / 10) * 10 + " m");
+const fmtT = (sec) => {
+  const min = Math.round(sec / 60);
+  if (min < 60) return min + " phút";
+  return Math.floor(min / 60) + " giờ " + (min % 60) + " phút";
+};
+const clock = (sec) => {
+  const d = new Date(Date.now() + sec * 1000);
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+};
+
+/* ---------- Thế giới bản đồ ---------- */
+const M_PER_UNIT = 2.94;               // mét / đơn vị SVG (tuyến chính ≈ 2,6 km)
+const ROUTE_PTS = [
+  [172, 902], [196, 856], [215, 800], [246, 744], [265, 700], [300, 664],
+  [330, 640], [372, 604], [430, 560], [474, 536], [520, 512], [566, 490],
+  [610, 470], [652, 448], [690, 430], [726, 414], [760, 400], [792, 378], [820, 356]
+];
+const ALT1 = [[172,902],[250,858],[318,806],[392,742],[470,676],[552,606],[628,540],[700,470],[762,420],[820,356]];
+const ALT2 = [[172,902],[248,896],[330,884],[430,862],[530,836],[630,796],[712,738],[770,656],[802,560],[812,452],[820,356]];
+
+const ROADS = [
+  { c: "trunk", w: 17, p: ROUTE_PTS },
+  { c: "trunk", w: 15, p: [[120, 980], [172, 902], [200, 828], [214, 742], [232, 664], [262, 590], [306, 520], [356, 452]] },
+  { c: "primary", w: 12, p: [[330, 640], [300, 560], [286, 470], [292, 372], [318, 286], [360, 210]] },
+  { c: "primary", w: 12, p: [[430, 560], [500, 620], [560, 690], [612, 772], [650, 862], [668, 960]] },
+  { c: "primary", w: 11, p: [[610, 470], [590, 560], [596, 660], [640, 760]] },
+  { c: "secondary", w: 8, p: [[760, 400], [742, 500], [760, 596], [802, 690]] },
+  { c: "secondary", w: 8, p: [[100, 700], [220, 690], [330, 676], [430, 654], [540, 630], [640, 616], [760, 600]] },
+  { c: "secondary", w: 8, p: [[150, 500], [260, 496], [372, 480], [470, 470], [570, 452], [680, 440], [790, 430]] },
+  { c: "secondary", w: 7, p: [[80, 300], [200, 306], [320, 300], [440, 292], [560, 300], [700, 292], [860, 286]] },
+  { c: "secondary", w: 7, p: [[120, 120], [260, 132], [400, 124], [540, 136], [700, 128], [880, 140]] },
+  { c: "local", w: 5, p: [[196, 856], [110, 820], [40, 780]] },
+  { c: "local", w: 5, p: [[246, 744], [340, 726], [430, 712]] },
+  { c: "local", w: 5, p: [[474, 536], [520, 596], [542, 676]] },
+  { c: "local", w: 5, p: [[652, 448], [664, 520], [690, 588]] },
+  { c: "local", w: 5, p: [[726, 414], [800, 470], [860, 540]] }
+];
+
+const LABELS = [
+  { t: "Đường Nguyễn Trãi", x: 250, y: 760, a: -66, big: true },
+  { t: "Đường Láng", x: 470, y: 522, a: -27, big: true },
+  { t: "Phố Huế", x: 700, y: 420, a: -24, big: true },
+  { t: "Hồ Tây", x: 250, y: 190, a: 0, water: true },
+  { t: "Hồ Hoàn Kiếm", x: 800, y: 300, a: 0, water: true },
+  { t: "Công viên Thống Nhất", x: 500, y: 742, a: 0 },
+  { t: "Sông Hồng", x: 918, y: 520, a: 78, water: true }
+];
+
+/* ---------- Dữ liệu cảnh báo dọc tuyến ---------- */
+const ALERTS = [
+  { m: 145, kind: "speed", name: "Ngã tư Sở – Nguyễn Trãi", limit: 60 },
+  { m: 760, kind: "redlight", name: "Đèn đỏ Láng Hạ – Đường Láng", limit: 50 },
+  { m: 1180, kind: "school", name: "Trường Tiểu học Phố Huế", limit: 40 },
+  { m: 1560, kind: "surveillance", name: "Camera giám sát Ngã tư Phố Huế", limit: null },
+  { m: 2010, kind: "speed", name: "Camera tốc độ phố Bà Triệu", limit: 50 },
+  { m: 2380, kind: "speed", name: "Camera tốc độ Hàng Bài", limit: 50 }
+];
+const SIGNS = [
+  { m: 90, limit: 60, road: "Nguyễn Trãi" },
+  { m: 690, limit: 50, road: "Đường Láng" },
+  { m: 1150, limit: 40, road: "Khu vực trường học" },
+  { m: 1520, limit: 50, road: "Phố Huế" },
+  { m: 2280, limit: 50, road: "Phố Bà Triệu" }
+];
+const MANEUVERS = [
+  { m: 120, icon: "↑", text: "Đi thẳng trên Nguyễn Trãi", next: "Rẽ trái vào Đường Láng" },
+  { m: 620, icon: "↖", text: "Rẽ trái vào Đường Láng", next: "Đi thẳng 900 m" },
+  { m: 1180, icon: "↗", text: "Rẽ phải vào Phố Huế", next: "Chú ý khu vực trường học" },
+  { m: 1780, icon: "↑", text: "Đi thẳng qua Ngã tư Phố Huế", next: "Rẽ phải vào Hàng Bài" },
+  { m: 2320, icon: "↱", text: "Rẽ phải vào Hàng Bài", next: "Đi thẳng 300 m" },
+  { m: 2600, icon: "⚑", text: "Đến Hồ Hoàn Kiếm", next: "Điểm đến bên tay phải" }
+];
+
+const ROUTE_META = [
+  { name: "Nguyễn Trãi → Láng → Phố Huế", tag: "Nhanh nhất", time: 14, color: "#2f7bff", cams: 4, highway: 0, toll: 0 },
+  { name: "Vành đai 2 → Kim Liên", tag: "Ít đèn đỏ", time: 17, color: "#6b5cff", cams: 3, highway: 0.12, toll: 0 },
+  { name: "Vành đai 3 → Tránh trung tâm", tag: "Tránh đông", time: 21, color: "#7f8da1", cams: 1, highway: 0.42, toll: 25000 }
+];
+
+/* ---------- Trạng thái ---------- */
+const S = {
+  mode: "idle",            // idle | route | drive | arrived
+  total: 0,                // mét toàn tuyến
+  travel: 0,               // mét đã đi
+  speed: 38,
+  limit: 60,
+  selRoute: 0,
+  sortMode: "fast",
+  pitch3d: true,
+  night: true,
+  ai: true,
+  layers: { signs: true, cams: true, zones: true },
+  following: true,
+  offX: 0, offY: 0,
+  lastT: 0,
+  warned: new Set(),
+  activeCallout: null,
+  shot: { start: 0, cams: 0 },
+  routePath: null,
+  routeLen: 0
+};
+
+const mapEl = $("#map");
+const world = $("#world");
+const markersG = $("#markers");
+const routesG = $("#routes");
+
+/* ---------- Dựng bản đồ ---------- */
+function seeded(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+
+function buildBlocks() {
+  const g = $("#blocks");
+  const rnd = seeded(7);
+  for (let y = 40; y < 980; y += 52) {
+    for (let x = 40; x < 980; x += 52) {
+      const inWater = x > 850 || (x > 170 && x < 350 && y > 80 && y < 300);
+      const inPark = (x > 430 && x < 570 && y > 690 && y < 810);
+      if (inWater || inPark) continue;
+      if (rnd() < 0.18) continue;
+      const w = 30 + rnd() * 14, h = 26 + rnd() * 16;
+      el("rect", {
+        x: x + rnd() * 6, y: y + rnd() * 6, width: w, height: h, rx: 4,
+        fill: rnd() > 0.72 ? "var(--block-2)" : "var(--block)", opacity: 0.94
+      }, g);
+    }
+  }
+}
+
+function buildWater() {
+  const g = $("#water");
+  el("path", {
+    d: "M 900 -50 C 940 180 880 300 900 470 C 918 640 870 800 900 1050 L 1080 1050 L 1080 -50 Z",
+    fill: "var(--water)"
+  }, g);
+  el("ellipse", { cx: 252, cy: 186, rx: 150, ry: 96, fill: "var(--water)", transform: "rotate(-14 252 186)" }, g);
+  el("ellipse", { cx: 806, cy: 330, rx: 46, ry: 30, fill: "var(--water)" }, g);
+}
+
+function buildParks() {
+  const g = $("#parks");
+  el("rect", { x: 430, y: 690, width: 140, height: 122, rx: 18, fill: "var(--park)" }, g);
+  el("rect", { x: 70, y: 392, width: 120, height: 96, rx: 16, fill: "var(--park)" }, g);
+  el("ellipse", { cx: 640, cy: 200, rx: 78, ry: 52, fill: "var(--park)" }, g);
+}
+
+function roadPath(pts) {
+  return pts.map((p, i) => (i ? "L" : "M") + " " + p[0] + " " + p[1]).join(" ");
+}
+
+function buildRoads() {
+  const g = $("#roads");
+  const order = { local: 0, secondary: 1, primary: 2, trunk: 3 };
+  ROADS.slice().sort((a, b) => order[a.c] - order[b.c]).forEach((r) => {
+    const d = roadPath(r.p);
+    el("path", { d, class: "rd", stroke: r.c === "trunk" ? "var(--road-trunk-edge)" : "var(--road-edge)", "stroke-width": r.w + 4 }, g);
+    el("path", { d, class: "rd", stroke: r.c === "trunk" ? "var(--road-trunk)" : "var(--road)", "stroke-width": r.w }, g);
+  });
+  const lg = $("#labels");
+  LABELS.forEach((l) => {
+    const t = el("text", {
+      x: l.x, y: l.y, class: "road-label" + (l.big ? " big" : ""),
+      transform: `rotate(${l.a} ${l.x} ${l.y})`, "text-anchor": "middle"
+    }, lg);
+    t.textContent = l.t;
+    if (l.water) t.style.fill = "var(--water-ink, #6fa9c9)";
+  });
+}
+
+function buildRoutes() {
+  routesG.innerHTML = "";
+  const alts = [ROUTE_PTS, ALT1, ALT2];
+  S.routeMeters = [];
+  alts.forEach((pts, i) => {
+    const d = roadPath(pts);
+    const g = el("g", { "data-route": i }, routesG);
+    el("path", { d, class: "rd", stroke: "rgba(255,255,255,.55)", "stroke-width": 13, opacity: 0.16 }, g);
+    el("path", {
+      d, class: "rd route-line",
+      stroke: i === 0 ? "url(#gRoute)" : "#7f8da1",
+      "stroke-width": i === 0 ? 9 : 7,
+      "stroke-dasharray": i === 0 ? "none" : "14 10",
+      opacity: i === 0 ? 1 : 0.55
+    }, g);
+  });
+  S.routePath = routesG.querySelector('[data-route="0"] .route-line');
+  S.routeLen = S.routePath.getTotalLength();
+  alts.forEach((_, i) => {
+    const path = routesG.querySelector('[data-route="' + i + '"] .route-line');
+    S.routeMeters[i] = path.getTotalLength() * M_PER_UNIT;
+  });
+  S.total = S.routeMeters[0];
+}
+
+function pointAt(m) {
+  const u = clamp(m / M_PER_UNIT, 0, S.routeLen);
+  const p = S.routePath.getPointAtLength(u);
+  const p2 = S.routePath.getPointAtLength(clamp(u + 4, 0, S.routeLen));
+  const angle = Math.atan2(p2.y - p.y, p2.x - p.x) * 180 / Math.PI;
+  return { x: p.x, y: p.y, angle };
+}
+
+/* ---------- Marker trên bản đồ ---------- */
+const markRefs = { signs: [], cams: [], zones: [] };
+
+const CAM_STYLE = {
+  speed: { fill: "#ff4d4f", glyph: "⌾", label: "CAMERA TỐC ĐỘ", cls: "k-red" },
+  redlight: { fill: "#ff8a00", glyph: "⬤", label: "CAMERA ĐÈN ĐỎ", cls: "k-amber" },
+  surveillance: { fill: "#2f9bff", glyph: "◉", label: "CAMERA GIÁM SÁT", cls: "k-cyan" },
+  school: { fill: "#ffbe0b", glyph: "⚑", label: "KHU VỰC TRƯỜNG HỌC", cls: "k-amber" }
+};
+
+function cameraIcon(parent, x, y, fill, glyph) {
+  el("rect", { x: x - 13, y: y - 13, width: 26, height: 26, rx: 9, fill: fill, filter: "url(#fShadow)" }, parent);
+  el("circle", { cx: x - 4, cy: y - 3, r: 3.4, fill: "#fff" }, parent);
+  el("path", {
+    d: `M ${x + 1} ${y - 3} h 8 l 3 -4 v 12 l -3 -4 h -8 z`, fill: "#fff", opacity: 0.95
+  }, parent);
+}
+
+function buildMarkers() {
+  markersG.innerHTML = "";
+  markRefs.signs = [];
+  markRefs.cams = [];
+  markRefs.zones = [];
+
+  // Vùng tốc độ: trường học 40
+  const zg = el("g", { id: "zoneLayer" }, markersG);
+  const zone = el("path", {
+    d: "",
+    stroke: "rgba(255,190,11,.35)", "stroke-width": 26, "stroke-linecap": "round", fill: "none"
+  }, zg);
+  markRefs.zones.push(zone);
+
+  // Biển báo P.127
+  SIGNS.forEach((s, i) => {
+    const p = pointAt(s.m);
+    const g = el("g", { class: "mk", "data-sign": i, transform: `translate(${p.x},${p.y})` }, markersG);
+    el("circle", { class: "halo", r: 22, fill: "rgba(47,123,255,.35)" }, g);
+    el("circle", { r: 14, fill: "#fff", stroke: "#e01f2b", "stroke-width": 4.6, filter: "url(#fShadow)" }, g);
+    const t = el("text", { y: 4.6, "text-anchor": "middle", "font-size": "11", "font-weight": "800", fill: "#111" }, g);
+    t.textContent = s.limit;
+    g.addEventListener("click", () => {
+      toast(`Biển ${s.limit} km/h · ${s.road}`);
+    });
+    markRefs.signs.push({ g, ...s });
+  });
+
+  // Camera
+  ALERTS.forEach((a, i) => {
+    const p = pointAt(a.m);
+    const st = CAM_STYLE[a.kind] || CAM_STYLE.speed;
+    const g = el("g", { class: "mk", "data-cam": i, transform: `translate(${p.x},${p.y})` }, markersG);
+    el("circle", { class: "halo", r: 20, fill: st.fill, opacity: 0.28 }, g);
+    cameraIcon(g, 0, 0, st.fill, st.glyph);
+    const lbl = el("text", { class: "distlabel", y: 26, fill: "var(--ink)" }, g);
+    lbl.textContent = "";
+    g.addEventListener("click", () => selectCamera(i));
+    markRefs.cams.push({ g, lbl, ...a, style: st });
+  });
+}
+
+/// Đặt lại vị trí biển báo/camera/vùng theo tuyến đang chọn.
+function layoutMarkers() {
+  markRefs.signs.forEach((s) => {
+    const p = pointAt(s.m);
+    s.g.setAttribute("transform", "translate(" + p.x + "," + p.y + ") rotate(" + cam.heading + ")");
+  });
+  markRefs.cams.forEach((c) => {
+    const p = pointAt(c.m);
+    c.g.setAttribute("transform", "translate(" + p.x + "," + p.y + ") rotate(" + cam.heading + ")");
+  });
+  if (markRefs.zones[0]) {
+    const z0 = pointAt(1150), z1 = pointAt(1520);
+    markRefs.zones[0].setAttribute("d", `M ${z0.x} ${z0.y} L ${z1.x} ${z1.y}`);
+  }
+}
+
+function selectCamera(i) {
+  const a = ALERTS[i];
+  const st = CAM_STYLE[a.kind] || CAM_STYLE.speed;
+  toast(`${st.label} · ${a.name}${a.limit ? " · giới hạn " + a.limit : ""}`);
+}
+
+/* ---------- Puck ---------- */
+function buildPuck() {
+  const g = $("#puck");
+  g.innerHTML = "";
+  el("circle", { r: 30, fill: "rgba(47,123,255,.18)" }, g);
+  el("circle", { r: 18, fill: "rgba(47,123,255,.28)" }, g);
+  el("circle", { r: 11, fill: "#fff", stroke: "#2f7bff", "stroke-width": 4.5, filter: "url(#fShadow)" }, g);
+  el("path", { d: "M 0 -34 L 9 -18 L 0 -22 L -9 -18 Z", fill: "#2f7bff" }, g);
+}
+
+/* ---------- Camera / transform ---------- */
+let cam = { tx: 0, ty: 0, z: 1, heading: 0, ax: 195, ay: 300 };
+
+function updateCamera(animate) {
+  const box = $("#screen");
+  const W = box.clientWidth || 390, H = box.clientHeight || 844;
+  let px, py, z, heading, ax, ay;
+
+  if (S.mode === "drive" || S.mode === "arrived") {
+    const p = pointAt(S.travel);
+    const sp = clamp(S.speed, 0, 90);
+    const zoomOut = 1 + sp / 90 * 0.42;
+    z = (S.pitch3d ? 1.72 : 1.55) / zoomOut;
+    heading = S.pitch3d ? p.angle : 0;
+    ax = W / 2; ay = H * 0.66;
+    px = p.x + S.offX; py = p.y + S.offY;
+  } else if (S.mode === "route") {
+    // Vừa đủ thấy trọn 3 phương án phía trên bottom sheet
+    z = 0.55; heading = 0; px = 496; py = 632; ax = W / 2; ay = H * 0.34;
+  } else {
+    z = 0.46; heading = 0; px = 496; py = 640; ax = W / 2; ay = H * 0.3;
+  }
+
+  const rad = -heading * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const rx = z * (px * cos - py * sin);
+  const ry = z * (px * sin + py * cos);
+  const tx = ax - rx, ty = ay - ry;
+
+  cam = { tx, ty, z, heading, ax, ay };
+  mapEl.style.transform = `translate(${tx}px,${ty}px) rotate(${rad}rad) scale(${z})`;
+  mapEl.style.transition = animate ? "transform .35s ease-out" : "none";
+
+  // 3D: nghiêng cả bản đồ
+  const tilt = S.pitch3d ? 26 : 0;
+  $("#tiltwrap").style.transform = `rotateX(${tilt}deg) scale(${S.pitch3d ? 1.06 : 1})`;
+  $("#horizon").classList.toggle("on", S.pitch3d && (S.mode === "drive" || S.mode === "route"));
+
+  // Giữ marker/biển báo thẳng đứng (bản đồ xoay -heading nên phải bù +heading)
+  const counter = heading;
+  $$(".mk", markersG).forEach((g) => {
+    const t = g.getAttribute("transform") || "";
+    const m = t.match(/translate\(([-\d.]+),([-\d.]+)\)/);
+    if (m) g.setAttribute("transform", `translate(${m[1]},${m[2]}) rotate(${counter}) scale(${(1 / z * 0.92).toFixed(4)})`);
+  });
+  placePuck();
+  updateMapCallouts();
+}
+
+function worldToScreen(x, y) {
+  const rad = -cam.heading * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const sx = cam.z * (x * cos - y * sin) + cam.tx;
+  const sy = cam.z * (x * sin + y * cos) + cam.ty;
+  // bù nhẹ cho hiệu ứng nghiêng 3D
+  return { x: sx, y: S.pitch3d ? cam.ay + (sy - cam.ay) * 0.9 : sy };
+}
+
+/* ---------- Cảnh báo trên bản đồ ---------- */
+function warnDistance() { return clamp(S.speed * 3, 150, 500); }
+
+function updateMapCallouts() {
+  const showDrive = S.mode === "drive";
+  const co = $("#callout");
+  let best = null;
+
+  markRefs.cams.forEach((c, i) => {
+    const dist = c.m - S.travel;
+    const active = showDrive && dist > 0 && dist <= warnDistance();
+    c.g.classList.toggle("active", active);
+    c.g.classList.toggle("dim", showDrive && dist <= 0);
+    c.lbl.textContent = showDrive && dist > 0 && dist < 900 ? fmtM(dist) : "";
+    if (active && (!best || dist < best.dist)) best = { c, dist, i };
+  });
+
+  if (best) {
+    const st = best.c.style;
+    co.className = "callout on " + st.cls + (best.dist < 120 ? " urgent" : "");
+    $("#coType").textContent = st.label;
+    $("#coName").textContent = best.c.name;
+    $("#coDist").innerHTML = `${Math.round(best.dist / 10) * 10} <span>m${best.c.limit ? " · giới hạn " + best.c.limit : ""}</span>`;
+    const p = pointAt(best.c.m);
+    const s = worldToScreen(p.x, p.y);
+    co.style.left = clamp(s.x, 96, 294) + "px";
+    co.style.top = (s.y - 22) + "px";
+    S.activeCallout = best.i;
+  } else {
+    co.classList.remove("on");
+    S.activeCallout = null;
+  }
+
+  // Biển báo đang áp dụng
+  let activeLimit = null;
+  markRefs.signs.forEach((s) => {
+    const upcoming = s.m - S.travel;
+    const active = showDrive && upcoming > -12 && upcoming < 260;
+    s.g.classList.toggle("active", active);
+    s.g.classList.toggle("dim", showDrive && upcoming < -12);
+    if (showDrive && S.travel >= s.m) activeLimit = s;
+  });
+  if (activeLimit) S.limit = activeLimit.limit;
+}
+
+/* ---------- Vòng tốc độ + vượt tốc ---------- */
+function updateSpeedUI() {
+  const over = S.mode === "drive" && S.speed > S.limit + 5;
+  $("#speedchip").classList.toggle("on", S.mode === "drive");
+  $("#spdVal").textContent = Math.round(S.speed);
+  $("#speeddial").classList.toggle("over", over);
+  $("#limitVal").textContent = S.limit;
+  $("#vignette").classList.toggle("on", over);
+}
+
+/* ---------- Thanh dẫn đường ---------- */
+function updateDriveBar() {
+  if (S.mode !== "drive") return;
+  const next = MANEUVERS.find((m) => m.m > S.travel) || MANEUVERS[MANEUVERS.length - 1];
+  $("#mnv").textContent = next.icon;
+  $("#mnvDist").textContent = fmtM(Math.max(0, next.m - S.travel));
+  $("#mnvText").textContent = next.text;
+  $("#mnvNext").textContent = "Sau đó: " + next.next;
+  const pct = clamp(S.travel / S.total, 0, 1) * 100;
+  $("#progress").classList.add("on");
+  $("#progress").firstElementChild.style.width = pct.toFixed(1) + "%";
+}
+
+/* ---------- Vòng lặp mô phỏng ---------- */
+function tick(t) {
+  if (!S.lastT) S.lastT = t;
+  const dt = Math.min(0.1, (t - S.lastT) / 1000);
+  S.lastT = t;
+
+  if (S.mode === "drive") {
+    const before = S.travel;
+    S.travel = Math.min(S.total, S.travel + (S.speed / 3.6) * dt);
+    S.shot.cams = ALERTS.filter((a) => a.kind !== "surveillance" && a.m <= S.travel).length;
+
+    // cập nhật giới hạn theo biển đã qua
+    let lim = 60;
+    SIGNS.forEach((s) => { if (S.travel >= s.m) lim = s.limit; });
+    if (lim !== S.limit) {
+      S.limit = lim;
+      toast(`Biển mới: ${lim} km/h`);
+    }
+
+    updateSpeedUI();
+    updateDriveBar();
+    updateCamera(false);
+
+    if (S.travel >= S.total - 1 && before < S.total - 1) finishDrive();
+  } else {
+    updateSpeedUI();
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ---------- Chế độ ---------- */
+function enterIdle() {
+  S.mode = "idle";
+  S.travel = 0;
+  $("#topbar").classList.remove("hide");
+  $("#chips").classList.remove("hide");
+  $("#drivebar").classList.remove("on");
+  $("#speedchip").classList.remove("on");
+  $("#progress").classList.remove("on");
+  $("#puck").style.opacity = 0;
+  $("#arrive").classList.remove("on");
+  $("#sheet").classList.remove("gone");
+  $("#sheet").classList.add("open");
+  renderSheet();
+  updateCamera(true);
+}
+
+function enterRoute() {
+  S.mode = "route";
+  S.travel = 0;
+  $("#topbar").classList.add("hide");
+  $("#chips").classList.add("hide");
+  $("#drivebar").classList.remove("on");
+  $("#speedchip").classList.remove("on");
+  $("#progress").classList.remove("on");
+  $("#puck").style.opacity = 0;
+  $("#sheet").classList.remove("gone");
+  $("#sheet").classList.add("open");
+  highlightRoute(S.selRoute);
+  renderSheet();
+  updateCamera(true);
+}
+
+function startDrive() {
+  S.mode = "drive";
+  S.travel = 0;
+  S.limit = 60;
+  S.offX = 0; S.offY = 0;
+  S.lastT = 0;
+  $("#topbar").classList.add("hide");
+  $("#chips").classList.add("hide");
+  $("#drivebar").classList.add("on");
+  $("#progress").classList.add("on");
+  $("#speedchip").classList.add("on");
+  $("#sheet").classList.remove("open");
+  $("#sheet").classList.add("gone");
+  $("#puck").style.opacity = 1;
+  $("#arrive").classList.remove("on");
+  placePuck();
+  updateDriveBar();
+  updateCamera(true);
+  toast("Bắt đầu dẫn đường · bản đồ bám vị trí");
+}
+
+function placePuck() {
+  if (S.mode !== "drive") return;
+  const p = pointAt(S.travel);
+  const g = $("#puck");
+  // Mũi tên hướng đi: bản đồ đã xoay -heading nên chỉ cần xoay đúng góc tuyến.
+  g.setAttribute("transform", `translate(${p.x + S.offX},${p.y + S.offY}) rotate(${p.angle})`);
+}
+
+function finishDrive() {
+  S.mode = "arrived";
+  $("#puck").style.opacity = 0;
+  $("#drivebar").classList.remove("on");
+  $("#speedchip").classList.remove("on");
+  $("#progress").classList.remove("on");
+  $("#vignette").classList.remove("on");
+  $("#arriveSub").textContent = "Hồ Hoàn Kiếm · " + fmtM(S.total);
+  $("#arrT").textContent = fmtT(ROUTE_META[0].time * 60);
+  $("#arrD").textContent = fmtM(S.total);
+  $("#arrC").textContent = String(S.shot.cams);
+  $("#arrive").classList.add("on");
+  updateCamera(true);
+}
+
+function highlightRoute(i) {
+  S.selRoute = i;
+  $$("g[data-route]", routesG).forEach((g, idx) => {
+    const line = g.querySelector(".route-line");
+    const on = idx === i;
+    line.setAttribute("stroke", on ? "url(#gRoute)" : "#7f8da1");
+    line.setAttribute("stroke-width", on ? 9 : 7);
+    line.setAttribute("opacity", on ? 1 : 0.45);
+    line.setAttribute("stroke-dasharray", on ? "none" : "14 10");
+    g.parentNode.appendChild(g);
+  });
+  S.routePath = routesG.querySelector(`[data-route="${i}"] .route-line`);
+  S.routeLen = S.routePath.getTotalLength();
+  S.total = S.routeMeters[i];
+  layoutMarkers();
+  placePuck();
+}
+
+/* ---------- Bottom sheet ---------- */
+function scoreBadge(meta) {
+  let score = 92 - meta.time * 0.9 - meta.cams * 2.4 - meta.highway * 22 - (meta.toll ? 4 : 0);
+  score = clamp(Math.round(score), 45, 98);
+  const color = score >= 85 ? "#19c37d" : score >= 70 ? "#2f7bff" : "#ffb020";
+  return { score, color };
+}
+
+function renderSheet() {
+  const body = $("#sheetBody");
+  if (S.mode === "idle") {
+    body.innerHTML = `
+      <h3>Bạn muốn đi đâu?</h3>
+      <div class="sub">Chạm bản đồ để chọn điểm đến · hoặc nói bằng tiếng Việt</div>
+      <div class="airow" id="openAi">
+        <div class="sp">✦</div>
+        <div>
+          <div class="tx">Tìm tuyến bằng AI</div>
+          <div class="sb">“đi xe máy từ Cầu Giấy đến Hồ Hoàn Kiếm, tránh cao tốc”</div>
+        </div>
+      </div>
+      <div class="quick" style="margin-top:12px">
+        <button data-quick="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>Nhà</button>
+        <button data-quick="work"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Cơ quan</button>
+        <button data-quick="recent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round"/></svg>Gần đây</button>
+      </div>
+      <button class="cta" id="goRoute">Chỉ đường</button>
+    `;
+    $("#openAi").onclick = openAi;
+    $("#goRoute").onclick = enterRoute;
+    $$("[data-quick]", body).forEach((b) => (b.onclick = () => {
+      const name = b.dataset.quick === "home" ? "Nhà riêng" : b.dataset.quick === "work" ? "Cơ quan" : "Hồ Hoàn Kiếm";
+      toast("Điểm đến: " + name);
+      enterRoute();
+    }));
+  } else if (S.mode === "route") {
+    const order = [0, 1, 2].slice().sort((a, b) => {
+      if (S.sortMode === "cams") return ROUTE_META[a].cams - ROUTE_META[b].cams;
+      if (S.sortMode === "highway") return ROUTE_META[a].highway - ROUTE_META[b].highway;
+      return ROUTE_META[a].time - ROUTE_META[b].time;
+    });
+    const best = order[0];
+    const rows = order.map((i) => {
+      const m = ROUTE_META[i];
+      const b = scoreBadge(m);
+      const isBest = i === best;
+      return `
+      <div class="rcard ${i === S.selRoute ? "on" : ""}" data-route-card="${i}">
+        <div class="badge" style="background:${b.color}">${b.score}</div>
+        <div style="flex:1;min-width:0">
+          <div class="b1">${m.name}${isBest ? '<span class="rec">ĐỀ XUẤT</span>' : ""}</div>
+          <div class="b2">${fmtT(m.time * 60)} · ${fmtM(S.routeMeters[i])} · tới ${clock(m.time * 60)}</div>
+          <div class="b3"><span>📷 ${m.cams} camera</span><span>🛣 ${m.highway ? Math.round(m.highway * 100) + "% cao tốc" : "không cao tốc"}</span><span>💰 ${m.toll ? m.toll.toLocaleString("vi-VN") + " đ" : "miễn phí"}</span></div>
+        </div>
+      </div>`;
+    }).join("");
+    const tabOn = (k) => (S.sortMode === k ? "tab on" : "tab");
+    body.innerHTML = `
+      <h3>3 tuyến đến Hồ Hoàn Kiếm</h3>
+      <div class="sub">Từ Cầu Giấy · xe máy · xếp theo lựa chọn bên dưới</div>
+      <div class="tabs">
+        <button class="${tabOn("fast")}" data-tab="fast">Nhanh nhất</button>
+        <button class="${tabOn("cams")}" data-tab="cams">Ít camera</button>
+        <button class="${tabOn("highway")}" data-tab="highway">Tránh cao tốc</button>
+      </div>
+      ${rows}
+      <button class="cta" id="goDrive">Bắt đầu dẫn đường</button>
+    `;
+    $$("[data-tab]", body).forEach((t) => (t.onclick = () => {
+      S.sortMode = t.dataset.tab;
+      highlightRoute(order[0]);
+      renderSheet();
+      updateCamera(true);
+    }));
+    $$("[data-route-card]", body).forEach((c) => (c.onclick = () => {
+      highlightRoute(+c.dataset.routeCard);
+      renderSheet();
+      updateCamera(true);
+    }));
+    $("#goDrive").onclick = startDrive;
+  }
+}
+
+/* ---------- Panel AI ---------- */
+function openAi() {
+  $("#aipanel").classList.add("on");
+  $("#sheet").classList.remove("open");
+  $("#aiInput").value = "";
+  $("#aiReply").classList.remove("on");
+  setTimeout(() => $("#aiInput").focus(), 260);
+}
+function closeAi() {
+  $("#aipanel").classList.remove("on");
+  if (S.mode === "idle") $("#sheet").classList.add("open");
+}
+
+const AI_ANSWERS = [
+  { q: "xe máy", mode: "Xe máy", avoid: "cao tốc", dest: "Hồ Hoàn Kiếm", from: "Cầu Giấy" },
+  { q: "ô tô", mode: "Ô tô", avoid: "đường đông", dest: "Sân bay Nội Bài", from: "Ngã tư Sở" },
+  { q: "đi bộ", mode: "Đi bộ", avoid: "—", dest: "Phố cổ Hà Nội", from: "Hồ Tây" }
+];
+
+function sendAi(text) {
+  const t = (text || "").trim();
+  if (!t) return;
+  const hit = AI_ANSWERS.find((a) => t.toLowerCase().includes(a.q)) || AI_ANSWERS[0];
+  $("#aiReply").classList.add("on");
+  $("#aiReply").innerHTML = `<b>Đang hiểu câu lệnh…</b>`;
+  setTimeout(() => {
+    $("#aiReply").innerHTML = S.ai
+      ? `<b>Đã hiểu:</b> ${hit.mode} · ${hit.from} → ${hit.dest} · tránh: ${hit.avoid}<br>
+         <span style="opacity:.75">JSON ý định → tìm địa điểm bằng MapKit → 3 tuyến → chấm điểm.</span>`
+      : `<b>Chế độ offline:</b> bộ phân tích tiếng Việt nhận ra phương tiện <b>${hit.mode}</b>,
+         điểm đi <b>${hit.from}</b>, điểm đến <b>${hit.dest}</b>.`;
+    setTimeout(() => { closeAi(); enterRoute(); toast("Đã tạo tuyến bằng AI"); }, 900);
+  }, 520);
+}
+
+/* ---------- Toast ---------- */
+let toastTimer = null;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 2400);
+}
+
+/* ---------- Điều khiển ---------- */
+function bind() {
+  $("#grab").onclick = () => $("#sheet").classList.toggle("open");
+  $("#btnPitch").onclick = () => {
+    S.pitch3d = !S.pitch3d;
+    $("#btnPitch").classList.toggle("accent", S.pitch3d);
+    $("#swPitch").classList.toggle("on", S.pitch3d);
+    updateCamera(true);
+    toast(S.pitch3d ? "Bản đồ 3D · nghiêng 26°" : "Bản đồ 2D · nhìn từ trên xuống");
+  };
+  $("#btnNight").onclick = toggleNight;
+  $("#btnLayers").onclick = () => { $("#sheet").classList.add("open"); toast("Lớp: biển báo, camera, vùng tốc độ"); };
+  $("#btnLayersTop").onclick = () => { $("#sheet").classList.add("open"); };
+  $("#btnSearch").onclick = () => { openAi(); };
+  $("#btnMenu").onclick = () => toast("Menu: Cài đặt · Dữ liệu cảnh báo · Yêu thích");
+  $("#btnExit").onclick = () => { enterIdle(); toast("Đã kết thúc dẫn đường"); };
+  $("#btnFollow").onclick = () => { S.offX = 0; S.offY = 0; S.following = true; updateCamera(true); $("#btnFollow").style.display = "none"; toast("Đã bám theo vị trí"); };
+  $("#btnArriveOk").onclick = () => { $("#arrive").classList.remove("on"); enterIdle(); };
+  $("#btnAiClose").onclick = closeAi;
+  $("#btnAiSend").onclick = () => sendAi($("#aiInput").value);
+  $("#aiInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendAi($("#aiInput").value); });
+  $$("#aiSugg button").forEach((b) => (b.onclick = () => sendAi(b.dataset.q)));
+
+  $$(".console [data-act]").forEach((b) => (b.onclick = () => runAct(b.dataset.act)));
+
+  $("#spdRange").oninput = (e) => {
+    S.speed = +e.target.value;
+    $("#spdOut").textContent = S.speed + " km/h";
+    updateSpeedUI();
+    updateMapCallouts();
+    updateCamera(false);
+  };
+
+  const sw = (id, key, cb) => {
+    $(id).onclick = () => {
+      const on = !$(id).classList.contains("on");
+      $(id).classList.toggle("on", on);
+      cb(on);
+    };
+  };
+  sw("#swPitch", "pitch", (on) => { S.pitch3d = on; $("#btnPitch").classList.toggle("accent", on); updateCamera(true); });
+  sw("#swNight", "night", (on) => { S.night = on; document.body.classList.toggle("night", on); document.querySelector(".screen").style.background = on ? "#0d1219" : "#eef1f6"; });
+  sw("#swSigns", "signs", (on) => { S.layers.signs = on; markRefs.signs.forEach((s) => (s.g.style.display = on ? "" : "none")); });
+  sw("#swCams", "cams", (on) => { S.layers.cams = on; markRefs.cams.forEach((c) => (c.g.style.display = on ? "" : "none")); });
+  sw("#swZones", "zones", (on) => { S.layers.zones = on; markRefs.zones.forEach((z) => (z.style.display = on ? "" : "none")); });
+  sw("#swAi", "ai", (on) => {
+    S.ai = on;
+    $("#aiMode").textContent = on ? "AI bật · ckey.vn · gpt-4o-mini" : "AI tắt · bộ phân tích offline";
+  });
+
+  // chạm bản đồ: chọn điểm đến
+  $("#mapstage").addEventListener("click", (e) => {
+    if (S.mode !== "idle") return;
+    if (e.target.closest(".mk")) return;
+    if (S.dragging) return;
+  });
+
+  // kéo bản đồ để xem trước (chỉ khi đang dẫn đường)
+  let dragStart = null;
+  $("#mapstage").addEventListener("pointerdown", (e) => {
+    if (S.mode !== "drive") return;
+    if (e.target.closest(".ui")) return;
+    dragStart = { x: e.clientX, y: e.clientY, ox: S.offX, oy: S.offY };
+    S.dragging = false;
+  });
+  window.addEventListener("pointermove", (e) => {
+    if (!dragStart) return;
+    const dx = (e.clientX - dragStart.x) / cam.z, dy = (e.clientY - dragStart.y) / cam.z;
+    if (Math.abs(dx) + Math.abs(dy) > 8) {
+      S.dragging = true;
+      S.following = false;
+      S.offX = dragStart.ox - dx;
+      S.offY = dragStart.oy - dy;
+      $("#btnFollow").style.display = "";
+      updateCamera(false);
+    }
+  });
+  window.addEventListener("pointerup", () => { dragStart = null; setTimeout(() => (S.dragging = false), 50); });
+}
+
+function toggleNight() {
+  S.night = !S.night;
+  document.body.classList.toggle("night", S.night);
+  $("#swNight").classList.toggle("on", S.night);
+}
+
+function runAct(act) {
+  switch (act) {
+    case "idle": enterIdle(); break;
+    case "route": enterRoute(); break;
+    case "drive": startDrive(); break;
+    case "overspeed":
+      if (S.mode !== "drive") startDrive();
+      S.speed = Math.max(S.limit + 17, 70);
+      $("#spdRange").value = S.speed; $("#spdOut").textContent = S.speed + " km/h";
+      updateSpeedUI(); updateCamera(false);
+      toast("Vượt " + Math.round(S.speed - S.limit) + " km/h · giảm tốc độ");
+      break;
+    case "offroute":
+      if (S.mode !== "drive") startDrive();
+      S.following = false;
+      S.offX = 46; S.offY = -38;
+      $("#btnFollow").style.display = "";
+      updateCamera(false);
+      toast("Đi lệch tuyến · đang tính lại…");
+      setTimeout(() => {
+        S.offX = 0; S.offY = 0; S.following = true;
+        $("#btnFollow").style.display = "none";
+        updateCamera(true);
+        toast("Đã tính lại tuyến theo vị trí hiện tại");
+      }, 2100);
+      break;
+    case "arrive":
+      if (S.mode !== "drive") startDrive();
+      S.speed = Math.max(30, S.speed);
+      $("#spdRange").value = S.speed; $("#spdOut").textContent = S.speed + " km/h";
+      S.travel = Math.max(0, S.total - 25);
+      updateCamera(true);
+      toast("Còn 25 m tới điểm đến");
+      break;
+    case "reset":
+      $("#arrive").classList.remove("on"); $("#aipanel").classList.remove("on");
+      S.speed = 38; $("#spdRange").value = 38; $("#spdOut").textContent = "38 km/h";
+      S.pitch3d = true; $("#btnPitch").classList.add("accent"); $("#swPitch").classList.add("on");
+      enterIdle(); toast("Đã reset demo");
+      break;
+  }
+}
+
+/* ---------- Khởi động ---------- */
+buildBlocks();
+buildWater();
+buildParks();
+buildRoads();
+buildRoutes();
+buildMarkers();
+layoutMarkers();
+buildPuck();
+bind();
+enterIdle();
+requestAnimationFrame(tick);
+setTimeout(() => toast("Không còn HUD — biển báo & camera hiện trực tiếp trên bản đồ"), 700);
+</script>
+</body>
+</html>
