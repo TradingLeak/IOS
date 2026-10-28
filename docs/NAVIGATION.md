@@ -94,7 +94,17 @@ HUD tự mở khi bắt đầu dẫn đường nếu bật **Cài đặt → C�
 
 ---
 
-## 5. Câu đọc khi rẽ
+## 5. Tự phục hồi khi đi lệch & tới nơi
+
+- **Lệch tuyến**: nếu vị trí cách tuyến > 60 m liên tiếp 3 lần cập nhật (và đã quá 25 giây
+  kể từ lần tính lại trước), app tự tính lại tuyến từ chỗ đang đứng, giữ nguyên chế độ dẫn
+  đường và camera, rồi hiện thông báo *“Đã tính lại tuyến theo vị trí hiện tại”*.
+- **Tới nơi**: khi còn ≤ 45 m tới điểm đến, app đọc *“Đã đến nơi.”*, hiện tên điểm đến và tự
+  kết thúc dẫn đường (HUD đóng theo).
+- **Rung cảnh báo**: vừa vượt quá tốc độ cho phép → rung nhẹ kiểu `warning` (không rung lặp
+  lại cho tới khi bạn giảm xuống dưới ngưỡng).
+
+## 6. Câu đọc khi rẽ
 
 Ngoài cảnh báo camera/tốc độ, app đọc cả chỉ dẫn rẽ:
 
@@ -106,7 +116,7 @@ nói lặp.
 
 ---
 
-## 6. Vì sao không có bản đồ vector riêng?
+## 7. Vì sao không có bản đồ vector riêng?
 
 App dùng **MapKit** (Apple Maps) làm nền bản đồ: miễn phí, không cần API key, có ảnh vệ tinh,
 giao thông trực tiếp và dựng nhà 3D. Nhờ vậy bản IPA chỉ ~3,5 MB và không phụ thuộc máy chủ
@@ -115,7 +125,7 @@ miễn phí) — xem [README](../README.md#-cấu-hình-xe-máy-vietmap).
 
 ---
 
-## 7. Sự cố thường gặp
+## 8. Sự cố thường gặp
 
 | Hiện tượng | Nguyên nhân | Cách xử lý |
 |---|---|---|
@@ -123,4 +133,5 @@ miễn phí) — xem [README](../README.md#-cấu-hình-xe-máy-vietmap).
 | Camera nhảy liên tục | GPS trong nhà / hầm | Ra ngoài trời, bật Wi-Fi để định vị phụ |
 | Bản đồ không bám lại | Bạn vừa kéo bản đồ | Bấm nút mũi tên `location.north.fill` |
 | Không thấy 3D | Đang ở chế độ 2D | Bấm nút `view.3d` hoặc bật trong Cài đặt |
+| Tự tính lại tuyến liên tục | GPS sai số lớn hoặc đường mới chưa có trên bản đồ | Đi chậm lại; app giới hạn 1 lần/25 giây để không lặp |
 | Tốn pin | Màn hình sáng + GPS + 3D | Giảm độ sáng, dùng 2D, tắt HUD khi không cần |

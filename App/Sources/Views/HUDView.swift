@@ -212,9 +212,14 @@ struct HUDView: View {
                     .lineLimit(2)
             }
 
-            HStack(spacing: 16) {
-                Label(Format.hudDistance(remainingDistance), systemImage: "arrow.triangle.turn.up.right.diamond")
-                Label(Format.duration(remainingTime), systemImage: "clock")
+            HStack(spacing: 14) {
+                Label(Format.hudDistance(model.remainingDistance),
+                      systemImage: "arrow.triangle.turn.up.right.diamond")
+                Label(Format.remaining(model.remainingTime), systemImage: "clock")
+                if let arrival = Format.arrival(after: model.remainingTime) {
+                    Text("· \(arrival)")
+                        .monospacedDigit()
+                }
                 Label("\(model.routeAlerts.count)", systemImage: "exclamationmark.triangle")
                 Spacer(minLength: 0)
             }
@@ -266,18 +271,5 @@ struct HUDView: View {
         }
     }
 
-    // MARK: - Số liệu còn lại
 
-    private var remainingDistance: Double {
-        guard let route = model.selectedRoute else { return 0 }
-        let steps = route.steps
-        guard !steps.isEmpty else { return route.distance }
-        let index = min(max(model.navigationStepIndex, 0), steps.count - 1)
-        return steps[index...].reduce(0) { $0 + $1.distance }
-    }
-
-    private var remainingTime: TimeInterval {
-        guard let route = model.selectedRoute, route.distance > 0 else { return 0 }
-        return route.expectedTravelTime * (remainingDistance / route.distance)
-    }
 }

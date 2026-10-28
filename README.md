@@ -59,6 +59,9 @@ Sideloadly/SideStore với Apple ID miễn phí).
 - **Kéo bản đồ để xem trước, bấm mũi tên để bám lại** — giống Google Maps/Apple Maps.
 - **Banner chỉ dẫn thương mại**: khoảng cách tới ngã rẽ kế tiếp, còn bao xa, còn bao lâu,
   **giờ tới nơi dự kiến** và thanh tiến độ chuyến đi.
+- **Tự tính lại tuyến khi đi lệch** (> 60 m, tối đa 1 lần/25 giây), **tự kết thúc khi tới
+  nơi** (≤ 45 m), **rung nhẹ khi vượt tốc độ**, màn hình gọn lại khi đang chạy (ẩn tìm kiếm,
+  danh mục, POI).
 - **Bỏ hoàn toàn phần AI**: không cần API key, không gọi máy chủ ngoài, không gửi dữ liệu đi.
   Nhận xét tuyến vẫn có, nhưng tính trực tiếp từ số liệu trên máy.
 

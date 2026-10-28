@@ -57,7 +57,7 @@ struct MapScreen: View {
                          fitToken: model.fitToken,
                          mapTypeIndex: settings.mapTypeIndex,
                          showTraffic: settings.showTraffic,
-                         showPOIs: settings.showPOIs,
+                         showPOIs: settings.showPOIs && !model.isNavigating,
                          isNavigating: model.isNavigating,
                          navigationCoordinate: model.navigationCoordinate,
                          navigationHeading: model.courseDegrees,
@@ -73,9 +73,12 @@ struct MapScreen: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 10) {
-                header
-                categoryChips
-                if model.isNavigating { navigationBanner }
+                if model.isNavigating {
+                    navigationBanner
+                } else {
+                    header
+                    categoryChips
+                }
                 if let alert = model.nextAlert, model.isNavigating, alert.isImminent {
                     alertBanner(alert)
                 }

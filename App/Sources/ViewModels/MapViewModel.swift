@@ -3,6 +3,7 @@ import SwiftUI
 import MapKit
 import CoreLocation
 import Combine
+import UIKit
 
 /// Trạng thái trung tâm của màn hình bản đồ.
 @MainActor
@@ -69,6 +70,11 @@ final class MapViewModel: ObservableObject {
     @Published var alertStatusMessage: String?
 
     private var routeGeometry: RouteGeometry?
+
+    // Trạng thái phụ trợ khi dẫn đường
+    private var wasOverLimit = false
+    private var offRouteSamples = 0
+    private var lastRerouteAt = Date.distantPast
 
     // MARK: Địa điểm
 
@@ -440,6 +446,9 @@ final class MapViewModel: ObservableObject {
         isNavigating = false
         navigationStepIndex = 0
         showHUD = false
+        isFollowingUser = true
+        wasOverLimit = false
+        offRouteSamples = 0
         voice.stop()
         location.stopUpdating()
     }
@@ -509,7 +518,40 @@ final class MapViewModel: ObservableObject {
         speedContext = context
         aheadAlerts = engine.aheadAlerts(from: along, alerts: routeAlerts, speedKmh: speedKmh)
 
-        guard isNavigating else { return }
+        guard isNavigating else {
+            wasOverLimit = false
+            return
+        }
+
+        // Rung nhẹ khi vừa vượt quá tốc độ cho phép.
+        if context.isOverLimit, !wasOverLimit {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        }
+        wasOverLimit = context.isOverLimit
+
+        // Đã tới nơi (trong vòng 45 m) → tự kết thúc.
+        if let destination,
+           Self.distance(from: coordinate, to: destination.coordinate) < 45 {
+            speak("Đã đến nơi.", key: "arrived", cooldown: 0)
+            toast = "Đã tới \(destination.name)"
+            stopNavigation()
+            return
+        }
+
+        // Lệch tuyến liên tiếp → tính lại từ vị trí hiện tại.
+        if let projection, projection.offset > 60 {
+            offRouteSamples += 1
+        } else {
+            offRouteSamples = 0
+        }
+        if offRouteSamples >= 3,
+           Date().timeIntervalSince(lastRerouteAt) > 25,
+           !isPlanning,
+           destination != nil {
+            offRouteSamples = 0
+            lastRerouteAt = Date()
+            Task { await rerouteFromCurrentPosition() }
+        }
 
         if let next = context.nextAlert, next.isImminent, next.alert.kind.isSafetyCritical {
             speak(AlertEngine.announcement(for: next, mode: mode),
@@ -593,6 +635,20 @@ final class MapViewModel: ObservableObject {
     static func distance(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> Double {
         CLLocation(latitude: from.latitude, longitude: from.longitude)
             .distance(from: CLLocation(latitude: to.latitude, longitude: to.longitude))
+    }
+
+    /// Tính lại tuyến khi đi lệch đường — giữ nguyên chế độ dẫn đường và camera.
+    private func rerouteFromCurrentPosition() async {
+        guard let place = currentPlace, destination != nil else { return }
+        let wasNavigating = isNavigating
+        origin = place
+        await planRoute()
+        guard wasNavigating, hasRoute else { return }
+        navigationStepIndex = 0
+        isNavigating = true
+        followToken += 1
+        applySelectedRoute()
+        toast = "Đã tính lại tuyến theo vị trí hiện tại"
     }
 
     private func updateSpeedContextWithoutRoute(coordinate: CLLocationCoordinate2D) {

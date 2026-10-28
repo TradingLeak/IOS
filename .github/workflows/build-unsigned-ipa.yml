@@ -48,7 +48,7 @@ jobs:
 
   # ---------------------------------------------------------------- tests
   unit-tests:
-    name: Unit test (MapKit/AI/parser)
+    name: Unit test (cảnh báo / tuyến / format)
     needs: lint
     if: github.event_name != 'workflow_dispatch' || inputs.run_tests
     runs-on: macos-15
