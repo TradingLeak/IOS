@@ -4,7 +4,14 @@ Bạn đã có `VietMap-unsigned.ipa` (bản 2.0.0 trở lên, có cảnh báo t
 xe máy). File này **chưa có chữ ký Apple**, nên cần một trong các cách dưới đây.
 
 Tải bản mới nhất:
-<https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa>
+**Tải đúng phiên bản (khuyến nghị):**
+<https://github.com/TradingLeak/IOS/releases/download/v3.2.0-11/VietMap-3.2.0-11-unsigned.ipa>
+
+Link cố định dùng chung: <https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa>
+
+> Cài bằng **ESign / Feather** mà vẫn ra bản cũ: xoá tệp IPA cũ trong mục *Tải xuống* của ESign,
+> gỡ app đang cài, khởi động lại máy rồi cài lại bằng tệp có số phiên bản trong tên.
+> Chi tiết: [TROUBLESHOOTING.md](TROUBLESHOOTING.md#cài-bằng-esign--feather--scarlet-nhưng-vẫn-ra-bản-cũ).
 
 Chọn theo phiên bản iOS của bạn (Cài đặt → Cài đặt chung → Giới thiệu):
 

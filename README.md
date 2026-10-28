@@ -25,12 +25,21 @@ Apple Developer.
 
 ## 📥 Tải IPA
 
-**[https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa](https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa)**
+**Bản mới nhất — link bất biến (khuyến nghị):**
+<https://github.com/TradingLeak/IOS/releases/download/v3.2.0-11/VietMap-3.2.0-11-unsigned.ipa>
 
-Phiên bản hiện tại: **2.3.0 (5)** · ~3,5 MB · `arm64` · iOS ≥ 16.0 · không cần đăng nhập.
+Mỗi phiên bản có một thẻ release riêng (`v3.2.0-11`, …) nên link **không bao giờ bị ghi đè**
+và không bị cache. Phiên bản hiện tại: **3.2.0 (11)** · ~5,3 MB · `arm64` · iOS ≥ 16.0.
 
-Link cố định, cập nhật mỗi lần build. Hoặc vào tab **Actions** → *Build unsigned IPA* →
-**Run workflow** để tự build với bundle ID / tên hiển thị riêng.
+Link cố định dùng chung (tiện cho người mới, nhưng có thể bị nhánh khác ghi đè):
+<https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa>
+
+Hoặc vào tab **Actions** → *Build unsigned IPA* → **Run workflow** để tự build với bundle ID /
+tên hiển thị riêng.
+
+**Cài xong vẫn thấy bản cũ?** Xem mục *Cài bằng ESign/Feather nhưng vẫn ra bản cũ* trong
+[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — thường là ESign dùng lại tệp đã tải,
+hoặc bạn đang tải link cố định của bản cũ. Kiểm tra: **☰** → dòng cuối menu ghi phiên bản.
 
 Cài lên iPhone: xem **[docs/INSTALL.md](docs/INSTALL.md)** (TrollStore nếu iOS ≤ 17.0, hoặc
 Sideloadly/SideStore với Apple ID miễn phí).

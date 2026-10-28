@@ -286,6 +286,12 @@ jobs:
           echo "::notice title=Kiến trúc::$ARCHS · platform ${PLATFORM:-?} · iOS tối thiểu $MIN_OS"
           echo "::notice title=Dấu chữ ký còn lại::$SIGNED (0 = unsigned, đúng)"
           echo "::notice title=SHA-256::$SHA"
+          BUILD_STAMP="$(plutil -extract GitCommit raw -o - "$APP_INFO" 2>/dev/null || echo "?")"
+          BUILD_DATE="$(plutil -extract BuildDate raw -o - "$APP_INFO" 2>/dev/null || echo "?")"
+          echo "::notice title=Dấu bản dựng::commit $BUILD_STAMP · build lúc $BUILD_DATE"
+          case "$BUILD_STAMP" in
+            ""|"?") echo "::warning::Info.plist không có GitCommit — không nhận diện được bản dựng" ;;
+          esac
 
           {
             echo "name=$VERSIONED"
@@ -296,6 +302,8 @@ jobs:
             echo "size=$SIZE"
             echo "archs=$ARCHS"
             echo "min_os=$MIN_OS"
+            echo "tag=v${SHORT}-${BUILD_NUM}"
+            echo "stamp=$BUILD_STAMP"
           } >> "$GITHUB_OUTPUT"
 
       - name: Tóm tắt kết quả
@@ -353,6 +361,37 @@ jobs:
             `https://github.com/${{ github.repository }}/releases/download/latest-ipa/${{ steps.verify.outputs.stable }}`
 
             Cài đặt: [docs/INSTALL.md](https://github.com/${{ github.repository }}/blob/main/docs/INSTALL.md)
+          files: |
+            dist/*.ipa
+            dist/*.sha256
+          fail_on_unmatched_files: true
+
+      - name: Phát hành Release riêng cho phiên bản (link bất biến)
+        if: success() && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.verify.outputs.tag }}
+          name: "VietMap ${{ steps.verify.outputs.version }}"
+          prerelease: true
+          make_latest: false
+          body: |
+            Bản dựng **${{ steps.verify.outputs.version }}** — mỗi phiên bản một thẻ riêng,
+            **không bao giờ bị ghi đè** bởi nhánh khác (khác với release `latest-ipa`).
+
+            - **File**: `${{ steps.verify.outputs.name }}`
+            - **Kích thước**: ${{ steps.verify.outputs.size }}
+            - **Bundle ID**: `${{ steps.verify.outputs.bundle }}`
+            - **Kiến trúc**: ${{ steps.verify.outputs.archs }} · iOS tối thiểu ${{ steps.verify.outputs.min_os }}
+            - **SHA-256**: `${{ steps.verify.outputs.sha }}`
+            - **Commit**: `${{ github.sha }}`
+            - **Nhánh**: `${{ github.ref_name }}`
+
+            Link tải bất biến:
+            `https://github.com/${{ github.repository }}/releases/download/${{ steps.verify.outputs.tag }}/${{ steps.verify.outputs.name }}`
+
+            Sau khi cài, mở ☰ → menu có dòng phiên bản ở cuối, hoặc Cài đặt → Về ứng dụng:
+            phải thấy **${{ steps.verify.outputs.version }}** và commit rút gọn
+            `${{ steps.verify.outputs.stamp }}`.
           files: |
             dist/*.ipa
             dist/*.sha256

@@ -84,7 +84,33 @@ Bạn cũng có thể ghim Xcode: `with: xcode-version: "16.4"`.
 ### `ApplicationVerificationFailed` khi cài
 Bình thường với IPA unsigned. Cần ký lại — xem [INSTALL.md](INSTALL.md).
 
-### Cài xong nhưng app trắng màn hình / crash ngay
+### Cài bằng ESign / Feather / Scarlet nhưng vẫn ra bản cũ
+
+Triệu chứng: đã tải IPA mới, ESign báo cài xong, nhưng mở app vẫn là giao diện cũ
+(ví dụ 1.0.0 (1), hoặc bản 3.1 chưa có biển báo kiểu mới).
+
+Nguyên nhân theo thứ tự hay gặp:
+
+1. **ESign dùng lại tệp đã tải trong bộ nhớ của nó.** Trong ESign vào
+   *Tải xuống / Downloads*, xoá tệp IPA cũ (kể cả tệp trùng tên), rồi tải lại.
+2. **Trình duyệt trả về bản cache.** Link cố định
+   `releases/download/latest-ipa/VietMap-unsigned.ipa` bị ghi đè mỗi lần build và
+   có thể bị cache. Hãy tải theo **link bất biến của từng phiên bản**:
+   `https://github.com/TradingLeak/IOS/releases/download/v3.2.0-11/VietMap-3.2.0-11-unsigned.ipa`
+   (mỗi phiên bản một thẻ release riêng, không bao giờ bị ghi đè).
+   Nếu vẫn nghi cache: mở tab ẩn danh, hoặc thêm `?v=11` vào cuối link.
+3. **App cũ chưa bị gỡ.** Bundle ID không đổi (`com.tradingleak.vietmap`), iOS có thể giữ
+   bản cũ khi cài đè bằng chứng chỉ khác. Gỡ app cũ (nhấn giữ icon → Xoá), khởi động lại máy,
+   rồi cài lại.
+
+Kiểm tra đã đúng bản chưa:
+
+- Mở **☰** (menu “…” góc phải) — dòng cuối menu ghi `VietMap 3.2.0 (11) · <commit>`.
+- Hoặc **☰ → Cài đặt → Về ứng dụng**: *Phiên bản* và *Commit*.
+- Đối chiếu SHA-256 của tệp đã tải với mô tả release:
+  `shasum -a 256 VietMap-3.2.0-11-unsigned.ipa` (macOS/Linux).
+
+## Cài xong nhưng app trắng màn hình / crash ngay
 - **Kiểm tra đúng phiên bản trước tiên**: ☰ → **Cài đặt** → *Về ứng dụng* → dòng
   **Phiên bản**. Bản mới nhất của nhánh này là **3.1.1 (8)**.
   Release `latest-ipa` là **một** release dùng chung: nếu một nhánh khác (hoặc `main`)

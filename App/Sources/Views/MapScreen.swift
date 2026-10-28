@@ -400,6 +400,11 @@ struct MapScreen: View {
                     }
                 }
             }
+            Section {
+                Text("VietMap \(AppInfo.current.version) (\(AppInfo.current.build)) · "
+                     + AppInfo.current.commit)
+                    .font(.caption2)
+            }
         } label: {
             ZStack {
                 Circle()
@@ -412,7 +417,8 @@ struct MapScreen: View {
             .frame(width: 46, height: 46)
             .softShadow()
         }
-        .accessibilityLabel("Thêm tuỳ chọn bản đồ")
+        .accessibilityLabel("Thêm tuỳ chọn bản đồ, phiên bản "
+                            + AppInfo.current.version + " " + AppInfo.current.build)
     }
 
     // MARK: - Thẻ tốc độ & cảnh báo (kiểu app dẫn đường VN: khối tối gọn)
