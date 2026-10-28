@@ -21,6 +21,8 @@ final class MapViewModel: ObservableObject {
 
     private var bundledAlerts: [RoadAlert] = []
     private var bundledSources: [AlertSource] = []
+    private var bundledGeneratedAt: String?
+    private var bundledVersion: String?
     private var didLoadBundled = false
     @Published private(set) var alertDatabase: AlertDatabase
     private var importedAlerts: [RoadAlert] = []
@@ -136,15 +138,26 @@ final class MapViewModel: ObservableObject {
         didLoadBundled = true
 
         Task.detached(priority: .userInitiated) {
-            let database = AlertDatabase.loadBundled()
+            // `autoreleasepool`: tệp 17 MB sinh rất nhiều đối tượng tạm khi giải mã,
+            // gom lại để đỉnh bộ nhớ không tăng vọt trên máy 2 GB RAM.
+            let result = autoreleasepool { AlertDatabase.loadBundledDetailed() }
             await MainActor.run { [weak self] in
                 guard let self else { return }
+                let database: AlertDatabase
+                switch result {
+                case .ok(let loaded):
+                    database = loaded
+                case .missing:
+                    self.alertStatusMessage = "Thiếu vn_alerts.json trong app — bản build lỗi."
+                    return
+                case .broken(let reason):
+                    self.alertStatusMessage = "Không đọc được vn_alerts.json: \(reason)"
+                    return
+                }
                 self.bundledAlerts = database.alerts
                 self.bundledSources = database.sources
-                self.alertDatabase = AlertDatabase(alerts: database.alerts,
-                                                   sources: database.sources,
-                                                   generatedAt: database.generatedAt,
-                                                   version: database.datasetVersion)
+                self.bundledGeneratedAt = database.generatedAt
+                self.bundledVersion = database.datasetVersion
                 self.rebuildDatabase()
                 // Chưa có tuyến vẫn thấy biển báo/camera quanh mình.
                 self.refreshNearbyAlertsIfNeeded()
@@ -947,8 +960,8 @@ final class MapViewModel: ObservableObject {
     private func rebuildDatabase() {
         let database = AlertDatabase(alerts: bundledAlerts + importedAlerts,
                                      sources: bundledSources,
-                                     generatedAt: alertDatabase.generatedAt,
-                                     version: alertDatabase.datasetVersion)
+                                     generatedAt: bundledGeneratedAt ?? alertDatabase.generatedAt,
+                                     version: bundledVersion ?? alertDatabase.datasetVersion)
         alertDatabase = database
     }
 

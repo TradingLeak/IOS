@@ -331,6 +331,7 @@ jobs:
             - **Kiến trúc**: ${{ steps.verify.outputs.archs }} · iOS tối thiểu ${{ steps.verify.outputs.min_os }}
             - **SHA-256**: `${{ steps.verify.outputs.sha }}`
             - **Commit**: `${{ github.sha }}`
+            - **Nhánh**: `${{ github.ref_name }}`
 
             Link tải cố định:
             `https://github.com/${{ github.repository }}/releases/download/latest-ipa/${{ steps.verify.outputs.stable }}`

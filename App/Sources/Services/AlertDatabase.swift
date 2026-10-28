@@ -59,17 +59,34 @@ struct AlertDatabase {
         return try decoder.decode(AlertDataset.self, from: data)
     }
 
+    /// Kết quả nạp bộ dữ liệu nhúng — nói rõ **lý do** khi thất bại để app hiển thị
+    /// cho người dùng thay vì im lặng ra bản đồ trống.
+    enum BundledLoad {
+        case ok(AlertDatabase)
+        case missing
+        case broken(String)
+    }
+
     /// Nạp bộ dữ liệu nhúng trong app (`App/Resources/Data/vn_alerts.json`).
     static func loadBundled(bundle: Bundle = .main) -> AlertDatabase {
-        guard let url = bundle.url(forResource: "vn_alerts", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let dataset = try? decode(data) else {
-            return AlertDatabase(alerts: [])
+        if case .ok(let database) = loadBundledDetailed(bundle: bundle) { return database }
+        return AlertDatabase(alerts: [])
+    }
+
+    static func loadBundledDetailed(bundle: Bundle = .main) -> BundledLoad {
+        guard let url = bundle.url(forResource: "vn_alerts", withExtension: "json") else {
+            return .missing
         }
-        return AlertDatabase(alerts: dataset.alerts,
-                             sources: dataset.sources ?? [],
-                             generatedAt: dataset.generatedAt,
-                             version: dataset.version)
+        do {
+            let data = try Data(contentsOf: url)
+            let dataset = try decode(data)
+            return .ok(AlertDatabase(alerts: dataset.alerts,
+                                     sources: dataset.sources ?? [],
+                                     generatedAt: dataset.generatedAt,
+                                     version: dataset.version))
+        } catch {
+            return .broken(error.localizedDescription)
+        }
     }
 
     static func fromJSON(_ data: Data) throws -> (database: AlertDatabase, warnings: [String]) {

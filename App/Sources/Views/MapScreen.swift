@@ -76,38 +76,27 @@ struct MapScreen: View {
                          })
                 .ignoresSafeArea()
 
-            VStack(spacing: 10) {
-                if model.isNavigating {
-                    navigationBanner
-                    laneStrip
-                } else {
-                    header
-                    categoryChips
-                }
-                if let alert = model.nextAlert, model.isNavigating, alert.isImminent {
-                    alertBanner(alert)
-                }
-                Spacer(minLength: 0)
-                if model.hasRoute || model.isNavigating || location.isAuthorized {
-                    statusStrip
-                }
-                bottomPanel
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 6)
-            .padding(.bottom, 8)
+            // Toàn bộ nút nằm trong MỘT VStack: không còn lớp phủ neo tuyệt đối
+            // (trước đây `sideControls` dùng padding.bottom cứng 158 nên đè lên
+            // thẻ dẫn đường / dải làn / banner cảnh báo trên máy màn hình nhỏ).
+            GeometryReader { proxy in
+                let compact = proxy.size.height < 720
+                VStack(spacing: compact ? 8 : 10) {
+                    topStack(compact: compact)
 
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    sideControls
-                        .padding(.trailing, 14)
-                        .padding(.bottom, 158)
+                    Spacer(minLength: 8)
+
+                    if model.toast != nil {
+                        toastView
+                    }
+                    bottomCluster(compact: compact)
                 }
+                .padding(.horizontal, 14)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .overlay(alignment: .bottom) { toastView }
         .animation(.easeInOut(duration: 0.22), value: model.toast)
         .alert("Không thực hiện được", isPresented: errorBinding) {
             Button("Đóng", role: .cancel) { model.dismissError() }
@@ -324,7 +313,9 @@ struct MapScreen: View {
 
     // MARK: - Side controls
 
-    private var sideControls: some View {
+    /// Cột nút phụ. Tối đa 4 nút để không chiếm quá 1/3 chiều cao màn hình;
+    /// các tuỳ chọn ít dùng gom vào menu “…” (bấm một lần là thấy).
+    private func sideControls(compact: Bool) -> some View {
         VStack(spacing: 10) {
             // 3D / 2D luôn đổi được, kể cả khi chỉ xem bản đồ
             FloatingIconButton(symbol: settings.navigationPitch3D ? "view.3d" : "map",
@@ -350,41 +341,78 @@ struct MapScreen: View {
                 activeSheet = .alerts
             }
 
-            FloatingIconButton(symbol: "exclamationmark.bubble.fill",
-                               active: !model.activeIncidents.isEmpty,
-                               badge: model.activeIncidents.isEmpty ? nil : "\(model.activeIncidents.count)",
-                               accessibilityLabel: "Báo cáo sự cố trên đường") {
-                activeSheet = .reportIncident
+            // Máy màn hình thấp: đưa báo cáo sự cố vào menu để cột nút ngắn lại.
+            if !compact {
+                FloatingIconButton(symbol: "exclamationmark.bubble.fill",
+                                   active: !model.activeIncidents.isEmpty,
+                                   badge: model.activeIncidents.isEmpty ? nil : "\(model.activeIncidents.count)",
+                                   accessibilityLabel: "Báo cáo sự cố trên đường") {
+                    activeSheet = .reportIncident
+                }
             }
 
-            FloatingIconButton(symbol: "sparkles",
-                               active: model.aiThinking,
-                               accessibilityLabel: "Trợ lý AI") {
+            moreMenu(compact: compact)
+        }
+    }
+
+    /// Menu gom các nút ít dùng: AI, mật độ giao thông, kiểu bản đồ, về vị trí, xem tuyến.
+    private func moreMenu(compact: Bool) -> some View {
+        Menu {
+            if compact {
+                Button {
+                    activeSheet = .reportIncident
+                } label: {
+                    Label("Báo cáo sự cố", systemImage: "exclamationmark.bubble.fill")
+                }
+            }
+
+            Button {
                 activeSheet = .ai
+            } label: {
+                Label("Trợ lý AI", systemImage: "sparkles")
+            }
+
+            Button {
+                settings.showTraffic.toggle()
+            } label: {
+                Label(settings.showTraffic ? "Tắt mật độ giao thông" : "Bật mật độ giao thông",
+                      systemImage: settings.showTraffic ? "car.2.fill" : "car.fill")
             }
 
             if !model.isNavigating {
-                FloatingIconButton(symbol: "location.fill",
-                                   active: location.isAuthorized,
-                                   accessibilityLabel: "Về vị trí của tôi") {
+                Button {
                     model.focusOnUser()
+                } label: {
+                    Label("Về vị trí của tôi", systemImage: "location.fill")
                 }
-                FloatingIconButton(symbol: model.hasRoute ? "arrow.up.left.and.arrow.down.right" : "square.stack.3d.up.fill",
-                                   accessibilityLabel: model.hasRoute ? "Xem toàn bộ tuyến" : "Đổi kiểu bản đồ") {
-                    if model.hasRoute {
+
+                if model.hasRoute {
+                    Button {
                         model.fitToken += 1
-                    } else {
+                    } label: {
+                        Label("Xem toàn bộ tuyến", systemImage: "arrow.up.left.and.arrow.down.right")
+                    }
+                } else {
+                    Button {
                         settings.mapTypeIndex = (settings.mapTypeIndex + 1) % 4
+                    } label: {
+                        Label("Đổi kiểu bản đồ", systemImage: "square.stack.3d.up.fill")
                     }
                 }
             }
-
-            FloatingIconButton(symbol: settings.showTraffic ? "car.2.fill" : "car.fill",
-                               active: settings.showTraffic,
-                               accessibilityLabel: "Bật/tắt mật độ giao thông") {
-                settings.showTraffic.toggle()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(AppTheme.card)
+                    .overlay(Circle().stroke(AppTheme.cardStroke, lineWidth: 1))
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.primary)
             }
+            .frame(width: 46, height: 46)
+            .softShadow()
         }
+        .accessibilityLabel("Thêm tuỳ chọn bản đồ")
     }
 
     // MARK: - Tốc độ hiện tại & cảnh báo sắp tới (màn hình chính)
@@ -456,11 +484,136 @@ struct MapScreen: View {
                             + "\(model.upcomingAlerts.count) cảnh báo phía trước")
     }
 
+    // MARK: - Bố cục dọc (không chồng lấn)
+
+    /// Thẻ phía trên: dẫn đường (thẻ chỉ dẫn + làn + cảnh báo) hoặc tìm kiếm.
+    @ViewBuilder
+    private func topStack(compact: Bool) -> some View {
+        if model.isNavigating {
+            navigationBanner(compact: compact)
+            if !compact {
+                laneStrip
+            }
+            if let alert = model.nextAlert, alert.isImminent {
+                alertBanner(alert)
+            }
+        } else {
+            header
+            categoryChips
+        }
+    }
+
+    /// Cụm đáy: trạng thái → (đồng hồ tốc độ | nút phụ) → thanh tuyến.
+    /// Mọi thứ xếp trong VStack nên không bao giờ đè lên nhau.
+    @ViewBuilder
+    private func bottomCluster(compact: Bool) -> some View {
+        VStack(spacing: compact ? 8 : 10) {
+            if !model.isNavigating, showsStatusStrip {
+                statusStrip
+            }
+
+            HStack(alignment: .bottom, spacing: 10) {
+                if model.isNavigating {
+                    navigationSpeedPanel
+                }
+                Spacer(minLength: 0)
+                sideControls(compact: compact)
+            }
+
+            bottomPanel
+        }
+    }
+
+    private var showsStatusStrip: Bool {
+        model.hasRoute || location.isAuthorized
+    }
+
+    /// Đồng hồ tốc độ + biển giới hạn, đặt đáy trái khi đang dẫn đường.
+    private var navigationSpeedPanel: some View {
+        HStack(spacing: 10) {
+            SpeedGauge(speed: model.liveSpeedKmh,
+                       limit: model.liveLimit,
+                       overLimit: model.isOverLimit,
+                       size: 64)
+
+            if let limit = model.liveLimit {
+                SpeedLimitSignView(limit: limit, size: 38, muted: true)
+            }
+
+            if model.isOverLimit, let limit = model.liveLimit {
+                Text("Vượt \(Int((model.liveSpeedKmh - Double(limit)).rounded())) km/h")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(AppTheme.danger))
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .floatingCard(cornerRadius: 20)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tốc độ \(Int(model.liveSpeedKmh.rounded())) km/h, giới hạn "
+                            + "\(model.liveLimit.map { "\($0)" } ?? "chưa rõ")")
+    }
+
+    /// Thanh đáy khi đang dẫn đường: còn bao xa / bao lâu / giờ tới + Kết thúc.
+    private var navigationBar: some View {
+        VStack(spacing: 9) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(Format.distance(model.remainingDistance))
+                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                        Text(Format.remaining(model.remainingTime))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    HStack(spacing: 4) {
+                        Text("Đến")
+                            .foregroundStyle(.secondary)
+                        Text(model.destination?.name ?? "điểm đến")
+                            .fontWeight(.semibold)
+                            .lineLimit(1)
+                        if let arrival = Format.arrival(after: model.remainingTime) {
+                            Text("· \(arrival)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .font(.system(size: 11.5))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    model.stopNavigation()
+                } label: {
+                    Text("Kết thúc")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .frame(height: 38)
+                        .background(Capsule().fill(AppTheme.danger))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Kết thúc dẫn đường")
+            }
+
+            ProgressStripe(fraction: 1 - model.navigationProgress, tint: AppTheme.accent)
+        }
+        .padding(12)
+        .floatingCard()
+    }
+
     // MARK: - Bottom
 
     @ViewBuilder
     private var bottomPanel: some View {
-        if let route = model.selectedRoute {
+        if model.isNavigating {
+            navigationBar
+        } else if let route = model.selectedRoute {
             routeCard(route)
         } else {
             actionBar
@@ -655,8 +808,8 @@ struct MapScreen: View {
 
     // MARK: - Navigation banner
 
-    private var navigationBanner: some View {
-        VStack(spacing: 9) {
+    private func navigationBanner(compact: Bool) -> some View {
+        VStack(spacing: compact ? 6 : 9) {
             HStack(spacing: 12) {
                 Image(systemName: model.currentStep?.symbol ?? "location.north.fill")
                     .font(.system(size: 20, weight: .bold))
@@ -697,26 +850,24 @@ struct MapScreen: View {
                 .buttonStyle(.plain)
             }
 
-            HStack(spacing: 12) {
-                Label("Còn \(Format.distance(model.remainingDistance))",
-                      systemImage: "point.topleft.down.curvedto.point.bottomright.up")
-                Label(Format.remaining(model.remainingTime), systemImage: "clock.fill")
-                if let arrival = Format.arrival(after: model.remainingTime) {
-                    Text("· \(arrival)")
+            if !compact {
+                HStack(spacing: 12) {
+                    Label("Còn \(Format.distance(model.remainingDistance))",
+                          systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                    Label(Format.remaining(model.remainingTime), systemImage: "clock.fill")
+                    if let arrival = Format.arrival(after: model.remainingTime) {
+                        Text("· \(arrival)")
+                    }
+                    Spacer(minLength: 0)
+                    if let limit = model.speedContext.limit {
+                        SpeedLimitSignView(limit: limit, size: 24, muted: true)
+                    }
                 }
-                Spacer(minLength: 0)
-                if let limit = model.speedContext.limit {
-                    SpeedLimitSignView(limit: limit, size: 24, muted: true)
-                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
             }
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
 
             ProgressStripe(fraction: turnProgress, tint: AppTheme.accent)
-
-            ProgressView(value: model.navigationProgress)
-                .tint(AppTheme.accent)
-                .scaleEffect(x: 1, y: 0.7, anchor: .center)
         }
         .padding(12)
         .floatingCard()
@@ -796,7 +947,7 @@ struct MapScreen: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(Capsule().fill(Color.black.opacity(0.82)))
-                .padding(.bottom, 132)
+                .frame(maxWidth: .infinity)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .allowsHitTesting(false)
         }
