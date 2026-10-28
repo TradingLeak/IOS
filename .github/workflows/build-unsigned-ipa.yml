@@ -103,6 +103,28 @@ jobs:
           cp "$IPA" "dist/$STABLE"
           shasum -a 256 "dist/$STABLE" > "dist/$STABLE.sha256"
 
+          # Giải nén để kiểm tra binary thật sự chạy được trên thiết bị
+          rm -rf /tmp/ipa-check && mkdir -p /tmp/ipa-check
+          unzip -q "$IPA" -d /tmp/ipa-check
+          APP_DIR="$(find /tmp/ipa-check/Payload -maxdepth 1 -name '*.app' -type d | head -n 1)"
+          APP_INFO="$APP_DIR/Info.plist"
+          EXEC_NAME="$(plutil -extract CFBundleExecutable raw -o - "$APP_INFO")"
+          EXEC_PATH="$APP_DIR/$EXEC_NAME"
+          [[ -f "$EXEC_PATH" ]] || { echo "::error::Không có binary thực thi $EXEC_NAME"; exit 1; }
+          ARCHS="$(lipo -archs "$EXEC_PATH")"
+          PLATFORM="$(vtool -show-build "$EXEC_PATH" | awk '/platform/{print $2; exit}')"
+          MIN_OS="$(plutil -extract MinimumOSVersion raw -o - "$APP_INFO")"
+
+          case "$ARCHS" in
+            *arm64*) ;;
+            *) echo "::error::Binary không có arm64 (chỉ có: $ARCHS) — app sẽ không chạy trên iPhone"; exit 1 ;;
+          esac
+          case "${PLATFORM:-}" in
+            IOS|iOS|ios) ;;
+            SIMULATOR*) echo "::error::Đây là bản Simulator ($PLATFORM), không cài được lên máy thật"; exit 1 ;;
+            *) echo "::warning::Không xác định được platform (giá trị: '${PLATFORM:-trống}')" ;;
+          esac
+
           SIZE="$(du -h "$IPA" | awk '{print $1}')"
           ENTRIES="$(unzip -l "$IPA" | grep -c 'Payload/')"
           SIGNED="$(unzip -l "$IPA" | grep -cE '_CodeSignature|embedded\.mobileprovision' || true)"
@@ -117,6 +139,7 @@ jobs:
           echo "::notice title=Bundle ID::$BUNDLE"
           echo "::notice title=Phiên bản::$SHORT ($BUILD_NUM)"
           echo "::notice title=Số entry trong Payload::$ENTRIES"
+          echo "::notice title=Kiến trúc binary::$ARCHS · platform ${PLATFORM:-?} · iOS tối thiểu $MIN_OS"
           echo "::notice title=Dấu chữ ký còn lại::$SIGNED (0 = unsigned, đúng)"
           echo "::notice title=SHA-256::$SHA"
 
@@ -127,6 +150,8 @@ jobs:
             echo "bundle=$BUNDLE"
             echo "version=$SHORT ($BUILD_NUM)"
             echo "size=$SIZE"
+            echo "archs=$ARCHS"
+            echo "min_os=$MIN_OS"
           } >> "$GITHUB_OUTPUT"
         id: verify
 
@@ -184,6 +209,7 @@ jobs:
             - **Kích thước**: ${{ steps.verify.outputs.size }}
             - **Bundle ID**: `${{ steps.verify.outputs.bundle }}`
             - **Phiên bản**: ${{ steps.verify.outputs.version }}
+            - **Kiến trúc**: ${{ steps.verify.outputs.archs }} · iOS tối thiểu ${{ steps.verify.outputs.min_os }}
             - **SHA-256**: `${{ steps.verify.outputs.sha }}`
             - **Commit**: `${{ github.sha }}`
 
