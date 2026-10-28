@@ -21,6 +21,10 @@ on:
         description: "Chạy unit test (lâu hơn ~3 phút)"
         type: boolean
         default: true
+      update_data:
+        description: "Cập nhật dữ liệu biển báo từ OpenStreetMap rồi commit (chạy tay)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -30,6 +34,62 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ---------------------------------------------------------------- dữ liệu OSM
+  # Chạy tay: Actions → Build unsigned IPA → Run workflow → update_data.
+  # Tải biển báo/camera từ Overpass rồi commit; push đó sẽ kích hoạt một build mới
+  # có dữ liệu. Xem thêm .github/workflows/update-osm-alerts.yml (lịch hằng tuần).
+  data:
+    name: Cập nhật dữ liệu OSM (tuỳ chọn)
+    if: github.event_name == 'workflow_dispatch' && inputs.update_data
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Kiểm tra bộ phân tích (offline)
+        run: python3 scripts/fetch-osm-alerts.py --self-test
+
+      - name: Tải dữ liệu OpenStreetMap
+        run: |
+          python3 scripts/fetch-osm-alerts.py \
+            --max-alerts 40000 --spacing 1000 \
+            --out data/curated/osm-vn.json
+
+      - name: Gộp vào bộ dữ liệu của app
+        run: python3 scripts/build-alert-data.py
+
+      - name: Commit nếu có thay đổi
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/curated/osm-vn.json App/Resources/Data/vn_alerts.json
+          if git diff --cached --quiet; then
+            echo "Không có thay đổi dữ liệu."
+            exit 0
+          fi
+          COUNT=$(python3 -c "import json;print(len(json.load(open('App/Resources/Data/vn_alerts.json'))['alerts']))")
+          git commit -m "data: biển báo/camera từ OpenStreetMap (${COUNT} điểm)"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Tóm tắt
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          path = "App/Resources/Data/vn_alerts.json"
+          if not os.path.exists(path):
+              print("Chưa có dữ liệu.")
+              raise SystemExit
+          data = json.load(open(path, encoding="utf-8"))
+          print(f"### {len(data['alerts'])} điểm · {os.path.getsize(path)/1024:.0f} KB")
+          print("| Loại | Số điểm |")
+          print("|---|---|")
+          for kind, count in sorted((data.get("counts") or {}).items()):
+              print(f"| {kind} | {count} |")
+          PY
+
   # ---------------------------------------------------------------- lint
   lint:
     name: Kiểm tra repo (ubuntu)
