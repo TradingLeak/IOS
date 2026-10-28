@@ -15,14 +15,14 @@ enum AlertFileStore {
     }
 
     static func loadImported() -> [RoadAlert] {
-        guard let url = importedURL(),
+        guard let url = importedURL,
               let data = try? Data(contentsOf: url),
               let dataset = try? AlertDatabase.decode(data) else { return [] }
         return dataset.alerts.filter(\.hasValidCoordinate)
     }
 
     static func saveImported(_ alerts: [RoadAlert]) throws {
-        guard let url = importedURL() else { return }
+        guard let url = importedURL else { return }
         let dataset = AlertDataset(version: "user",
                                    generatedAt: ISO8601DateFormatter().string(from: Date()),
                                    sources: [AlertSource(id: "user",
@@ -36,7 +36,7 @@ enum AlertFileStore {
     }
 
     static func clearImported() throws {
-        guard let url = importedURL(), FileManager.default.fileExists(atPath: url.path) else { return }
+        guard let url = importedURL, FileManager.default.fileExists(atPath: url.path) else { return }
         try FileManager.default.removeItem(at: url)
     }
 

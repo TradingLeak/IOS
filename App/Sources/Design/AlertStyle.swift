@@ -93,7 +93,7 @@ struct SpeedPill: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .glassCard(cornerRadius: 16)
-        .accessibilityLabel("Tốc độ \(Int(speedKmh.rounded())) km/h, giới hạn \(limit.map(String.init) ?? "chưa rõ")")
+        .accessibilityLabel("Tốc độ \(Int(speedKmh.rounded())) km/h, giới hạn \(limit.map { String($0) } ?? "chưa rõ")")
     }
 }
 

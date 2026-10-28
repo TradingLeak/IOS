@@ -119,7 +119,7 @@ struct AlertDatabase {
         }
 
         found.sort { $0.distance < $1.distance }
-        return found.prefix(limit).map(\.alert)
+        return found.prefix(limit).map { $0.alert }
     }
 
     func nearest(to coordinate: CLLocationCoordinate2D,
