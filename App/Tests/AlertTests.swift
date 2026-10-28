@@ -72,8 +72,10 @@ final class AlertDatabaseQueryTests: XCTestCase {
         let database = makeDatabase()
         let center = CLLocationCoordinate2D(latitude: 21.0, longitude: 105.0)
 
+        // cam-1 ≈ 556 m, zone-1 ≈ 1.113 m, cam-2 ≈ 2.224 m (ngoài bán kính 2 km)
         let all = database.nearby(around: center, radius: 2_000)
-        XCTAssertEqual(all.count, 3)
+        XCTAssertEqual(all.count, 2)
+        XCTAssertEqual(database.nearby(around: center, radius: 3_000).count, 3)
 
         let cameras = database.nearby(around: center, radius: 2_000, kinds: [.speedCamera])
         XCTAssertEqual(cameras.count, 1)
