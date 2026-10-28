@@ -12,10 +12,6 @@ on:
         description: "Giới hạn tổng số mục (mặc định 40000)"
         default: "40000"
         required: false
-      spacing:
-        description: "Mét giữa hai điểm mẫu trên một way (mặc định 1000)"
-        default: "1000"
-        required: false
   schedule:
     - cron: "0 18 * * 0"   # Chủ nhật 01:00 giờ Việt Nam
 
@@ -41,11 +37,8 @@ jobs:
       - name: Tải dữ liệu OpenStreetMap
         env:
           MAX_ALERTS: ${{ inputs.max_alerts || '40000' }}
-          SPACING: ${{ inputs.spacing || '1000' }}
         run: |
-          python3 scripts/fetch-osm-alerts.py \
-            --max-alerts "$MAX_ALERTS" \
-            --spacing "$SPACING" \
+          python3 scripts/fetch-osm-alerts.py --tile 3 --max-alerts 40000 \
             --out data/curated/osm-vn.json
 
       - name: Gộp vào bộ dữ liệu của app

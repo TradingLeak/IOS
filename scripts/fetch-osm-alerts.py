@@ -115,11 +115,17 @@ def tiles(step: float) -> list[tuple[float, float, float, float]]:
 # --------------------------------------------------------------------------- Overpass
 
 
-def build_query(box: tuple[float, float, float, float]) -> str:
+def build_query(box: tuple[float, float, float, float], timeout: int = 90) -> str:
+    """Một truy vấn cho mỗi ô.
+
+    Dùng `out center` thay vì `out body geom`: phản hồi nhỏ hơn hàng chục lần nên cả
+    nước chạy xong trong vài phút. Mỗi way có `maxspeed` sinh **một** điểm ở tâm way;
+    nếu cần dày hơn thì chạy kèm `--geometry`.
+    """
     south, west, north, east = box
     bbox = f"{south:.4f},{west:.4f},{north:.4f},{east:.4f}"
     return (
-        "[out:json][timeout:180];\n"
+        f"[out:json][timeout:{timeout}];\n"
         "(\n"
         f'  way["highway"~"{MAJOR_ROADS}"]["maxspeed"]({bbox});\n'
         f'  node["highway"="speed_camera"]({bbox});\n'
@@ -127,6 +133,17 @@ def build_query(box: tuple[float, float, float, float]) -> str:
         f'  node["amenity"="school"]({bbox});\n'
         f'  node["railway"="level_crossing"]({bbox});\n'
         ");\n"
+        "out center;\n"
+    )
+
+
+def build_geometry_query(box: tuple[float, float, float, float], timeout: int = 120) -> str:
+    """Tuỳ chọn: lấy hình học để rải điểm cách nhau `--spacing` mét (chậm hơn)."""
+    south, west, north, east = box
+    bbox = f"{south:.4f},{west:.4f},{north:.4f},{east:.4f}"
+    return (
+        f"[out:json][timeout:{timeout}];\n"
+        f'way["highway"~"{MAJOR_ROADS}"]["maxspeed"]({bbox});\n'
         "out body geom;\n"
     )
 
@@ -298,7 +315,12 @@ def parse_elements(elements: list[dict], spacing: float, residential: bool) -> l
         if limit is None:
             continue
         geometry = element.get("geometry") or []
-        samples = way_length_and_points(geometry, spacing)
+        if geometry:
+            samples = way_length_and_points(geometry, spacing)
+        else:
+            center = element.get("center") or {}
+            samples = ([(float(center["lat"]), float(center["lon"]))]
+                       if "lat" in center and "lon" in center else [])
         if not samples:
             continue
         bearing = bearing_of(geometry)
@@ -342,7 +364,8 @@ def dedupe(alerts: list[dict], cell: float = 400.0) -> list[dict]:
 # --------------------------------------------------------------------------- nguồn
 
 
-def collect(spacing: float, step: float, residential: bool, max_alerts: int) -> list[dict]:
+def collect(spacing: float, step: float, residential: bool, max_alerts: int,
+            geometry: bool = False, checkpoint: str | None = None) -> list[dict]:
     alerts: list[dict] = []
     boxes = tiles(step)
     log(f"  {len(boxes)} ô × {step}° — bắt đầu tải Overpass ({OVERPASS})")
@@ -352,6 +375,14 @@ def collect(spacing: float, step: float, residential: bool, max_alerts: int) -> 
         try:
             payload = fetch(build_query(box))
             elements = payload.get("elements") or []
+            if geometry:
+                # Bổ sung hình học cho way để rải điểm mỗi `spacing` mét.
+                extra = fetch(build_geometry_query(box)).get("elements") or []
+                by_id = {element.get("id"): element for element in elements}
+                for way in extra:
+                    if way.get("id") in by_id:
+                        by_id[way["id"]]["geometry"] = way.get("geometry")
+                        elements[elements.index(by_id[way["id"]])] = by_id[way["id"]]
             alerts.extend(parse_elements(elements, spacing, residential=False))
             if residential:
                 payload = fetch(build_residential_query(box))
@@ -361,10 +392,13 @@ def collect(spacing: float, step: float, residential: bool, max_alerts: int) -> 
             continue
 
         log(f"  [{index}/{len(boxes)}] {label} — {len(alerts)} mục")
+        if checkpoint:
+            # Ghi tạm sau mỗi ô: nếu job bị huỷ vẫn còn dữ liệu của các ô đã xong.
+            write_source(dedupe(alerts)[:max_alerts], checkpoint)
         if len(alerts) >= max_alerts:
             log(f"  đã đạt giới hạn {max_alerts} mục — dừng tải")
             break
-        time.sleep(2)
+        time.sleep(1)
 
     alerts = dedupe(alerts)
     alerts = alerts[:max_alerts]
@@ -464,7 +498,10 @@ def main() -> int:
     parser.add_argument("--spacing", type=float, default=800, help="mét giữa hai điểm mẫu trên một way")
     parser.add_argument("--tile", type=float, default=3.0, help="cạnh ô tải (độ)")
     parser.add_argument("--max-alerts", type=int, default=60000, help="giới hạn tổng số mục")
-    parser.add_argument("--no-residential", action="store_true", help="bỏ khu dân cư (nhẹ hơn)")
+    parser.add_argument("--residential", action="store_true", help="kèm khu dân cư (nặng hơn)")
+    parser.add_argument("--geometry", action="store_true",
+                        help="lấy hình học để rải điểm mỗi --spacing mét (chậm hơn, dày hơn)")
+    parser.add_argument("--no-checkpoint", action="store_true", help="không ghi tạm sau mỗi ô")
     parser.add_argument("--out", default=OUT_DEFAULT, help="tệp đầu ra")
     parser.add_argument("--from-file", help="phân tích phản hồi Overpass đã lưu (không gọi mạng)")
     parser.add_argument("--dry-run", action="store_true", help="chỉ in các ô sẽ tải")
@@ -485,9 +522,11 @@ def main() -> int:
         with open(args.from_file, encoding="utf-8") as handle:
             payload = json.load(handle)
         alerts = dedupe(parse_elements(payload.get("elements") or [], args.spacing,
-                                       residential=not args.no_residential))
+                                       residential=args.residential))
     else:
-        alerts = collect(args.spacing, args.tile, not args.no_residential, args.max_alerts)
+        alerts = collect(args.spacing, args.tile, args.residential, args.max_alerts,
+                         geometry=args.geometry,
+                         checkpoint=None if args.no_checkpoint else args.out)
 
     counts: dict[str, int] = {}
     for alert in alerts:

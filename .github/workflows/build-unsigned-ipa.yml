@@ -54,9 +54,9 @@ jobs:
         run: python3 scripts/fetch-osm-alerts.py --self-test
 
       - name: Tải dữ liệu OpenStreetMap
+        continue-on-error: true
         run: |
-          python3 scripts/fetch-osm-alerts.py \
-            --max-alerts 40000 --spacing 1000 \
+          python3 scripts/fetch-osm-alerts.py --tile 3 --max-alerts 40000 \
             --out data/curated/osm-vn.json
 
       - name: Gộp vào bộ dữ liệu của app
