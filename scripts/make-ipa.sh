@@ -30,7 +30,7 @@ die()   { printf '\n%s✖ %s%s\n' "$RED" "$*" "$RESET" >&2; exit 1; }
 trap 'die "Build thất bại ở dòng $LINENO (lệnh: $BASH_COMMAND)"' ERR
 
 # ---------------------------------------------------------------- defaults
-SCHEME="HelloIPA"
+SCHEME="VietMap"
 PROJECT=""
 CONFIGURATION="Release"
 OUTPUT_DIR="dist"
@@ -49,7 +49,7 @@ ${BOLD}Cách dùng${RESET}
   ./scripts/make-ipa.sh [tuỳ chọn]
 
 ${BOLD}Tuỳ chọn${RESET}
-  -s, --scheme NAME         Scheme cần build (mặc định: HelloIPA)
+  -s, --scheme NAME         Scheme cần build (mặc định: VietMap)
   -p, --project PATH        .xcodeproj hoặc .xcworkspace (mặc định: tự dò)
   -c, --configuration NAME  Debug|Release (mặc định: Release)
   -o, --output DIR          Thư mục chứa IPA (mặc định: dist)
@@ -63,6 +63,7 @@ ${BOLD}Tuỳ chọn${RESET}
 
 ${BOLD}Ví dụ${RESET}
   ./scripts/make-ipa.sh
+  AI_BASE_URL=https://api.xah.io/v1 AI_MODEL=gpt-4o-mini ./scripts/make-ipa.sh
   ./scripts/make-ipa.sh -b com.tradingleak.demo --build-number 42
   ./scripts/make-ipa.sh -p MyApp.xcworkspace -s MyApp -o ~/Desktop
 
@@ -103,11 +104,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 # Tự sinh project nếu chỉ có project.yml và máy có xcodegen
-if [[ -z "$PROJECT" && ! -e "HelloIPA.xcodeproj" && -f "project.yml" ]]; then
+if [[ -z "$PROJECT" && ! -e "VietMap.xcodeproj" && -f "project.yml" ]]; then
   if command -v xcodegen >/dev/null; then
     step "Sinh project từ project.yml (xcodegen)"
     xcodegen generate --quiet
-    ok "Đã tạo HelloIPA.xcodeproj"
+    ok "Đã tạo VietMap.xcodeproj"
   fi
 fi
 
@@ -171,6 +172,15 @@ BUILD_SETTINGS=(
 [[ -n "$BUNDLE_ID"     ]] && BUILD_SETTINGS+=("PRODUCT_BUNDLE_IDENTIFIER=$BUNDLE_ID")
 [[ -n "$SHORT_VERSION" ]] && BUILD_SETTINGS+=("MARKETING_VERSION=$SHORT_VERSION")
 [[ -n "$BUILD_NUMBER"  ]] && BUILD_SETTINGS+=("CURRENT_PROJECT_VERSION=$BUILD_NUMBER")
+
+# Cấu hình AI (tuỳ chọn): nhúng vào Info.plist để app có sẵn khi cài.
+# Ưu tiên người dùng nhập trong app; đừng commit API key vào repo.
+AI_BASE_URL="${AI_BASE_URL:-}"
+AI_MODEL="${AI_MODEL:-}"
+AI_API_KEY="${AI_API_KEY:-}"
+[[ -n "$AI_BASE_URL" ]] && BUILD_SETTINGS+=("AI_BASE_URL=$AI_BASE_URL")
+[[ -n "$AI_MODEL"    ]] && BUILD_SETTINGS+=("AI_MODEL=$AI_MODEL")
+[[ -n "$AI_API_KEY"  ]] && BUILD_SETTINGS+=("AI_API_KEY=$AI_API_KEY")
 
 XCODEBUILD_ARGS=(
   "$PROJECT_FLAG" "$PROJECT"

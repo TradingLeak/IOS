@@ -86,15 +86,66 @@ else:
         else:
             ok("AppIcon 1024x1024, không alpha (bit depth %d)" % bit_depth)
 
-# Swift sources
-swift_files = glob.glob(os.path.join(root, "App/Sources/*.swift"))
-has_main = any("@main" in open(f, encoding="utf-8").read() for f in swift_files)
+# Swift sources (quét đệ quy)
+swift_files = sorted(glob.glob(os.path.join(root, "App/Sources/**/*.swift"), recursive=True))
 if not swift_files:
     no("Không có file .swift nào trong App/Sources")
-elif not has_main:
-    no("Không tìm thấy entry point @main trong App/Sources")
 else:
-    ok("%d file Swift, có @main" % len(swift_files))
+    mains = [f for f in swift_files if "@main" in open(f, encoding="utf-8").read()]
+    if len(mains) != 1:
+        no("Phải có đúng 1 entry point @main, đang có %d" % len(mains))
+    else:
+        ok("%d file Swift, 1 entry point @main" % len(swift_files))
+
+    def strip_literals(text):
+        """Bỏ chuỗi và comment để đếm ngoặc chính xác."""
+        out = []
+        i, n = 0, len(text)
+        while i < n:
+            if text.startswith('"""', i):
+                end = text.find('"""', i + 3)
+                i = n if end < 0 else end + 3
+                continue
+            if text.startswith('#"', i):
+                end = text.find('"#', i + 2)
+                i = n if end < 0 else end + 2
+                continue
+            c = text[i]
+            nxt = text[i + 1] if i + 1 < n else ""
+            if c == "/" and nxt == "/":
+                end = text.find("\n", i)
+                i = n if end < 0 else end
+                continue
+            if c == "/" and nxt == "*":
+                end = text.find("*/", i + 2)
+                i = n if end < 0 else end + 2
+                continue
+            if c == '"':
+                i += 1
+                while i < n:
+                    if text[i] == "\\":
+                        i += 2
+                        continue
+                    if text[i] == '"':
+                        i += 1
+                        break
+                    i += 1
+                continue
+            out.append(c)
+            i += 1
+        return "".join(out)
+
+    unbalanced = []
+    for path in swift_files:
+        code = strip_literals(open(path, encoding="utf-8").read())
+        for open_ch, close_ch in (("{", "}"), ("(", ")"), ("[", "]")):
+            if code.count(open_ch) != code.count(close_ch):
+                unbalanced.append(os.path.relpath(path, root))
+                break
+    if unbalanced:
+        no("Ngoặc không cân bằng: " + ", ".join(unbalanced))
+    else:
+        ok("Ngoặc cân bằng ở tất cả file Swift")
 
 # project.yml / Info.plist khớp nhau
 yml = open(os.path.join(root, "project.yml"), encoding="utf-8").read()
@@ -106,6 +157,17 @@ for needle in ["INFOPLIST_FILE: App/Info.plist", "ASSETCATALOG_COMPILER_APPICON_
         no("project.yml thiếu: " + needle)
 
 # workflow
+try:
+    with open(os.path.join(root, "App/Info.plist"), "rb") as fh:
+        info2 = plistlib.load(fh)
+    for key in ["NSLocationWhenInUseUsageDescription", "AIBaseURL", "AIModel", "AIApiKey"]:
+        if key not in info2:
+            no("Info.plist thiếu khoá: " + key)
+        else:
+            ok("Info.plist có " + key)
+except Exception as exc:  # noqa: BLE001
+    no("Không đọc được Info.plist: %s" % exc)
+
 wf = os.path.join(root, ".github/workflows/build-unsigned-ipa.yml")
 if os.path.isfile(wf):
     text = open(wf, encoding="utf-8").read()
