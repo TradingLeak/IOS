@@ -192,6 +192,27 @@ final class SpeedLimitRuleTests: XCTestCase {
         XCTAssertNil(SpeedLimitRules.legalLimit(roadClass: .expressway, area: .rural, mode: .motorcycle))
     }
 
+    func testMopedAlwaysForty() {
+        // Xe gắn máy ≤ 50 cm³: 40 km/h trên mọi loại đường, kể cả đường đôi, quốc lộ.
+        for (roadClass, area) in [(RoadClass.urbanStreet, RoadArea.urban),
+                                  (.nationalHighway, .rural),
+                                  (.provincialRoad, .rural),
+                                  (.residential, .urban)] {
+            XCTAssertEqual(SpeedLimitRules.legalLimit(roadClass: roadClass, area: area,
+                                                      mode: .motorcycle,
+                                                      dualCarriageway: true,
+                                                      vehicle: .moped), 40)
+        }
+        XCTAssertNil(SpeedLimitRules.legalLimit(roadClass: .expressway, area: .rural,
+                                                mode: .motorcycle, vehicle: .moped))
+        XCTAssertEqual(SpeedLimitRules.estimate(roadNames: ["Quốc lộ 1A"],
+                                                mode: .motorcycle,
+                                                vehicle: .moped), 40)
+        XCTAssertEqual(SpeedLimitRules.estimate(roadNames: ["Quốc lộ 1A"],
+                                                mode: .motorcycle,
+                                                vehicle: .motorcycle), 70)
+    }
+
     func testCarLimits() {
         XCTAssertEqual(SpeedLimitRules.legalLimit(roadClass: .urbanStreet, area: .urban,
                                                   mode: .automobile, dualCarriageway: true), 60)

@@ -82,7 +82,9 @@ struct AlertEngine {
 
         if let best { return best }
 
-        if let estimated = SpeedLimitRules.estimate(roadNames: roadNames, mode: mode) {
+        if let estimated = SpeedLimitRules.estimate(roadNames: roadNames,
+                                                    mode: mode,
+                                                    vehicle: preferences.vehicleClass) {
             return SpeedLimitInfo(limit: estimated,
                                   source: .estimated,
                                   alertID: nil,

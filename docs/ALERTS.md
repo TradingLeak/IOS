@@ -58,13 +58,20 @@ Theo thứ tự ưu tiên:
 
 | Xe | Trong khu đông dân cư (đường đôi / ≥2 làn) | (2 chiều / 1 làn) | Ngoài khu đông dân cư (đôi) | (2 chiều) |
 |---|---|---|---|---|
-| Xe mô tô (xe máy) | 60 | 50 | 70 | 60 |
+| Xe mô tô / xe máy trên 50 cm³ | 60 | 50 | 70 | 60 |
+| Xe gắn máy ≤ 50 cm³, xe đạp điện | 40 | 40 | 40 | 40 |
 | Ô tô con | 60 | 50 | 90 | 80 |
 | Đường cao tốc (ô tô) | — | — | 120 | 120 |
 | Xe máy trên cao tốc | **không được phép đi** | | | |
 
 > Bảng này là **giá trị luật định mặc định**, không thay thế biển báo thực tế. App hiển thị
 > rõ nguồn: `Biển báo`, `Vùng giới hạn`, `Ước tính TT 38/2024`.
+
+Chọn nhóm xe ở **Cài đặt → Dẫn đường xe máy → Nhóm xe hai bánh**:
+
+- **Xe mô tô** (mặc định): áp bảng 60/50 – 70/60 như trên.
+- **Xe gắn máy ≤ 50 cm³ / xe đạp điện**: luôn **40 km/h** (Điều 8 Thông tư 38/2024),
+  không áp dụng mức 60/70 kể cả trên đường đôi hay quốc lộ.
 
 Nhận diện loại đường từ tên: `cao tốc / CT` → cao tốc; `quốc lộ / QL` → quốc lộ;
 `tỉnh lộ / ĐT` → tỉnh lộ; `phố / đường` → đường đô thị; `hẻm / ngõ / kiệt` → hẻm.

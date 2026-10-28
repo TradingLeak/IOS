@@ -265,6 +265,30 @@ struct SettingsView: View {
                         .font(.system(size: 12, weight: .medium))
                     TravelModePicker(selection: $settings.defaultMode)
                 }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Nhóm xe hai bánh")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Picker("Nhóm xe", selection: $settings.vehicleClass) {
+                            ForEach(VehicleClass.allCases) { item in
+                                Text(item.shortTitle).tag(item)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+                    Text(settings.vehicleClass.title)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text(settings.vehicleClass == .moped
+                         ? "Xe gắn máy ≤ 50 cm³ và xe đạp điện: 40 km/h trên mọi tuyến (Thông tư 38/2024)."
+                         : "Xe mô tô: 60/50 km/h trong đô thị, 70/60 km/h ngoài đô thị (Thông tư 38/2024).")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }

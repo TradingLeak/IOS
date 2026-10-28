@@ -29,6 +29,32 @@ enum RoadClass: String, CaseIterable {
     }
 }
 
+/// Nhóm phương tiện hai bánh — quyết định bảng tốc độ áp dụng.
+///
+/// - `motorcycle` (xe mô tô, xe máy > 50 cm³): theo bảng 60/50 – 70/60.
+/// - `moped` (xe gắn máy ≤ 50 cm³, xe đạp điện): **40 km/h** trên mọi tuyến
+///   không phải đường cao tốc (Điều 8 Thông tư 38/2024/TT-BGTVT).
+enum VehicleClass: String, CaseIterable, Codable, Identifiable {
+    case motorcycle
+    case moped
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .motorcycle: return "Xe mô tô / xe máy trên 50 cm³"
+        case .moped: return "Xe gắn máy ≤ 50 cm³, xe đạp điện"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .motorcycle: return "Xe mô tô"
+        case .moped: return "Xe gắn máy"
+        }
+    }
+}
+
 enum RoadArea: String, CaseIterable {
     case urban
     case rural
@@ -44,10 +70,10 @@ enum RoadArea: String, CaseIterable {
 /// Bảng tốc độ khai thác tối đa theo **Thông tư 38/2024/TT-BGTVT** (hiệu lực 01/01/2025).
 ///
 /// Đây là **giới hạn luật định mặc định** khi không có biển báo thực tế:
-/// - Xe mô tô (xe máy): trong khu đông dân cư 60 km/h (đường đôi / ≥2 làn) hoặc 50 km/h;
-///   ngoài khu đông dân cư 70 km/h hoặc 60 km/h.
+/// - Xe mô tô (xe máy trên 50 cm³): trong khu đông dân cư 60 km/h (đường đôi / ≥2 làn)
+///   hoặc 50 km/h; ngoài khu đông dân cư 70 km/h hoặc 60 km/h.
+/// - Xe gắn máy ≤ 50 cm³ và xe đạp điện: **40 km/h** trên mọi tuyến (không được đi cao tốc).
 /// - Ô tô con: trong khu đông dân cư 60 / 50; ngoài khu đông dân cư 90 / 80; cao tốc tối đa 120.
-/// - Xe gắn máy và xe máy chuyên dùng: 40 km/h (không dùng trong app).
 ///
 /// Biển báo/vùng giới hạn thật (nhập tay hoặc tải từ OpenStreetMap) luôn được ưu tiên
 /// hơn bảng này — xem `AlertEngine.speedLimit(...)`.
@@ -83,14 +109,17 @@ enum SpeedLimitRules {
     static func legalLimit(roadClass: RoadClass,
                            area: RoadArea,
                            mode: TravelMode,
-                           dualCarriageway: Bool = false) -> Int? {
+                           dualCarriageway: Bool = false,
+                           vehicle: VehicleClass = .motorcycle) -> Int? {
         switch mode {
         case .walking, .transit:
             return nil
 
         case .motorcycle:
-            // Xe mô tô không được phép chạy trên đường cao tốc.
+            // Xe hai bánh không được phép chạy trên đường cao tốc.
             if roadClass == .expressway { return nil }
+            // Xe gắn máy ≤ 50 cm³: một mức 40 km/h cho mọi loại đường.
+            if vehicle == .moped { return 40 }
             switch (area, dualCarriageway) {
             case (.urban, true): return 60
             case (.urban, false): return 50
@@ -113,14 +142,17 @@ enum SpeedLimitRules {
     }
 
     /// Suy ra giới hạn tốc độ từ danh sách tên đường (ưu tiên tên đầu tiên nhận diện được).
-    static func estimate(roadNames: [String], mode: TravelMode) -> Int? {
+    static func estimate(roadNames: [String],
+                         mode: TravelMode,
+                         vehicle: VehicleClass = .motorcycle) -> Int? {
         for name in roadNames {
             let roadClass = classify(name)
             guard roadClass != .other else { continue }
             let limit = legalLimit(roadClass: roadClass,
                                    area: roadClass.defaultArea,
                                    mode: mode,
-                                   dualCarriageway: isDualCarriageway(name))
+                                   dualCarriageway: isDualCarriageway(name),
+                                   vehicle: vehicle)
             if let limit { return limit }
         }
         return nil

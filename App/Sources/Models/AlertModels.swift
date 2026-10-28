@@ -474,6 +474,8 @@ struct AlertPreferences: Equatable {
     /// Ngưỡng D_warn tối thiểu / tối đa (mét) — lấy theo công thức của HUD Việt Nam.
     var warnDistanceMin: Double = 150
     var warnDistanceMax: Double = 500
+    /// Nhóm xe hai bánh — đổi bảng tốc độ mặc định (xe gắn máy ≤ 50 cm³ là 40 km/h).
+    var vehicleClass: VehicleClass = .motorcycle
 
     func isEnabled(_ kind: AlertKind) -> Bool {
         enabledKinds.contains(kind)

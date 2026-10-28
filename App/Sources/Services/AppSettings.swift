@@ -48,6 +48,7 @@ final class AppSettings: ObservableObject {
         static let alertKinds = "vietmap.alert.kinds"
         static let defaultMode = "vietmap.route.mode"
         static let alertsImported = "vietmap.alert.importedCount"
+        static let vehicleClass = "vietmap.alert.vehicleClass"
     }
 
     @Published var baseURL: String {
@@ -99,6 +100,10 @@ final class AppSettings: ObservableObject {
             defaults.set(alertKinds.map(\.rawValue).sorted(), forKey: Keys.alertKinds)
         }
     }
+    /// Nhóm xe hai bánh — đổi bảng tốc độ mặc định trong HUD.
+    @Published var vehicleClass: VehicleClass {
+        didSet { defaults.set(vehicleClass.rawValue, forKey: Keys.vehicleClass) }
+    }
     /// Phương tiện mặc định khi mở app.
     @Published var defaultMode: TravelMode {
         didSet { defaults.set(defaultMode.rawValue, forKey: Keys.defaultMode) }
@@ -137,6 +142,7 @@ final class AppSettings: ObservableObject {
         let kinds = savedKinds?.compactMap { AlertKind(rawValue: $0) } ?? AlertKind.allCases
         alertKinds = Set(kinds.isEmpty ? AlertKind.allCases : kinds)
 
+        vehicleClass = VehicleClass(rawValue: defaults.string(forKey: Keys.vehicleClass) ?? "") ?? .motorcycle
         defaultMode = TravelMode(rawValue: defaults.string(forKey: Keys.defaultMode) ?? "") ?? .motorcycle
     }
 
@@ -158,6 +164,7 @@ final class AppSettings: ObservableObject {
         preferences.showOnMap = showAlertPins
         preferences.overspeedTolerance = overspeedTolerance
         preferences.enabledKinds = alertKinds
+        preferences.vehicleClass = vehicleClass
         return preferences
     }
 
