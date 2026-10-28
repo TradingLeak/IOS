@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Nút tròn nổi (dùng cho locate / layers / zoom)
 
@@ -287,20 +288,22 @@ struct TravelModePicker: View {
     @Binding var selection: TravelMode
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             ForEach(TravelMode.allCases) { mode in
                 Button {
                     withAnimation(.easeOut(duration: 0.16)) { selection = mode }
                 } label: {
-                    HStack(spacing: 5) {
+                    VStack(spacing: 3) {
                         Image(systemName: mode.symbol)
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(mode.title)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(mode.shortTitle)
+                            .font(.system(size: 10, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                     .foregroundStyle(selection == mode ? Color.white : Color.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 38)
+                    .frame(height: 46)
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .fill(selection == mode
@@ -309,6 +312,7 @@ struct TravelModePicker: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(mode.title)
             }
         }
         .padding(4)
@@ -317,4 +321,52 @@ struct TravelModePicker: View {
                 .fill(AppTheme.subtleFill)
         )
     }
+}
+
+// MARK: - Ô số liệu nhỏ
+
+struct StatTile: View {
+    let value: String
+    let label: String
+    var symbol: String? = nil
+    var tint: Color = AppTheme.accent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(tint)
+                }
+                Text(value)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Chia sẻ tệp (AirDrop / Lưu vào Files)
+
+struct ShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

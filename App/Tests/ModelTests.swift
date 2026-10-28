@@ -50,12 +50,19 @@ final class RouteOptionTests: XCTestCase {
     }
 
     func testLocalSummaryMentionsEndpoints() {
-        let summary = AIRoutePlanner.localSummary(route: makeRoute(steps: 6),
-                                                  originName: "Cầu Giấy",
-                                                  destinationName: "Hồ Tây")
+        let summary = RouteInsight.summary(route: makeRoute(steps: 6),
+                                           originName: "Cầu Giấy",
+                                           destinationName: "Hồ Tây")
         XCTAssertTrue(summary.contains("Cầu Giấy"))
         XCTAssertTrue(summary.contains("Hồ Tây"))
         XCTAssertTrue(summary.contains("5,2 km"))
+    }
+
+    func testArrivalFormatting() {
+        let now = Date(timeIntervalSince1970: 0)
+        XCTAssertEqual(Format.arrival(after: 3_600, from: now)?.count, 5)
+        XCTAssertNil(Format.arrival(after: 0))
+        XCTAssertEqual(Format.remaining(600), "10 phút")
     }
 
     func testStepSymbols() {

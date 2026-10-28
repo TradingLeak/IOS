@@ -8,6 +8,7 @@ final class LocationService: NSObject, ObservableObject {
 
     @Published private(set) var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published private(set) var coordinate: CLLocationCoordinate2D?
+    @Published private(set) var lastLocation: CLLocation?
     @Published private(set) var isLocating = false
     @Published private(set) var lastError: String?
 
@@ -20,6 +21,17 @@ final class LocationService: NSObject, ObservableObject {
     }
 
     var hasLocation: Bool { coordinate != nil }
+
+    /// Tốc độ hiện tại (km/h). `CLLocation.speed` trả -1 khi không xác định.
+    var speedKmh: Double {
+        guard let speed = lastLocation?.speed, speed >= 0 else { return 0 }
+        return speed * 3.6
+    }
+
+    var courseDegrees: Double? {
+        guard let course = lastLocation?.course, course >= 0 else { return nil }
+        return course
+    }
 
     var isAuthorized: Bool {
         authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways
@@ -68,7 +80,10 @@ extension LocationService: CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
+        // Bỏ qua điểm cũ / kém chính xác để số km/h không nhảy loạn.
+        if location.horizontalAccuracy > 80 { return }
         coordinate = location.coordinate
+        lastLocation = location
         isLocating = false
     }
 

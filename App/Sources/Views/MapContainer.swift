@@ -4,10 +4,15 @@ import UIKit
 
 final class PinAnnotation: NSObject, MKAnnotation {
     let coordinate: CLLocationCoordinate2D
-    let title: String?
-    let subtitle: String?
+    var title: String?
+    var subtitle: String?
     let kind: MapPin.Kind
     let pinID: String
+    /// Riêng cho ghim cảnh báo giao thông (biển tốc độ, camera…).
+    var alertKind: AlertKind?
+    var limit: Int?
+    var severity: Int
+    var glyphSymbol: String?
 
     init(pin: MapPin) {
         coordinate = pin.coordinate
@@ -15,11 +20,102 @@ final class PinAnnotation: NSObject, MKAnnotation {
         subtitle = pin.subtitle
         kind = pin.kind
         pinID = pin.id
+        alertKind = pin.alertKind
+        limit = pin.limit
+        severity = pin.severity
+        glyphSymbol = pin.glyphSymbol
         super.init()
+    }
+
+    /// Cùng một điểm ghim (không đổi toạ độ) → cập nhật tại chỗ, không xoá/thêm lại.
+    func isSamePlace(as pin: MapPin) -> Bool {
+        abs(coordinate.latitude - pin.coordinate.latitude) < 1e-6
+            && abs(coordinate.longitude - pin.coordinate.longitude) < 1e-6
+    }
+
+    /// Màu/hình/nhãn có cần vẽ lại không (khoảng cách đổi liên tục, chỉ vẽ lại khi đổi mức).
+    func needsRestyle(as pin: MapPin) -> Bool {
+        severity != pin.severity
+            || limit != pin.limit
+            || alertKind != pin.alertKind
+            || glyphSymbol != pin.glyphSymbol
+            || kind != pin.kind
+    }
+
+    func apply(_ pin: MapPin) {
+        title = pin.title
+        subtitle = pin.subtitle
+        alertKind = pin.alertKind
+        limit = pin.limit
+        severity = pin.severity
+        glyphSymbol = pin.glyphSymbol
     }
 }
 
-/// Bọc MKMapView (Apple Maps) cho SwiftUI: vẽ tuyến, ghim, nhấn giữ để chọn điểm.
+// MARK: - Kiểu vẽ marker cảnh báo
+
+/// Màu + hình cho marker cảnh báo hiển thị **trực tiếp trên bản đồ** (không cần HUD):
+/// mức nguy hiểm quyết định màu, loại cảnh báo quyết định hình, biển tốc độ vẽ số km/h.
+enum AlertMapStyle {
+
+    private static let cache = NSCache<NSString, UIImage>()
+
+    /// 0 xám (tham khảo) · 1 màu theo loại · 2 cam (sắp tới) · 3 đỏ (rất gần / nguy hiểm).
+    static func color(severity: Int, kind: AlertKind?) -> UIColor {
+        switch severity {
+        case 3: return UIColor(red: 0.86, green: 0.16, blue: 0.18, alpha: 1)
+        case 2: return UIColor(red: 0.94, green: 0.48, blue: 0.10, alpha: 1)
+        case 1: return UIColor(kind?.tint ?? AppTheme.warning)
+        default: return UIColor(red: 0.42, green: 0.47, blue: 0.55, alpha: 1)
+        }
+    }
+
+    /// Ảnh glyph: biển tròn có số km/h nếu có giới hạn, ngược lại icon theo loại cảnh báo.
+    static func glyph(for pin: PinAnnotation) -> UIImage? {
+        if let limit = pin.limit,
+           pin.alertKind?.carriesSpeedLimit ?? false,
+           let sign = signImage(limit: limit) {
+            return sign
+        }
+        let symbol = pin.glyphSymbol
+            ?? pin.alertKind?.symbol
+            ?? (pin.kind == .camera ? "exclamationmark.triangle.fill" : "mappin")
+        return UIImage(systemName: symbol)
+    }
+
+    /// Biển P.127 thu nhỏ: nền trắng, viền đỏ, số đen — nhìn ra ngay trên bản đồ.
+    static func signImage(limit: Int, size: CGFloat = 26) -> UIImage? {
+        let key = "sign-\(limit)-\(Int(size))" as NSString
+        if let cached = cache.object(forKey: key) { return cached }
+
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
+        let image = renderer.image { _ in
+            let rect = CGRect(x: 1, y: 1, width: size - 2, height: size - 2)
+            let circle = UIBezierPath(ovalIn: rect)
+            UIColor.white.setFill()
+            circle.fill()
+            UIColor(red: 0.83, green: 0.10, blue: 0.14, alpha: 1).setStroke()
+            circle.lineWidth = max(2.4, size * 0.11)
+            circle.stroke()
+
+            let text = "\(limit)" as NSString
+            let font = UIFont.systemFont(ofSize: size * 0.52, weight: .heavy)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: UIColor.black
+            ]
+            let textSize = text.size(withAttributes: attributes)
+            text.draw(at: CGPoint(x: (size - textSize.width) / 2,
+                                  y: (size - textSize.height) / 2))
+        }
+        .withRenderingMode(.alwaysOriginal)
+        cache.setObject(image, forKey: key)
+        return image
+    }
+}
+
+/// Bọc MKMapView (Apple Maps) cho SwiftUI: vẽ tuyến, ghim, nhấn giữ để chọn điểm,
+/// và **camera dẫn đường thời gian thực** (3D nghiêng + xoay theo hướng đi, hoặc 2D).
 struct MapContainer: UIViewRepresentable {
     var pins: [MapPin] = []
     var polylines: [MapPolyline] = []
@@ -29,6 +125,26 @@ struct MapContainer: UIViewRepresentable {
     var mapTypeIndex: Int = 0
     var showTraffic: Bool = false
     var showPOIs: Bool = true
+
+    // MARK: Camera dẫn đường
+
+    /// Đang dẫn đường → camera bám vị trí thay vì hiển thị toàn tuyến.
+    var isNavigating: Bool = false
+    /// Vị trí hiện tại dùng cho camera.
+    var navigationCoordinate: CLLocationCoordinate2D? = nil
+    /// Hướng đi (độ) để xoay bản đồ.
+    var navigationHeading: Double = 0
+    /// Khoảng cách camera → điểm nhìn (mét), do tốc độ quyết định.
+    var navigationDistance: Double = 600
+    /// `true` = nghiêng 3D, `false` = nhìn từ trên xuống (2D).
+    var navigationPitch3D: Bool = true
+    /// Còn bám theo vị trí hay người dùng đã kéo bản đồ.
+    var isFollowingUser: Bool = true
+    /// Tăng lên khi người dùng bấm "bám lại" để camera nhảy về vị trí.
+    var followToken: Int = 0
+    /// Người dùng vừa kéo bản đồ → tạm dừng bám theo.
+    var onFollowBroken: (() -> Void)? = nil
+
     var onSelectPin: ((MapPin) -> Void)? = nil
     var onLongPress: ((CLLocationCoordinate2D) -> Void)? = nil
 
@@ -42,6 +158,10 @@ struct MapContainer: UIViewRepresentable {
         mapView.showsBuildings = true
         mapView.isRotateEnabled = true
         mapView.isPitchEnabled = true
+        mapView.showsBuildings = true
+        // Cho phép nghiêng sâu như chế độ 3D của app dẫn đường.
+        mapView.cameraZoomRange = MKMapView.CameraZoomRange(minCenterCoordinateDistance: 120,
+                                                           maxCenterCoordinateDistance: 120_000)
         mapView.pointOfInterestFilter = .includingAll
         mapView.setRegion(MapPreset.vietnam.region, animated: false)
 
@@ -67,6 +187,15 @@ struct MapContainer: UIViewRepresentable {
 
         updatePins(mapView, context: context)
         updateOverlays(mapView, context: context)
+        updateNavigationCamera(mapView, context: context)
+        applyIdleCamera(mapView, context: context)
+
+        if isNavigating {
+            // Đang dẫn đường: camera do updateNavigationCamera quản lý, bỏ qua focus/fit.
+            context.coordinator.lastFocusToken = focusToken
+            context.coordinator.lastFitToken = fitToken
+            return
+        }
 
         if context.coordinator.lastFocusToken != focusToken, let coordinate = focusCoordinate {
             context.coordinator.lastFocusToken = focusToken
@@ -86,22 +215,96 @@ struct MapContainer: UIViewRepresentable {
         }
     }
 
+    // MARK: - Camera dẫn đường
+
+    /// Cập nhật camera theo vị trí + hướng đi thật. Chỉ nhảy khi cần thiết để không giật.
+    private func updateNavigationCamera(_ mapView: MKMapView, context: Context) {
+        guard isNavigating, isFollowingUser, let coordinate = navigationCoordinate else { return }
+
+        let heading = navigationPitch3D ? navigationHeading : 0
+        let pitch: CGFloat = navigationPitch3D ? 55 : 0
+        let distance = max(160, min(1_200, navigationDistance))
+
+        guard context.coordinator.shouldUpdateCamera(coordinate: coordinate,
+                                                     heading: heading,
+                                                     distance: distance,
+                                                     pitch: pitch,
+                                                     pitch3D: navigationPitch3D,
+                                                     token: followToken) else { return }
+
+        let camera = MKMapCamera(lookingAtCenter: coordinate,
+                                 fromDistance: distance,
+                                 pitch: pitch,
+                                 heading: heading)
+        mapView.setCamera(camera, animated: true)
+    }
+
+    /// Khi **không dẫn đường**: nút 3D/2D vẫn nghiêng hoặc trả bản đồ về nhìn thẳng.
+    /// Chỉ áp khi người dùng vừa đổi chế độ, để không cướp thao tác nghiêng bằng tay.
+    private func applyIdleCamera(_ mapView: MKMapView, context: Context) {
+        guard !isNavigating else {
+            context.coordinator.lastWasNavigating = true
+            return
+        }
+        if context.coordinator.lastWasNavigating {
+            context.coordinator.lastWasNavigating = false
+            context.coordinator.lastIdlePitch3D = nil
+        }
+        guard context.coordinator.lastIdlePitch3D != navigationPitch3D else { return }
+        context.coordinator.lastIdlePitch3D = navigationPitch3D
+
+        let pitch: CGFloat = navigationPitch3D ? 45 : 0
+        guard abs(mapView.camera.pitch - pitch) > 1 else { return }
+        let camera = MKMapCamera(lookingAtCenter: mapView.centerCoordinate,
+                                 fromDistance: mapView.camera.centerCoordinateDistance,
+                                 pitch: pitch,
+                                 heading: 0)
+        mapView.setCamera(camera, animated: true)
+    }
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
     // MARK: - Pins & overlays
 
+    /// Ghim được cập nhật **tại chỗ**: khi bạn tiến lại gần một biển báo, marker đổi màu
+    /// (xa → cam → đỏ) ngay lập tức mà không xoá/thêm lại cả bản đồ (không nháy, không mất gom cụm).
     private func updatePins(_ mapView: MKMapView, context: Context) {
-        let signature = pins
-            .map { "\($0.id)|\($0.kind.rawValue)|\(String(format: "%.5f", $0.coordinate.latitude))|\(String(format: "%.5f", $0.coordinate.longitude))" }
-            .joined(separator: ";")
-        guard signature != context.coordinator.lastPinSignature else { return }
-        context.coordinator.lastPinSignature = signature
+        let wanted = Set(pins.map(\.id))
+        let stale = mapView.annotations
+            .compactMap { $0 as? PinAnnotation }
+            .filter { !wanted.contains($0.pinID) }
+        if !stale.isEmpty {
+            mapView.removeAnnotations(stale)
+        }
 
-        let existing = mapView.annotations.compactMap { $0 as? PinAnnotation }
-        mapView.removeAnnotations(existing)
-        mapView.addAnnotations(pins.map { PinAnnotation(pin: $0) })
+        var index: [String: PinAnnotation] = [:]
+        for annotation in mapView.annotations.compactMap({ $0 as? PinAnnotation }) {
+            index[annotation.pinID] = annotation
+        }
+
+        var toAdd: [PinAnnotation] = []
+        for pin in pins {
+            guard let annotation = index[pin.id] else {
+                toAdd.append(PinAnnotation(pin: pin))
+                continue
+            }
+            guard annotation.isSamePlace(as: pin) else {
+                // Toạ độ đổi (hiếm) → thay ghim.
+                mapView.removeAnnotation(annotation)
+                toAdd.append(PinAnnotation(pin: pin))
+                continue
+            }
+            let restyle = annotation.needsRestyle(as: pin)
+            annotation.apply(pin)
+            if restyle, let view = mapView.view(for: annotation) as? MKMarkerAnnotationView {
+                context.coordinator.style(view, with: annotation)
+            }
+        }
+        if !toAdd.isEmpty {
+            mapView.addAnnotations(toAdd)
+        }
     }
 
     private func updateOverlays(_ mapView: MKMapView, context: Context) {
@@ -154,11 +357,75 @@ struct MapContainer: UIViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var parent: MapContainer
-        var lastPinSignature = ""
         var lastOverlaySignature = ""
         var lastFocusToken = -1
         var lastFitToken = -1
         var lastPOISetting: Bool?
+
+        // Góc nhìn khi chỉ xem bản đồ (2D / 3D đổi bất cứ lúc nào)
+        var lastIdlePitch3D: Bool?
+        var lastWasNavigating = false
+
+        // Camera dẫn đường
+        private var lastCameraCoordinate: CLLocationCoordinate2D?
+        private var lastCameraHeading: Double = 0
+        private var lastCameraDistance: Double = 0
+        private var lastCameraPitch: CGFloat = -1
+        private var lastCameraToken = -1
+
+        /// Giới hạn tần suất cập nhật camera: bỏ qua thay đổi quá nhỏ.
+        func shouldUpdateCamera(coordinate: CLLocationCoordinate2D,
+                                heading: Double,
+                                distance: Double,
+                                pitch: CGFloat,
+                                pitch3D: Bool,
+                                token: Int) -> Bool {
+            defer {
+                lastCameraCoordinate = coordinate
+                lastCameraHeading = heading
+                lastCameraDistance = distance
+                lastCameraPitch = pitch
+                lastCameraToken = token
+            }
+
+            if token != lastCameraToken { return true }
+            if abs(pitch - lastCameraPitch) > 0.5 { return true }
+            guard let previous = lastCameraCoordinate else { return true }
+
+            let moved = CLLocation(latitude: previous.latitude, longitude: previous.longitude)
+                .distance(from: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+            if moved > 5 { return true }
+            if pitch3D, abs(Self.angleDelta(lastCameraHeading, heading)) > 4 { return true }
+            if abs(distance - lastCameraDistance) > max(40, lastCameraDistance * 0.15) { return true }
+            return false
+        }
+
+        static func angleDelta(_ a: Double, _ b: Double) -> Double {
+            var delta = b - a
+            while delta > 180 { delta -= 360 }
+            while delta < -180 { delta += 360 }
+            return delta
+        }
+
+        /// Người dùng đang kéo / zoom bản đồ bằng tay hay không.
+        static func isUserInteracting(_ mapView: MKMapView) -> Bool {
+            let recognizers = (mapView.subviews.first?.gestureRecognizers ?? []) + (mapView.gestureRecognizers ?? [])
+            for recognizer in recognizers {
+                switch recognizer.state {
+                case .began, .changed:
+                    return true
+                default:
+                    continue
+                }
+            }
+            return false
+        }
+
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            guard parent.isNavigating, parent.isFollowingUser else { return }
+            guard Self.isUserInteracting(mapView) else { return }
+            parent.onFollowBroken?()
+        }
 
         init(_ parent: MapContainer) {
             self.parent = parent
@@ -189,6 +456,16 @@ struct MapContainer: UIViewRepresentable {
             view.annotation = annotation
             view.canShowCallout = true
             view.animatesWhenAdded = true
+            style(view, with: pin)
+            return view
+        }
+
+        /// Áp màu, hình, độ ưu tiên cho marker — gọi cả khi tạo mới và khi cập nhật tại chỗ.
+        func style(_ view: MKMarkerAnnotationView, with pin: PinAnnotation) {
+            view.transform = .identity
+            view.titleVisibility = .hidden
+            view.subtitleVisibility = .hidden
+            view.glyphTintColor = UIColor.white
             view.displayPriority = pin.kind == .poi ? .defaultLow : .required
             view.clusteringIdentifier = pin.kind == .poi ? "poi" : nil
 
@@ -208,8 +485,20 @@ struct MapContainer: UIViewRepresentable {
             case .poi:
                 view.markerTintColor = UIColor(AppTheme.warning)
                 view.glyphImage = UIImage(systemName: "mappin")
+            case .camera:
+                // Biển báo / camera hiện ngay trên bản đồ: màu theo mức nguy hiểm,
+                // hình theo loại, số km/h nếu là biển giới hạn tốc độ.
+                view.markerTintColor = AlertMapStyle.color(severity: pin.severity, kind: pin.alertKind)
+                view.glyphImage = AlertMapStyle.glyph(for: pin)
+                view.glyphTintColor = pin.limit == nil ? UIColor.white : nil
+                view.displayPriority = pin.severity >= 2 ? .required : .defaultHigh
+                view.clusteringIdentifier = pin.severity >= 3 ? nil : "alert"
+                view.titleVisibility = .adaptive
+                view.subtitleVisibility = .adaptive
+                view.transform = pin.severity >= 3
+                    ? CGAffineTransform(scaleX: 1.18, y: 1.18)
+                    : .identity
             }
-            return view
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -245,7 +534,12 @@ struct MapContainer: UIViewRepresentable {
                                        coordinate: pin.coordinate,
                                        title: pin.title ?? "",
                                        subtitle: pin.subtitle ?? "",
-                                       kind: pin.kind))
+                                       kind: pin.kind,
+                                       alertKind: pin.alertKind,
+                                       limit: pin.limit,
+                                       severity: pin.severity,
+                                       distance: nil,
+                                       glyphSymbol: pin.glyphSymbol))
         }
     }
 }

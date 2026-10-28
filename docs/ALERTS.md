@@ -1,0 +1,266 @@
+# Cảnh báo giao thông & dữ liệu tốc độ / camera
+
+Tài liệu này mô tả tính năng cảnh báo của **VietMap 2.0**: nguồn dữ liệu, định dạng JSON,
+cách nhập/xuất, cách app chọn giới hạn tốc độ, và những giới hạn cần biết.
+
+---
+
+## 1. App cảnh báo những gì?
+
+| Nhóm | `kind` | Ghi chú |
+|---|---|---|
+| Camera bắn tốc độ | `speed_camera` | Cảnh báo theo chiều đi nếu có `bearing` |
+| Camera đèn đỏ | `red_light_camera` | |
+| Camera giám sát | `surveillance_camera` | Camera giao thông (không phải máy bắn tốc độ) |
+| Biển giới hạn tốc độ | `speed_sign` | Bắt buộc có `speedLimit` |
+| Vùng giới hạn tốc độ | `speed_zone` | Bắt buộc có `speedLimit`, nên có `length` (mét) |
+| Khu đông dân cư (R.420/R.421) | `residential_zone` | Có thể kèm `speedLimit` |
+| Cấm vượt (P.125/DP.133) | `no_overtake` | |
+| Trạm thu phí | `toll_station` | |
+| Khu vực trường học | `school_zone` | |
+| Điểm kiểm tra tốc độ | `checkpoint` | |
+| Sự cố / ngập | `hazard` | |
+| Đèn tín hiệu giao thông | `traffic_light` | Cảnh báo ngã tư / đèn đỏ phía trước |
+| Khác | `other` | Mọi `kind` lạ đều được đọc thành `other` |
+
+Mỗi cảnh báo được cảnh báo theo 3 kênh:
+
+1. **Trên bản đồ**: ghim camera/cảnh báo dọc tuyến (bật/tắt trong Cài đặt).
+2. **Trên bản đồ + thanh trạng thái**: marker biển báo/camera, băng cảnh báo sắp tới và biển giới hạn (không cần HUD).
+3. **Giọng nói tiếng Việt** (AVSpeechSynthesizer, chạy offline).
+
+---
+
+## 2. Ngưỡng cảnh báo động `D_warn`
+
+Công thức lấy từ các app dẫn đường Việt Nam (VietHUD…), tính theo tốc độ hiện tại:
+
+```
+D_warn = clamp(v_kmh × 3,0 m; 150 m; 500 m)
+```
+
+- Đi 40 km/h → 150 m (sàn).
+- Đi 80 km/h → 240 m.
+- Đi 170 km/h trở lên → 500 m (trần).
+
+Cảnh báo chỉ đọc lên khi còn cách ≤ `D_warn` và mỗi cảnh báo có **cooldown 60 giây**
+(cảnh báo vượt tốc độ: 45 giây) để không nói lặp.
+
+---
+
+## 3. App lấy giới hạn tốc độ từ đâu?
+
+Theo thứ tự ưu tiên:
+
+1. **Vùng giới hạn** (`speed_zone`) đang chứa vị trí hiện tại.
+2. **Biển báo** (`speed_sign`) hoặc **khu đông dân cư** đã đi qua gần nhất.
+3. **Bảng mặc định theo Thông tư 38/2024/TT-BGTVT** (hiệu lực 01/01/2025), suy ra từ tên
+   đường trong chỉ dẫn của Apple Maps:
+
+| Xe | Trong khu đông dân cư (đường đôi / ≥2 làn) | (2 chiều / 1 làn) | Ngoài khu đông dân cư (đôi) | (2 chiều) |
+|---|---|---|---|---|
+| Xe mô tô / xe máy trên 50 cm³ | 60 | 50 | 70 | 60 |
+| Xe gắn máy ≤ 50 cm³, xe đạp điện | 40 | 40 | 40 | 40 |
+| Ô tô con | 60 | 50 | 90 | 80 |
+| Đường cao tốc (ô tô) | — | — | 120 | 120 |
+| Xe máy trên cao tốc | **không được phép đi** | | | |
+
+> Bảng này là **giá trị luật định mặc định**, không thay thế biển báo thực tế. App hiển thị
+> rõ nguồn: `Biển báo`, `Vùng giới hạn`, `Ước tính TT 38/2024`.
+
+Chọn nhóm xe ở **Cài đặt → Dẫn đường xe máy → Nhóm xe hai bánh**:
+
+- **Xe mô tô** (mặc định): áp bảng 60/50 – 70/60 như trên.
+- **Xe gắn máy ≤ 50 cm³ / xe đạp điện**: luôn **40 km/h** (Điều 8 Thông tư 38/2024),
+  không áp dụng mức 60/70 kể cả trên đường đôi hay quốc lộ.
+
+Nhận diện loại đường từ tên: `cao tốc / CT` → cao tốc; `quốc lộ / QL` → quốc lộ;
+`tỉnh lộ / ĐT` → tỉnh lộ; `phố / đường` → đường đô thị; `hẻm / ngõ / kiệt` → hẻm.
+
+---
+
+## 4. Nguồn dữ liệu
+
+### 4.1 Camera giao thông TP.HCM (có sẵn trong app)
+
+- **795 camera** giám sát giao thông, cập nhật 2026-10-17.
+- Nguồn: danh mục cộng đồng [`MeoPaoo/camera-giao-thong-data`](https://github.com/MeoPaoo/camera-giao-thong-data)
+  (giấy phép MIT cho danh mục, tác giả gốc `tranlong5252`), đồng bộ từ
+  [Cổng thông tin giao thông TP.HCM](https://giaothong.hochiminhcity.gov.vn/Map.aspx).
+- App chỉ lưu **tên + toạ độ + URL ảnh**, không đóng gói ảnh/video. Ảnh trong app được tải
+  trực tiếp từ máy chủ của cổng.
+- Đây là **camera giám sát**, không phải danh sách máy bắn tốc độ của cơ quan chức năng.
+
+### 4.2 OpenStreetMap — pipeline tự động (ODbL)
+
+`scripts/fetch-osm-alerts.py` tải dữ liệu toàn quốc từ Overpass API rồi
+`scripts/build-alert-data.py` gộp vào `App/Resources/Data/vn_alerts.json`:
+
+| Tag OSM | Loại sinh ra | Ghi chú |
+|---|---|---|
+| `way[maxspeed]` trên `motorway/trunk/primary/secondary` | `speed_sign` | lấy mẫu mỗi 1 km, có `bearing` theo chiều way |
+| `node[highway=speed_camera]`, `node[enforcement=speed]` | `speed_camera` | |
+| `node[amenity=school]` | `school_zone` | |
+| `way[landuse=residential]` (tâm way) | `residential_zone` | giới hạn 60 km/h theo TT 38/2024 |
+| `node[railway=level_crossing]` | `hazard` | đường ngang tàu hoả |
+
+Chạy tay:
+
+```bash
+python3 scripts/fetch-osm-alerts.py --self-test     # kiểm tra bộ phân tích, không cần mạng
+python3 scripts/fetch-osm-alerts.py                 # tải toàn quốc (18 ô 3°×3°)
+python3 scripts/build-alert-data.py                 # gộp + kiểm tra
+```
+
+Bản tải mặc định dùng `out center` (mỗi way một điểm ở tâm) nên cả nước chạy trong ~15 phút.
+Muốn dày hơn thì thêm `--geometry` (rải điểm mỗi `--spacing` mét) — chậm hơn nhiều.
+
+Khu dân cư (`landuse=residential`) là phần nặng nhất nên **tách riêng**, chạy bù khi cần:
+
+```bash
+python3 scripts/fetch-osm-alerts.py --residential-only --tile 3   # gộp thêm vào tệp đã có
+python3 scripts/build-alert-data.py
+```
+
+Workflow **Cập nhật dữ liệu biển báo OSM** (`.github/workflows/update-osm-alerts.yml`) chạy
+việc này tự động mỗi Chủ nhật và commit kết quả; build IPA chỉ đọc tệp đã commit nên nếu
+Overpass lỗi thì bản build vẫn xanh với dữ liệu cũ.
+
+Dữ liệu © OpenStreetMap contributors, **ODbL 1.0**. OSM ở Việt Nam chỉ có `maxspeed` ở
+những đoạn đã được vẽ biển (cao tốc ~89%, quốc lộ ~20%, đường phố rất ít) — chỗ thiếu,
+app **suy luận theo TT 38/2024** lúc chạy và hiển thị nguồn là “Ước tính TT 38/2024”
+(xem mục 3), không giả làm biển báo thật.
+
+### 4.3 Bộ dữ liệu SpeedMap (VietHUD) — 82.608 điểm
+
+Nhúng sẵn trong app từ 3.1, chuyển từ `cameras.bin` + `signs.bin` của
+[`911273/VietHUD/speedmap`](https://github.com/911273/VietHUD/tree/main/speedmap) bằng
+`scripts/import-viethud-speedmap.py` (định dạng: xem [DATA-SPEEDMAP.md](DATA-SPEEDMAP.md)):
+
+| Loại | Số điểm | Ghi chú |
+|---|---|---|
+| `speed_sign` | 25.887 | biển P.127 có giá trị km/h |
+| `residential_zone` | 25.102 | R.420/R.421, mặc định 60 km/h |
+| `traffic_light` | 15.148 | đèn tín hiệu / ngã tư |
+| `hazard` | 7.784 | điểm nguy hiểm, đường hầm, trạm dừng |
+| `speed_camera` | 7.144 | camera bắn tốc độ + phạt nguội |
+| `no_overtake` | 1.543 | P.125 cấm vượt |
+
+Độ chính xác đã đo trên 885 camera và 6.000 biển ở Hà Nội so với mạng đường OSM:
+**trung vị 3 m, 99% trong 15 m**.
+
+> ⚠️ **Giấy phép:** tài liệu của VietHUD ghi `cameras.bin` / `signs.bin` được trích xuất từ
+> ứng dụng **WYN**, và repo đó không có tệp LICENSE. Repo này nhúng theo yêu cầu của chủ dự án
+> (xem `docs/DATA-SPEEDMAP.md` mục 4); nếu bạn phát hành lại, hãy tự xác nhận quyền sử dụng hoặc
+> bỏ `data/imports/viethud-speedmap.json` rồi chạy lại `build-alert-data.py`.
+
+### 4.3b Tải theo tuyến (trong app, tuỳ chọn)
+
+Trong **Cảnh báo → Dữ liệu → Tải biển tốc độ từ OpenStreetMap**, app gọi Overpass cho khu
+vực quanh tuyến đang chọn (`speed_camera`, `enforcement=speed`, `maxspeed`). Phù hợp khi
+cần dữ liệu mới nhất cho một cung đường cụ thể mà chưa muốn chờ bản cập nhật tuần.
+
+### 4.3 Dữ liệu bạn tự nhập
+
+Xem mục 5. Bạn có thể nhập tay biển báo, vùng tốc độ, camera ở địa phương mình.
+
+---
+
+## 5. Định dạng JSON
+
+Một tệp có thể chứa toàn bộ hoặc một phần các trường sau:
+
+```json
+{
+  "schema": 2,
+  "version": "2.0.0",
+  "sources": [
+    {"id": "cua-toi", "name": "Dữ liệu tổ dân phố", "license": "CC0"}
+  ],
+  "alerts": [
+    {
+      "id": "zone-cau-giay-1",
+      "kind": "speed_zone",
+      "lat": 21.0333,
+      "lng": 105.8000,
+      "speedLimit": 50,
+      "length": 800,
+      "bearing": 180,
+      "road": "Xuân Thuỷ",
+      "name": "Vùng 50 km/h Xuân Thuỷ",
+      "detail": "Từ ngã tư đến cầu",
+      "confidence": 0.8,
+      "source": "cua-toi"
+    },
+    {
+      "id": "cam-nga-tu-kim-ma",
+      "kind": "speed_camera",
+      "lat": 21.0310,
+      "lng": 105.8020,
+      "bearing": 270,
+      "name": "Camera tốc độ Kim Mã"
+    }
+  ]
+}
+```
+
+### Quy tắc trường
+
+| Trường | Bắt buộc | Ý nghĩa |
+|---|---|---|
+| `id` | ✅ | Duy nhất. Trùng id → mục mới thay mục cũ |
+| `kind` | ✅ | Xem bảng ở mục 1 |
+| `lat`, `lng` | ✅ | WGS-84, phải nằm trong Việt Nam (8–24°B, 102–110,5°Đ) |
+| `speedLimit` | với `speed_sign` / `speed_zone` | km/h, một trong 20…120 |
+| `length` | nên có với `speed_zone` | Chiều dài vùng (m), vùng bắt đầu tại `lat/lng` và kéo dài **theo chiều đi** |
+| `bearing` | không | Hướng áp dụng 0–360° (0 = Bắc). Bỏ trống = cả hai chiều |
+| `road`, `name`, `detail` | không | Hiển thị trong danh sách / nhãn trên bản đồ |
+| `imageUrl` | không | Ảnh minh hoạ (chỉ `http/https`) |
+| `confidence` | không | 0–1, hiện trong chi tiết |
+| `source` | không | Khoá nguồn, hiển thị ở phần “Nguồn dữ liệu” |
+
+Giá trị số có thể viết dạng chuỗi (`"speedLimit": "50"` vẫn đọc được), dấu phẩy thập phân
+cũng được hiểu.
+
+Ví dụ đầy đủ: [`data/curated/speed-zones.example.json`](../data/curated/speed-zones.example.json).
+
+---
+
+## 6. Nhập / xuất / tải dữ liệu
+
+- **Nhập**: mở app → nút **camera** trên bản đồ (hoặc Cài đặt → Cảnh báo → *Quản lý dữ liệu*) →
+  tab **Dữ liệu** → *Nhập JSON* → chọn tệp trong Files/iCloud.
+  Dữ liệu được lưu vào `Documents/imported-alerts.json` của app (không nằm trong bundle).
+- **Xuất**: cùng màn hình → *Xuất toàn bộ dữ liệu* → AirDrop/Files.
+- **Xoá dữ liệu đã nhập**: chỉ xoá phần bạn nhập/OSM, giữ bộ camera có sẵn.
+- Dòng dữ liệu hỏng (toạ độ sai) bị bỏ qua và app báo số dòng đã bỏ.
+
+---
+
+## 7. Sinh lại bộ dữ liệu nhúng
+
+```bash
+python3 scripts/build-alert-data.py           # gộp data/sources + data/curated → App/Resources/Data/vn_alerts.json
+python3 scripts/build-alert-data.py --check   # chỉ kiểm tra (CI chạy bước này)
+```
+
+Quy trình cập nhật camera TP.HCM: tải `docs/cameras.json` mới từ
+`MeoPaoo/camera-giao-thong-data` → ghi đè `data/sources/cameras-hcm.json` → chạy script trên
+→ commit cả hai tệp.
+
+Script sẽ **dừng và không ghi** nếu: thiếu < 300 camera, id trùng, toạ độ ngoài Việt Nam,
+`speedLimit` lạ, hoặc `speed_zone` thiếu `speedLimit`.
+
+---
+
+## 8. Giới hạn & pháp lý
+
+- Ứng dụng **không** phải thiết bị đo tốc độ. Giới hạn hiển thị có thể lệch so với biển báo
+  thực tế; người lái luôn phải tuân theo biển báo và hiệu lệnh của CSGT.
+- Việc cảnh báo vị trí camera không bị pháp luật Việt Nam cấm; app hiển thị dòng
+  “dữ liệu tham khảo” trong phần Nguồn dữ liệu.
+- Toàn bộ tính toán cảnh báo chạy **trên máy**, không gửi vị trí đi đâu — app không có
+  máy chủ riêng và không có tính năng nào gửi dữ liệu ra ngoài.
+- Mức phạt tham khảo (Nghị định 168/2024/NĐ-CP, xe máy): vượt 5–10 km/h phạt 800.000 –
+  1.000.000 đ; 10–20 km/h phạt 4–6 triệu và tước GPLX 1–3 tháng; trên 20 km/h phạt 6–8
+  triệu, tước GPLX 1–3 tháng.

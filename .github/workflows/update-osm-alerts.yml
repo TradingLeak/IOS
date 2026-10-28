@@ -1,0 +1,78 @@
+name: Cập nhật dữ liệu biển báo OSM
+
+# Tải biển giới hạn tốc độ, camera, trường học, khu dân cư từ OpenStreetMap (Overpass)
+# rồi gộp vào App/Resources/Data/vn_alerts.json. Chạy tay hoặc tự động mỗi tuần.
+#
+# Tách khỏi workflow build: nếu Overpass lỗi thì bản build vẫn xanh với dữ liệu cũ.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_alerts:
+        description: "Giới hạn tổng số mục (mặc định 40000)"
+        default: "40000"
+        required: false
+  schedule:
+    - cron: "0 18 * * 0"   # Chủ nhật 01:00 giờ Việt Nam
+
+permissions:
+  contents: write
+
+concurrency:
+  group: osm-alerts
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Kiểm tra bộ phân tích (offline)
+        run: python3 scripts/fetch-osm-alerts.py --self-test
+
+      - name: Tải dữ liệu OpenStreetMap
+        env:
+          MAX_ALERTS: ${{ inputs.max_alerts || '40000' }}
+        run: |
+          python3 scripts/fetch-osm-alerts.py --tile 3 --max-alerts 40000 \
+            --out data/curated/osm-vn.json
+
+      - name: Gộp vào bộ dữ liệu của app
+        run: python3 scripts/build-alert-data.py --with-imports
+
+      - name: Kiểm tra dữ liệu sau khi gộp
+        run: python3 scripts/build-alert-data.py --check
+
+      - name: Commit nếu có thay đổi
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/curated/osm-vn.json App/Resources/Data/vn_alerts.json
+          if git diff --cached --quiet; then
+            echo "Không có thay đổi dữ liệu."
+            exit 0
+          fi
+          COUNT=$(python3 -c "import json;print(len(json.load(open('App/Resources/Data/vn_alerts.json'))['alerts']))")
+          git commit -m "data: cập nhật biển báo/camera từ OpenStreetMap (${COUNT} điểm)"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Tóm tắt
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          path = "App/Resources/Data/vn_alerts.json"
+          if not os.path.exists(path):
+              print("Chưa có dữ liệu.")
+              raise SystemExit
+          data = json.load(open(path, encoding="utf-8"))
+          print(f"### {len(data['alerts'])} điểm · {os.path.getsize(path)/1024:.0f} KB")
+          print("| Loại | Số điểm |")
+          print("|---|---|")
+          for kind, count in sorted((data.get("counts") or {}).items()):
+              print(f"| {kind} | {count} |")
+          PY

@@ -2,7 +2,7 @@
 
 ## Build / CI
 
-### `Signing for "HelloIPA" requires a development team`
+### `Signing for "VietMap" requires a development team`
 Bạn đang build mà không truyền đủ cờ tắt ký.
 
 ```bash
@@ -22,7 +22,7 @@ brew install xcodegen
 Scheme trong workflow/lệnh không khớp. Kiểm tra:
 
 ```bash
-xcodebuild -list -project HelloIPA.xcodeproj
+xcodebuild -list -project VietMap.xcodeproj
 ```
 
 Sửa `SCHEME` trong workflow hoặc truyền `--scheme`.
@@ -132,7 +132,7 @@ Apple ID miễn phí giới hạn 3 app + 10 App ID/tuần. Gỡ bớt app hoặ
 ```bash
 make distclean          # xoá build/, dist/, project đã sinh
 xcodegen generate       # sinh lại project
-rm -rf ~/Library/Developer/Xcode/DerivedData/HelloIPA-*
+rm -rf ~/Library/Developer/Xcode/DerivedData/VietMap-*
 ./scripts/make-ipa.sh --verbose
 ```
 
@@ -160,7 +160,7 @@ xcrun --sdk iphoneos --show-sdk-version
 
 ---
 
-# Phần 2 — Lỗi riêng của app bản đồ (MapKit + AI)
+# Phần 2 — Lỗi riêng của app bản đồ (MapKit)
 
 ## Bản đồ
 
@@ -188,39 +188,41 @@ xcrun --sdk iphoneos --show-sdk-version
 Cử chỉ cần giữ ~0.4 giây. Nếu đang di chuyển bản đồ, nhả tay rồi thử lại (app cho phép
 nhận diện đồng thời với cử chỉ pan).
 
-## AI
+## Dẫn đường & bản đồ 3D
 
-### "Chưa cấu hình AI" / nút gửi câu lệnh báo lỗi
-Đây là trạng thái bình thường khi chưa có API key: app vẫn hiểu các câu cơ bản bằng bộ
-phân tích offline (“từ A đến B”, “đi bộ”, “xe buýt”, “tránh đường đông”, “ghé X”).
-Muốn AI hiểu câu tự nhiên hơn: Cài đặt → dán API key → **Kiểm tra kết nối**.
+### Bản đồ không xoay theo hướng đi
+- Thiết bị chưa báo hướng (`CLLocation.course` = -1), thường gặp khi đứng yên hoặc trong nhà.
+- Đi thêm vài chục mét. Kiểm tra la bàn bằng app **La bàn** của iOS.
+- Đang ở chế độ **2D**? Bấm nút `view.3d` bên phải hoặc bật trong **Cài đặt → Bản đồ**.
 
-### HTTP 401 / 403 — API key bị từ chối
-- Key sai, hết hạn, hoặc thuộc tài khoản khác với base URL.
-- Với ckey.vn: key tạo ở trang cá nhân; base URL phải là `https://api.xah.io/v1`.
-- Kiểm tra không có khoảng trắng/dấu xuống dòng khi dán key.
+### Kéo bản đồ xong không bám lại
+Đây là chủ ý (giống Apple Maps): kéo tay sẽ tạm dừng bám theo. Bấm nút **mũi tên**
+(`location.north.fill`) hiện ở cột nút bên phải để về lại vị trí.
 
-### HTTP 404 — Không tìm thấy endpoint
-- Base URL thường phải có `/v1` (app tự thêm `/chat/completions`).
-- Nếu bạn dán cả URL `.../v1/chat/completions` app cũng chấp nhận.
-- Kiểm tra tên model có đúng trong danh sách của nhà cung cấp không.
+### Camera nhảy / giật
+- GPS trong hầm, trong nhà hoặc giữa nhà cao tầng → sai số lớn. App đã bỏ qua điểm có
+  `horizontalAccuracy > 80 m` và làm mượt hướng đi.
+- Bật Wi-Fi (định vị phụ), hoặc chuyển 2D cho dễ nhìn.
 
-### HTTP 429 — Hết hạn mức / gọi quá nhanh
-Đợi ít phút, hoặc kiểm tra số dư tài khoản AI. App tự chuyển sang parser offline để bạn
-vẫn tìm được tuyến.
+### Không thấy giờ tới nơi
+Chỉ hiện khi tuyến có thời lượng hợp lệ (Apple Maps trả về). Tuyến bị lỗi/hết quota VietMap
+vẫn có ETA ước lượng; nếu không có, banner sẽ bỏ trống phần giờ.
 
-### AI trả lời lan man, không phải JSON
-App tự gửi lại một lần với yêu cầu “chỉ trả JSON”; nếu vẫn lỗi sẽ dùng parser offline.
-Giảm `temperature` về 0–0.2 trong Cài đặt để model ổn định hơn. Model nhỏ (< 7B) đôi khi
-không theo nổi schema — dùng model lớn hơn.
+### Tốn pin khi dẫn đường
+GPS độ chính xác cao + màn hình sáng + dựng 3D đều tốn pin. Giảm bằng cách: dùng 2D, tắt
+chế độ 2D khi không cần, khoá màn hình khi không nhìn (app không chạy nền liên tục).
 
-### AI tìm ra địa danh nhưng sai chỗ
-AI chỉ trả **tên**, còn toạ độ do Apple Maps tra. Nếu tên trùng (ví dụ “Hồ Tây” ở tỉnh
-khác), hãy nói rõ hơn: “Hồ Tây, Hà Nội”.
+## Dữ liệu & quyền riêng tư
 
-### Muốn dùng model chạy trên máy (Ollama) trong LAN
-Base URL `http://<ip-máy>:11434/v1`, model `qwen2.5`, API key nhập chuỗi bất kỳ (Ollama
-không kiểm tra). iPhone và máy tính phải cùng Wi-Fi.
+### App có gửi dữ liệu đi đâu không?
+Không. Không có máy chủ của app, không telemetry, không tài khoản.
+- Dữ liệu cảnh báo nhúng sẵn trong app.
+- OpenStreetMap chỉ tải khi bạn bấm "Tải từ OpenStreetMap".
+- Ảnh camera TP.HCM tải trực tiếp từ cổng thông tin của thành phố.
+
+### Nhập JSON cảnh báo bị báo lỗi
+Xem [docs/ALERTS.md](ALERTS.md) mục 5 — mỗi cảnh báo cần `kind`, `lat`, `lng`; `speed_zone`
+và `speed_sign` bắt buộc có `speedLimit`.
 
 ## CI / build
 
@@ -229,9 +231,79 @@ không kiểm tra). iPhone và máy tính phải cùng Wi-Fi.
 số phiên bản SDK. Code hiện tại gán qua `String?` để tương thích cả hai.
 
 ### Job `unit-tests` đỏ nhưng job `build` xanh
-App vẫn có IPA dùng được; lỗi nằm ở test logic (parser/format/AI client). Xem
+App vẫn có IPA dùng được; lỗi nằm ở test logic (cảnh báo/tuyến/format). Xem
 *Annotations* của job để biết test nào fail.
 
 ### Muốn bỏ test cho nhanh
 `Run workflow` → tắt `run_tests`, hoặc push với commit chỉ sửa docs (workflow vẫn chạy
 nhưng bạn có thể cancel job test).
+
+---
+
+## Phần 3 — Lỗi riêng của cảnh báo tốc độ / camera / xe máy
+
+### Không thấy giới hạn tốc độ (thanh tốc độ hiện "chưa xác định")
+
+- Đây là hành vi đúng khi: đường chưa có biển/vùng trong dữ liệu **và** tên đường trong chỉ
+  dẫn không nhận diện được loại đường (xem `SpeedLimitRules.classify`).
+- Cách xử lý: nhập JSON vùng tốc độ cho địa phương bạn (`docs/ALERTS.md` mục 5–6), hoặc tải
+  thêm từ OpenStreetMap khi đang có tuyến.
+- Kiểm tra nhanh dữ liệu: `python3 scripts/build-alert-data.py --check`.
+
+### Bấm "Tải biển tốc độ từ OpenStreetMap" bị lỗi/timeout
+
+- Overpass API là dịch vụ công cộng, hay quá tải. App chỉ tải quanh tuyến trong hộp
+  0,6° × 0,6° (~65 km) và timeout 30 giây.
+- Đứng ở Việt Nam tải có thể chậm hơn; thử lại sau vài phút hoặc dùng VPN.
+- Lỗi `HTTP 429` = bị giới hạn tần suất, chờ 5–10 phút.
+
+### Tuyến xe máy vẫn đi vào cao tốc
+
+- Chưa nhập API key VietMap → app đang ước lượng từ Apple Maps. Tên đường trong chỉ dẫn
+  không chứa chữ "cao tốc" thì không lọc được.
+- Nhập key VietMap trong Cài đặt → **Dẫn đường xe máy** để dùng hồ sơ `vehicle=motorcycle`
+  thật. Nếu VietMap trả lỗi, app tự quay về Apple Maps và ghi chú lý do trên thẻ tuyến.
+
+### VietMap trả về `HTTP 401/403`
+
+- Key sai/hết hạn hoặc chưa bật dịch vụ Route v4 trong console VietMap.
+- Kiểm tra key trong Cài đặt (nút con mắt để xem lại), rồi thử trên
+  <https://tools.vietmap.vn/playground/route>.
+
+### Giọng đọc cảnh báo không kêu
+
+- iOS → Cài đặt → **Âm thanh & Cảm ứng** → kiểm tra âm lượng; tắt chế độ im lặng thì
+  AVSpeechSynthesizer vẫn đọc (audio session `.ambient`).
+- Trong app: Cài đặt → **Cảnh báo trên bản đồ** → *Đọc cảnh báo bằng giọng tiếng Việt*.
+- Nếu đang mở nhạc, app dùng `.duckOthers` nên nhạc sẽ nhỏ lại khi đọc cảnh báo.
+
+## 🤖 Trợ lý AI (2.2)
+
+### Bấm nút `sparkles` mà AI không trả lời
+
+- Kiểm tra **Cài đặt → Trợ lý AI → Kiểm tra kết nối**; thông báo lỗi hiện ngay dưới nút.
+- `HTTP 401/403` → key sai hoặc đã hết hạn. Dán lại key, chú ý không dính dấu cách.
+- `HTTP 404` → base URL thiếu `/v1` (ví dụ `https://api.xah.io` thay vì `https://api.xah.io/v1`).
+- `HTTP 429` → hết hạn mức miễn phí, chờ vài phút hoặc đổi nhà cung cấp.
+- Không có mạng → app tự dùng bộ phân tích tiếng Việt trên máy; câu trả lời sẽ ghi rõ
+  *“Đang dùng bộ phân tích trên máy”*.
+
+### AI trả lời nhưng không ra tuyến
+
+- Câu cần có **điểm đến** rõ ràng: “đi xe máy từ Cầu Giấy **đến Hồ Hoàn Kiếm**”.
+- Tên quá chung (“quán cà phê”) → ghi thêm quận/thành phố.
+- Xem bong bóng chat: nếu AI hỏi lại, trả lời ngay trong ô nhập.
+
+### Dùng Ollama / LM Studio trong LAN không kết nối được
+
+- Base URL phải là `http://<IP-máy-tính>:11434/v1` (Ollama) hoặc `:1234/v1` (LM Studio)
+  và **cùng Wi-Fi** với iPhone.
+- Lần đầu iOS sẽ hỏi quyền **Mạng nội bộ** → bấm *Cho phép*. Nếu đã lỡ từ chối:
+  iOS → Cài đặt → **Bản đồ Việt Nam** → bật *Mạng nội bộ*.
+- Kiểm tra trên máy tính: `curl http://<IP>:11434/v1/models`.
+
+### Tốn pin / nóng máy khi bật AI
+
+- AI chỉ gọi khi bạn gửi câu lệnh hoặc khi có ≥ 2 phương án tuyến cần chọn.
+- Tắt **Cho AI can thiệp sâu** nếu chỉ muốn AI đọc câu lệnh.
+- Không có nhu cầu AI: tắt **Bật trợ lý AI** — mọi tính năng khác vẫn chạy offline.

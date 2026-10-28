@@ -4,8 +4,9 @@ import CoreLocation
 
 // MARK: - Chế độ di chuyển
 
-enum TravelMode: String, CaseIterable, Identifiable {
+enum TravelMode: String, CaseIterable, Identifiable, Codable {
     case automobile
+    case motorcycle
     case walking
     case transit
 
@@ -14,25 +15,44 @@ enum TravelMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .automobile: return "Ô tô"
+        case .motorcycle: return "Xe máy"
         case .walking: return "Đi bộ"
         case .transit: return "Xe buýt"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .automobile: return "Ô tô"
+        case .motorcycle: return "Xe máy"
+        case .walking: return "Đi bộ"
+        case .transit: return "Buýt"
         }
     }
 
     var symbol: String {
         switch self {
         case .automobile: return "car.fill"
+        case .motorcycle: return "scooter"
         case .walking: return "figure.walk"
         case .transit: return "bus.fill"
         }
     }
 
+    /// Apple Maps chỉ có ô tô / đi bộ / xe buýt, **không** có hồ sơ xe máy.
+    /// Xe máy dùng tạm hồ sơ ô tô rồi lọc/ước lượng lại (xem `RoutingService`),
+    /// hoặc dùng VietMap Route v4 nếu người dùng nhập API key.
     var transportType: MKDirectionsTransportType {
         switch self {
-        case .automobile: return .automobile
+        case .automobile, .motorcycle: return .automobile
         case .walking: return .walking
         case .transit: return .transit
         }
+    }
+
+    /// Có hồ sơ dẫn đường riêng trong Apple Maps hay không.
+    var hasNativeProfile: Bool {
+        self != .motorcycle
     }
 
     /// Nhận cả tiếng Việt lẫn tiếng Anh, dùng cho dữ liệu do AI trả về.
@@ -40,11 +60,18 @@ enum TravelMode: String, CaseIterable, Identifiable {
         guard let raw else { return nil }
         let value = raw.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         if value.isEmpty { return nil }
-        if value.contains("walk") || value.contains("foot") || value.contains("bộ") { return .walking }
+        if value.contains("xe máy") || value.contains("xe may") || value.contains("mô tô")
+            || value.contains("mo to") || value.contains("motorcycle") || value.contains("motorbike")
+            || value.contains("scooter") || value.contains("two-wheel")
+            || (value.contains("xe") && value.contains("máy")) { return .motorcycle }
+        if value.contains("đi bộ") || value.contains("di bo") || value.contains("walk")
+            || value.contains("foot") || value.contains("xe đạp") || value.contains("bicycle") {
+            return .walking
+        }
         if value.contains("transit") || value.contains("bus") || value.contains("buýt")
             || value.contains("công cộng") || value.contains("tàu") { return .transit }
         if value.contains("car") || value.contains("drive") || value.contains("auto")
-            || value.contains("ô tô") || value.contains("xe hơi") || value.contains("xe máy")
+            || value.contains("ô tô") || value.contains("o to") || value.contains("xe hơi")
             || value.contains("lái") { return .automobile }
         return nil
     }
@@ -96,11 +123,27 @@ struct Place: Identifiable {
 
 // MARK: - Tuyến đường
 
+/// Nhà cung cấp dịch vụ tính tuyến.
+///
+/// Từ 3.0 app chỉ dùng Apple Maps (MapKit); toàn bộ phần chấm điểm, ước lượng
+/// thời gian xe máy và cảnh báo là logic nội bộ.
+enum RouteProviderKind: String, Codable {
+    case apple
+
+    var title: String {
+        switch self {
+        case .apple: return "Apple Maps"
+        }
+    }
+}
+
 struct RouteStep: Identifiable {
     let id = UUID()
     let instruction: String
     let distance: Double
     let endCoordinate: CLLocationCoordinate2D
+    /// Tên đường (nếu nhà cung cấp trả về) — dùng để suy ra giới hạn tốc độ.
+    var roadName: String? = nil
 
     var formattedDistance: String { Format.distance(distance) }
 
@@ -132,11 +175,18 @@ struct RouteOption: Identifiable {
     let id = UUID()
     let name: String
     let distance: Double
-    let expectedTravelTime: TimeInterval
+    var expectedTravelTime: TimeInterval
     let coordinates: [CLLocationCoordinate2D]
     let steps: [RouteStep]
     let mode: TravelMode
-    let advisoryNotices: [String]
+    var advisoryNotices: [String]
+
+    /// Nhà cung cấp đã tính tuyến.
+    var provider: RouteProviderKind = .apple
+    /// Chi phí cầu đường (đồng) nếu nhà cung cấp trả về.
+    var tollCost: Int? = nil
+    /// `true` khi tuyến xe máy phải ước lượng từ hồ sơ ô tô của Apple Maps.
+    var isEstimatedProfile: Bool = false
 
     var formattedDistance: String { Format.distance(distance) }
     var formattedDuration: String { Format.duration(expectedTravelTime) }
@@ -145,6 +195,23 @@ struct RouteOption: Identifiable {
     var averageSpeed: Double {
         guard expectedTravelTime > 0 else { return 0 }
         return distance / expectedTravelTime // m/s
+    }
+
+    /// Tốc độ trung bình theo km/h (dễ đọc hơn cho người dùng).
+    var averageSpeedKmh: Double { averageSpeed * 3.6 }
+
+    /// Giờ tới nơi (giờ hiện tại + thời gian dự kiến).
+    func arrivalText(from date: Date = Date()) -> String? {
+        Format.arrival(after: expectedTravelTime, from: date)
+    }
+
+    var tollCostText: String? {
+        guard let tollCost, tollCost > 0 else { return nil }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = "."
+        let number = formatter.string(from: NSNumber(value: tollCost)) ?? "\(tollCost)"
+        return "\(number) đ"
     }
 }
 
@@ -177,6 +244,36 @@ enum Format {
 
     static func coordinates(_ coordinate: CLLocationCoordinate2D) -> String {
         String(format: "%.5f, %.5f", coordinate.latitude, coordinate.longitude)
+    }
+
+    /// "48 km/h"
+    static func speed(_ kmh: Double) -> String {
+        guard kmh.isFinite, kmh >= 0 else { return "0 km/h" }
+        return "\(Int(kmh.rounded())) km/h"
+    }
+
+    /// Giờ tới nơi dạng "14:35" (24h). `nil` nếu thời lượng không hợp lệ.
+    static func arrival(after seconds: TimeInterval, from now: Date = Date()) -> String? {
+        guard seconds.isFinite, seconds > 0 else { return nil }
+        let date = now.addingTimeInterval(seconds)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    /// Thời lượng còn lại đã trừ phần đã đi: "12 phút".
+    static func remaining(_ seconds: TimeInterval) -> String {
+        duration(max(0, seconds))
+    }
+
+    /// Khoảng cách ngắn gọn cho thanh tốc độ / nhãn trên bản đồ: "320 m", "1,4 km".
+    static func hudDistance(_ meters: Double) -> String {
+        guard meters.isFinite, meters > 0 else { return "0 m" }
+        if meters < 950 {
+            return "\(Int((meters / 10).rounded()) * 10) m"
+        }
+        return distance(meters)
     }
 }
 
@@ -289,6 +386,15 @@ struct NearbyCategory: Identifiable, Hashable {
         NearbyCategory(id: "airport", title: "Sân bay", symbol: "airplane",
                        category: .airport, query: "sân bay")
     ]
+
+    /// Truy cập nhanh theo mã — dùng khi lập kế hoạch điểm dừng dọc tuyến.
+    static func named(_ id: String) -> NearbyCategory? {
+        all.first { $0.id == id }
+    }
+
+    static var fuel: NearbyCategory { named("fuel") ?? all[0] }
+    static var cafe: NearbyCategory { named("cafe") ?? all[0] }
+    static var food: NearbyCategory { named("food") ?? all[0] }
 }
 
 // MARK: - Thông tin app

@@ -63,7 +63,6 @@ ${BOLD}Tuỳ chọn${RESET}
 
 ${BOLD}Ví dụ${RESET}
   ./scripts/make-ipa.sh
-  AI_BASE_URL=https://api.xah.io/v1 AI_MODEL=gpt-4o-mini ./scripts/make-ipa.sh
   ./scripts/make-ipa.sh -b com.tradingleak.demo --build-number 42
   ./scripts/make-ipa.sh -p MyApp.xcworkspace -s MyApp -o ~/Desktop
 
@@ -172,15 +171,6 @@ BUILD_SETTINGS=(
 [[ -n "$BUNDLE_ID"     ]] && BUILD_SETTINGS+=("PRODUCT_BUNDLE_IDENTIFIER=$BUNDLE_ID")
 [[ -n "$SHORT_VERSION" ]] && BUILD_SETTINGS+=("MARKETING_VERSION=$SHORT_VERSION")
 [[ -n "$BUILD_NUMBER"  ]] && BUILD_SETTINGS+=("CURRENT_PROJECT_VERSION=$BUILD_NUMBER")
-
-# Cấu hình AI (tuỳ chọn): nhúng vào Info.plist để app có sẵn khi cài.
-# Ưu tiên người dùng nhập trong app; đừng commit API key vào repo.
-AI_BASE_URL="${AI_BASE_URL:-}"
-AI_MODEL="${AI_MODEL:-}"
-AI_API_KEY="${AI_API_KEY:-}"
-[[ -n "$AI_BASE_URL" ]] && BUILD_SETTINGS+=("AI_BASE_URL=$AI_BASE_URL")
-[[ -n "$AI_MODEL"    ]] && BUILD_SETTINGS+=("AI_MODEL=$AI_MODEL")
-[[ -n "$AI_API_KEY"  ]] && BUILD_SETTINGS+=("AI_API_KEY=$AI_API_KEY")
 
 XCODEBUILD_ARGS=(
   "$PROJECT_FLAG" "$PROJECT"

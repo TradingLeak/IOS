@@ -17,16 +17,14 @@ on:
       display_name:
         description: "Tên app hiển thị (để trống = giữ nguyên)"
         required: false
-      ai_base_url:
-        description: "AI base URL nhúng vào bản build (vd https://api.xah.io/v1)"
-        required: false
-      ai_model:
-        description: "Tên model AI nhúng vào bản build (vd gpt-4o-mini)"
-        required: false
       run_tests:
         description: "Chạy unit test (lâu hơn ~3 phút)"
         type: boolean
         default: true
+      update_data:
+        description: "Cập nhật dữ liệu biển báo từ OpenStreetMap rồi commit (chạy tay)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -36,6 +34,72 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ---------------------------------------------------------------- dữ liệu OSM
+  # Chạy tay: Actions → Build unsigned IPA → Run workflow → update_data.
+  # Tải biển báo/camera từ Overpass rồi commit; push đó sẽ kích hoạt một build mới
+  # có dữ liệu. Xem thêm .github/workflows/update-osm-alerts.yml (lịch hằng tuần).
+  data:
+    name: Cập nhật dữ liệu OSM (tuỳ chọn)
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.update_data)
+      || (github.event_name == 'push' && contains(github.event.head_commit.message, '[data]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Kiểm tra bộ phân tích (offline)
+        run: python3 scripts/fetch-osm-alerts.py --self-test
+
+      - name: Tải dữ liệu OpenStreetMap
+        if: ${{ !(github.event_name == 'push' && contains(github.event.head_commit.message, '[residential]')) }}
+        continue-on-error: true
+        run: |
+          python3 scripts/fetch-osm-alerts.py --tile 3 --max-alerts 40000 \
+            --out data/curated/osm-vn.json
+
+      - name: Tải bù khu dân cư (chỉ khi commit có [residential])
+        if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[residential]') }}
+        continue-on-error: true
+        run: |
+          python3 scripts/fetch-osm-alerts.py --residential-only --tile 3 \
+            --max-alerts 40000 --out data/curated/osm-vn.json
+
+      - name: Gộp vào bộ dữ liệu của app
+        run: python3 scripts/build-alert-data.py --with-imports
+
+      - name: Commit nếu có thay đổi
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/curated/osm-vn.json App/Resources/Data/vn_alerts.json
+          if git diff --cached --quiet; then
+            echo "Không có thay đổi dữ liệu."
+            exit 0
+          fi
+          COUNT=$(python3 -c "import json;print(len(json.load(open('App/Resources/Data/vn_alerts.json'))['alerts']))")
+          git commit -m "data: biển báo/camera từ OpenStreetMap (${COUNT} điểm)"
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Tóm tắt
+        if: always()
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          path = "App/Resources/Data/vn_alerts.json"
+          if not os.path.exists(path):
+              print("Chưa có dữ liệu.")
+              raise SystemExit
+          data = json.load(open(path, encoding="utf-8"))
+          print(f"### {len(data['alerts'])} điểm · {os.path.getsize(path)/1024:.0f} KB")
+          print("| Loại | Số điểm |")
+          print("|---|---|")
+          for kind, count in sorted((data.get("counts") or {}).items()):
+              print(f"| {kind} | {count} |")
+          PY
+
   # ---------------------------------------------------------------- lint
   lint:
     name: Kiểm tra repo (ubuntu)
@@ -45,13 +109,16 @@ jobs:
       - uses: actions/checkout@v7
       - name: Self-check + test đóng gói IPA
         run: |
-          chmod +x scripts/*.sh
+          chmod +x scripts/*.sh scripts/build-alert-data.py
           ./scripts/selfcheck.sh
           ./scripts/test-pack.sh
 
+      - name: Kiểm tra dữ liệu cảnh báo (camera/tốc độ)
+        run: python3 scripts/build-alert-data.py --check
+
   # ---------------------------------------------------------------- tests
   unit-tests:
-    name: Unit test (MapKit/AI/parser)
+    name: Unit test (cảnh báo / tuyến / format)
     needs: lint
     if: github.event_name != 'workflow_dispatch' || inputs.run_tests
     runs-on: macos-15
@@ -101,9 +168,6 @@ jobs:
       SCHEME: ${{ inputs.scheme || 'VietMap' }}
       BUNDLE_ID: ${{ inputs.bundle_id || '' }}
       DISPLAY_NAME: ${{ inputs.display_name || '' }}
-      AI_BASE_URL: ${{ inputs.ai_base_url || vars.AI_BASE_URL }}
-      AI_MODEL: ${{ inputs.ai_model || vars.AI_MODEL }}
-      AI_API_KEY: ${{ secrets.AI_API_KEY }}
 
     steps:
       - name: Checkout

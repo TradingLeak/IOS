@@ -19,8 +19,13 @@ struct RouteSheet: View {
                     modeCard
                     if let route = model.selectedRoute {
                         summaryCard(route)
+                        preferenceCard
                         if model.routes.count > 1 { routeOptionsCard }
-                        if let summary = model.aiSummary { aiCard(summary) }
+                        aiDecisionCard
+                        smartAdviceCard
+                        if let summary = model.routeSummary { insightCard(summary) }
+                        alertsCard
+                        stopsCard
                         stepsCard(route)
                     } else if model.isPlanning {
                         planningView
@@ -127,6 +132,24 @@ struct RouteSheet: View {
                 metric(value: route.formattedDistance, label: "quãng đường", symbol: "point.topleft.down.curvedto.point.bottomright.up")
                 metric(value: "\(route.steps.count)", label: "bước rẽ", symbol: "arrow.triangle.turn.up.right.diamond")
             }
+            HStack(spacing: 8) {
+                if let score = model.score(for: route) {
+                    ScoreBadge(score: score)
+                    Text(score.badge)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Text(route.provider.title)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                if route.isEstimatedProfile {
+                    Text("· hồ sơ xe máy ước lượng")
+                        .font(.system(size: 10))
+                        .foregroundStyle(AppTheme.warning)
+                }
+                Spacer(minLength: 0)
+            }
+
             if !route.advisoryNotices.isEmpty {
                 ForEach(route.advisoryNotices, id: \.self) { notice in
                     InfoBanner(kind: .warning, text: notice)
@@ -161,7 +184,7 @@ struct RouteSheet: View {
                 .tracking(0.8)
                 .foregroundStyle(.secondary)
 
-            ForEach(Array(model.routes.enumerated()), id: \.element.id) { index, route in
+            ForEach(Array(model.routes.enumerated()), id: \.element.id) { _, route in
                 Button {
                     model.selectRoute(route)
                 } label: {
@@ -171,14 +194,28 @@ struct RouteSheet: View {
                             .foregroundStyle(model.selectedRoute?.id == route.id ? AppTheme.accent : Color.secondary)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(index == 0 ? "Tuyến chính" : route.name)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.primary)
+                            HStack(spacing: 6) {
+                                Text(route.name)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                if model.recommendedScore?.routeID == route.id {
+                                    Text(model.aiDecision != nil ? "AI chọn" : "Đề xuất")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(AppTheme.accentGradient))
+                                }
+                            }
                             Text("\(route.formattedDistance) · \(route.formattedDuration)")
                                 .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 0)
+                        if let score = model.score(for: route) {
+                            ScoreBadge(score: score)
+                        }
                     }
                     .contentShape(Rectangle())
                 }
@@ -190,40 +227,296 @@ struct RouteSheet: View {
         .floatingCard()
     }
 
-    private func aiCard(_ summary: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 7) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(AppTheme.accent)
-                Text("TÓM TẮT BẰNG AI")
+    // MARK: - Mức ưu tiên & AI chọn tuyến
+
+    private var preferenceCard: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 6) {
+                Text("ƯU TIÊN TUYẾN")
                     .font(.system(size: 10, weight: .bold))
                     .tracking(0.8)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
-                if model.aiThinking {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    Button {
-                        Task { await model.refreshSummary() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(AppTheme.accent)
-                    }
-                    .buttonStyle(.plain)
+                if model.aiConfig.isConfigured, model.aiConfig.deepPlanning {
+                    Label("AI đang can thiệp", systemImage: "sparkles")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(AppTheme.accentDeep)
                 }
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 7) {
+                    ForEach(RoutePreference.allCases) { option in
+                        FilterChip(title: option.shortTitle,
+                                   symbol: option.symbol,
+                                   isSelected: model.preference == option) {
+                            settings.routePreference = option
+                            model.setPreference(option)
+                        }
+                    }
+                }
+            }
+
+            Text(model.preference.detail)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .floatingCard()
+    }
+
+    @ViewBuilder
+    private var aiDecisionCard: some View {
+        if let decision = model.aiDecision {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 7) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(AppTheme.accentDeep)
+                    Text("AI CHỌN TUYẾN")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    if model.routes.indices.contains(decision.routeIndex) {
+                        Text(model.routes[decision.routeIndex].name)
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(AppTheme.accent)
+                            .lineLimit(1)
+                    }
+                }
+
+                Text(decision.reason)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(decision.warnings, id: \.self) { warning in
+                    InfoBanner(kind: .warning, text: warning)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .floatingCard()
+        }
+    }
+
+    // MARK: - Gợi ý thông minh
+
+    @ViewBuilder
+    private var smartAdviceCard: some View {
+        if let advice = model.routeAdvice, !advice.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 7) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(AppTheme.accentDeep)
+                    Text("TUYẾN NÊN ĐI")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                Text(advice)
+                    .font(.system(size: 13, weight: .medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(.primary)
+
+                if let best = model.recommendedScore,
+                   let route = model.routes.first(where: { $0.id == best.routeID }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Điểm \(Int(best.total.rounded()))/100 · \(route.formattedDuration) · \(route.formattedDistance)")
+                            .font(.system(size: 11, weight: .semibold))
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(AppTheme.success)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .floatingCard()
+        }
+    }
+
+    @ViewBuilder
+    private var alertsCard: some View {
+        if !model.routeAlerts.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("CẢNH BÁO TRÊN TUYẾN")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(model.routeAlerts.count) điểm")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+
+                ForEach(Array(model.routeAlerts.prefix(6))) { active in
+                    HStack(spacing: 9) {
+                        Image(systemName: active.alert.kind.symbol)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(active.alert.kind.tint)
+                            .frame(width: 28, height: 28)
+                            .background(Circle().fill(active.alert.kind.tint.opacity(0.12)))
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(active.alert.displayName)
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
+                            Text(active.distanceText)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        if let limit = active.alert.speedLimit {
+                            SpeedLimitSignView(limit: limit, size: 26, muted: true)
+                        }
+                    }
+                }
+
+                if model.routeAlerts.count > 6 {
+                    Text("… và \(model.routeAlerts.count - 6) điểm khác. Mở nút camera trên bản đồ để xem tất cả.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .floatingCard()
+        }
+    }
+
+    @ViewBuilder
+    private var stopsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("ĐIỂM DỪNG DỌC ĐƯỜNG")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    Task { await model.planStopsWithAI() }
+                } label: {
+                    HStack(spacing: 4) {
+                        if model.isLoadingStops {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        Text("Gợi ý")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(AppTheme.accent)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if !model.waypoints.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(model.waypoints) { place in
+                        HStack(spacing: 8) {
+                            Image(systemName: "pause.circle.fill")
+                                .foregroundStyle(AppTheme.accent)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Đang dừng · \(place.name)")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .lineLimit(1)
+                                Text(place.displaySubtitle)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                            Button {
+                                model.removeWaypoint(place)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Bỏ điểm dừng \(place.name)")
+                        }
+                    }
+                }
+            }
+
+            if model.suggestedStops.isEmpty {
+                Text("Tìm trạm xăng / quán cà phê dọc tuyến để nghỉ giữa đường.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(model.suggestedStops) { place in
+                    HStack(spacing: 8) {
+                        Button {
+                            model.focus(on: place)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "mappin.circle.fill")
+                                    .foregroundStyle(AppTheme.warning)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(place.name)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                    Text(place.displaySubtitle)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            model.insertWaypoint(place)
+                        } label: {
+                            Label("Thêm", systemImage: "plus.circle.fill")
+                                .labelStyle(.iconOnly)
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(AppTheme.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Thêm \(place.name) vào tuyến")
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .floatingCard()
+    }
+
+    private func insightCard(_ summary: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 7) {
+                Image(systemName: "text.bubble.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(AppTheme.accent)
+                Text("NHẬN XÉT TUYẾN")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
             }
             Text(summary)
                 .font(.system(size: 13))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !settings.config.isConfigured {
-                Text("Đang dùng tóm tắt mặc định. Nhập API key trong Cài đặt để AI viết nhận xét riêng.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
+            Text("Nhận xét được tính trực tiếp từ số liệu tuyến trên máy — không cần mạng, không cần tài khoản.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

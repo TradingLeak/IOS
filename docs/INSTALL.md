@@ -1,7 +1,10 @@
 # 📲 Cài file IPA unsigned lên iPhone
 
-Bạn đã có `HelloIPA-1.0.0-1-unsigned.ipa`. File này **chưa có chữ ký**, nên cần một
-trong các cách dưới đây.
+Bạn đã có `VietMap-unsigned.ipa` (bản 2.0.0 trở lên, có cảnh báo tốc độ/camera và tuyến
+xe máy). File này **chưa có chữ ký Apple**, nên cần một trong các cách dưới đây.
+
+Tải bản mới nhất:
+<https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa>
 
 Chọn theo phiên bản iOS của bạn (Cài đặt → Cài đặt chung → Giới thiệu):
 

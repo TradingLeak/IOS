@@ -44,14 +44,14 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Ứng dụng dùng vị trí của bạn để chỉ đường và cập nhật lộ trình khi đang di chuyển.</string>
 
-	<!-- Cấu hình AI, được truyền vào lúc build từ biến môi trường/GitHub Secrets.
-	     Để trống thì người dùng tự nhập trong màn hình Cài đặt (lưu bằng Keychain). -->
-	<key>AIBaseURL</key>
-	<string>$(AI_BASE_URL)</string>
-	<key>AIModel</key>
-	<string>$(AI_MODEL)</string>
-	<key>AIApiKey</key>
-	<string>$(AI_API_KEY)</string>
+	<!-- Trợ lý AI có thể trỏ tới server nội bộ (Ollama/LM Studio) qua HTTP trong LAN -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Ứng dụng kết nối tới máy chủ AI bạn tự cấu hình (ví dụ Ollama trong nhà) để xử lý câu lệnh tìm đường.</string>
 
 	<key>UIApplicationSceneManifest</key>
 	<dict>

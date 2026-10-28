@@ -74,24 +74,17 @@ Tên hiển thị: `App/Info.plist` → `CFBundleDisplayName`. Phiên bản: `MA
 
 **c) Trong GitHub Actions** — `Run workflow` có ô nhập `scheme`, `bundle_id`, `display_name`.
 
-## 5. Cấu hình AI lúc build
+## 5. Tuỳ biến bản build
 
-`App/Info.plist` có 3 placeholder: `$(AI_BASE_URL)`, `$(AI_MODEL)`, `$(AI_API_KEY)`.
+Không còn cấu hình AI: mọi phần nhận xét/đề xuất tuyến chạy offline trên máy. Bản build
+chỉ khác nhau ở scheme, bundle ID, tên hiển thị và phiên bản.
 
 ```bash
-AI_BASE_URL=https://api.xah.io/v1 AI_MODEL=gpt-4o-mini ./scripts/make-ipa.sh
+./scripts/make-ipa.sh -b com.congty.myapp -n "Bản đồ của tôi" \
+                      --short-version 2.2.0 --build-number 4
 ```
 
-Trong CI, lấy từ repo settings:
-
-| Loại | Tên | Dùng cho |
-|---|---|---|
-| Variable | `AI_BASE_URL` | base URL mặc định |
-| Variable | `AI_MODEL` | model mặc định |
-| Secret | `AI_API_KEY` | key (cảnh báo: nhúng vào IPA là không an toàn với repo public) |
-
-Không cấu hình gì thì app dùng mặc định ckey.vn + `gpt-4o-mini` và người dùng tự nhập
-key trong **Cài đặt** (lưu Keychain).
+Trong CI: `Run workflow` → `scheme`, `bundle_id`, `display_name`, `run_tests`.
 
 ## 6. Icon & splash
 
@@ -146,7 +139,30 @@ xcodebuild test -project VietMap.xcodeproj -scheme VietMap \
 
 CI chạy test trên Simulator ở job `unit-tests` (bỏ qua khi chọn `run_tests: false`).
 
-## 10. Deploy lên máy thật
+Bộ test hiện có:
+
+| File | Nội dung |
+|---|---|
+| `ModelTests` | định dạng km/phút/giờ tới nơi, model tuyến, lưu lịch sử/yêu thích |
+| `AlertTests` | giải mã dữ liệu cảnh báo, chỉ mục lưới, `D_warn`, TT 38/2024, chấm điểm tuyến |
+| `RoutingTests` | hồ sơ xe máy, lọc tuyến cao tốc, giải mã polyline VietMap Route v4 |
+
+## 10. Dữ liệu cảnh báo (camera / biển tốc độ)
+
+Dữ liệu nhúng nằm ở `App/Resources/Data/vn_alerts.json` (sinh tự động, **commit vào repo**):
+
+```bash
+python3 scripts/build-alert-data.py           # gộp data/sources + data/curated
+python3 scripts/build-alert-data.py --check   # chỉ kiểm tra (CI + selfcheck dùng lệnh này)
+```
+
+`project.yml` đã khai báo `App/Resources` là nguồn, nên tệp JSON tự vào app bundle — không
+cần sửa gì thêm. Nếu thêm thư mục dữ liệu mới, giữ nó trong `App/Resources/` để XcodeGen
+đóng gói.
+
+Chi tiết schema, nguồn và giấy phép: [ALERTS.md](ALERTS.md).
+
+## 11. Deploy lên máy thật
 
 Simulator không cần ký, nên phát triển UI nhanh nhất là chạy Simulator. Với máy thật:
 
