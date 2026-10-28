@@ -424,58 +424,15 @@ struct MapScreen: View {
     /// Gọn trong ~132 pt nên không tranh chỗ với bản đồ.
     private func speedCard(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let limit = model.liveLimit {
-                SpeedLimitSignView(limit: limit, size: compact ? 48 : 56, muted: true)
-                    .padding(.bottom, compact ? 7 : 9)
-            } else {
-                Image(systemName: "questionmark.circle")
-                    .font(.system(size: (compact ? 48 : 56) * 0.55, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.4))
-                    .frame(width: compact ? 48 : 56, height: compact ? 48 : 56)
-                    .padding(.bottom, compact ? 7 : 9)
-            }
-
+            speedCardPlate(compact: compact)
             Text("TỐC ĐỘ HIỆN TẠI")
                 .font(.system(size: 8.5, weight: .heavy))
                 .tracking(0.7)
                 .foregroundStyle(.white.opacity(0.55))
                 .lineLimit(1)
-
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text("\(Int(model.liveSpeedKmh.rounded()))")
-                    .font(.system(size: compact ? 25 : 27, weight: .heavy, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(model.isOverLimit
-                                     ? Color(red: 1.0, green: 0.42, blue: 0.38)
-                                     : Color.white)
-                    .contentTransition(.numericText())
-                    .lineLimit(1)
-                Text("km/h")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.55))
-            }
-
-            if let alert = model.nextAlert {
-                Rectangle()
-                    .fill(Color.white.opacity(0.12))
-                    .frame(height: 1)
-                    .padding(.vertical, 6)
-
-                HStack(spacing: 5) {
-                    Image(systemName: alert.alert.kind.symbol)
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(alert.alert.kind.tint)
-                    Text(alert.alert.kind.shortTitle)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .lineLimit(1)
-                    Spacer(minLength: 2)
-                    Text(Format.hudDistance(max(0, alert.distance)))
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                }
+            speedCardReading(compact: compact)
+            if model.nextAlert != nil {
+                speedCardNextAlert
             }
         }
         .padding(compact ? 10 : 12)
@@ -490,10 +447,78 @@ struct MapScreen: View {
         )
         .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Tốc độ \(Int(model.liveSpeedKmh.rounded())) km/h, giới hạn "
-                            + "\(model.liveLimit.map { "\($0)" } ?? "chưa rõ")"
-                            + (model.nextAlert.map { ", cảnh báo \($0.alert.kind.shortTitle) "
-                                + "cách \(Format.hudDistance(max(0, $0.distance)))" } ?? ""))
+        .accessibilityLabel(speedCardAccessibilityLabel)
+    }
+
+    private func speedCardPlate(compact: Bool) -> some View {
+        let side: CGFloat = compact ? 48 : 56
+        return Group {
+            if let limit = model.liveLimit {
+                SpeedLimitSignView(limit: limit, size: side, muted: true)
+            } else {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: side * 0.55, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .frame(width: side, height: side)
+            }
+        }
+        .padding(.bottom, compact ? 7 : 9)
+    }
+
+    private func speedCardReading(compact: Bool) -> some View {
+        let valueColor: Color = model.isOverLimit ? Color(red: 1.0, green: 0.42, blue: 0.38) : .white
+        return HStack(alignment: .firstTextBaseline, spacing: 3) {
+            Text("\(Int(model.liveSpeedKmh.rounded()))")
+                .font(.system(size: compact ? 25 : 27, weight: .heavy, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(valueColor)
+                .contentTransition(.numericText())
+                .lineLimit(1)
+            Text("km/h")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.55))
+        }
+    }
+
+    @ViewBuilder
+    private var speedCardNextAlert: some View {
+        if let alert = model.nextAlert {
+            Rectangle()
+                .fill(Color.white.opacity(0.12))
+                .frame(height: 1)
+                .padding(.vertical, 6)
+
+            HStack(spacing: 5) {
+                Image(systemName: alert.alert.kind.symbol)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(alert.alert.kind.tint)
+                Text(alert.alert.kind.shortTitle)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(1)
+                Spacer(minLength: 2)
+                Text(Format.hudDistance(max(0, alert.distance)))
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    /// Chuỗi đọc cho VoiceOver — ghép sẵn để tránh biểu thức quá dài trong `body`.
+    private var speedCardAccessibilityLabel: String {
+        var parts = ["Tốc độ \(Int(model.liveSpeedKmh.rounded())) km/h"]
+        if let limit = model.liveLimit {
+            parts.append("giới hạn \(limit)")
+        } else {
+            parts.append("chưa rõ giới hạn")
+        }
+        if let alert = model.nextAlert {
+            let gap = Format.hudDistance(max(0, alert.distance))
+            parts.append("\(alert.alert.kind.shortTitle) cách \(gap)")
+        }
+        return parts.joined(separator: ", ")
     }
 
     /// Hai nút nhanh kiểu pill dưới thẻ tốc độ: về giữa / tắt âm cảnh báo.
@@ -913,7 +938,13 @@ struct MapScreen: View {
     /// Banner cảnh báo kiểu VietMap: nhãn loại + tên + đếm lùi + thanh chạy tới điểm cảnh báo.
     /// Banner cảnh báo kiểu khối tối gọn: icon → nhãn loại + tên điểm → đếm lùi mét.
     private func alertBanner(_ alert: ActiveAlert) -> some View {
-        VStack(spacing: 8) {
+        let titleText: String = {
+            guard let limit = alert.alert.speedLimit else { return alert.alert.displayName }
+            return alert.alert.displayName + " · \(limit) km/h"
+        }()
+        let distanceText = alert.distance < 0 ? "ĐÃ QUA" : "MÉT"
+
+        return VStack(spacing: 8) {
             HStack(spacing: 11) {
                 Image(systemName: alert.alert.kind.symbol)
                     .font(.system(size: 16, weight: .bold))
@@ -930,8 +961,7 @@ struct MapScreen: View {
                         .tracking(0.7)
                         .foregroundStyle(.white.opacity(0.55))
                         .lineLimit(1)
-                    Text(alert.alert.displayName
-                         + (alert.alert.speedLimit.map { " · \($0) km/h" } ?? ""))
+                    Text(titleText)
                         .font(.system(size: 13.5, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
@@ -945,7 +975,7 @@ struct MapScreen: View {
                         .monospacedDigit()
                         .foregroundStyle(alert.levelColor)
                         .lineLimit(1)
-                    Text(alert.distance < 0 ? "ĐÃ QUA" : "MÉT")
+                    Text(distanceText)
                         .font(.system(size: 8.5, weight: .heavy))
                         .tracking(0.5)
                         .foregroundStyle(.white.opacity(0.45))
