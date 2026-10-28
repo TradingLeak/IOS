@@ -263,9 +263,12 @@ struct SettingsView: View {
                     infoRow("Speedmap", "\(meta.mapVersion) · \(meta.region)")
                     infoRow("Mạng đường", "\(meta.segmentCount.formatted()) đoạn · \(meta.tileCount.formatted()) tile")
                     infoRow("Nguồn dữ liệu", meta.attribution)
-                    if let selfTestText {
-                        infoRow("Tự kiểm tra", selfTestText)
-                    }
+                if let selfTestText {
+                    infoRow("Tự kiểm tra", selfTestText)
+                }
+                if let source = hud.database?.sourceDirectory.path {
+                    infoRow("Nơi nạp file", source)
+                }
                 } else {
                     Text("Chưa nạp được 7 file speedmap (.bin) — cảnh báo biển báo sẽ ẩn.")
                         .font(.system(size: 11))

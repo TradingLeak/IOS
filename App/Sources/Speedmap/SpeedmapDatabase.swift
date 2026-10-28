@@ -30,6 +30,8 @@ final class SpeedmapDatabase {
     // MARK: Nạp
 
     let metadata: SpeedmapMetadata
+    /// Thư mục các file được nạp từ đó (chẩn đoán hiển thị trong Settings).
+    let sourceDirectory: URL
     private let index: [TileIndexEntry]
     private let tilesData: Data
     private let cameras: [CameraPoint]
@@ -42,6 +44,7 @@ final class SpeedmapDatabase {
     private let tileCacheLimit = 256
 
     private init(metadata: SpeedmapMetadata,
+                 sourceDirectory: URL,
                  index: [TileIndexEntry],
                  tilesData: Data,
                  cameras: [CameraPoint],
@@ -50,6 +53,7 @@ final class SpeedmapDatabase {
                  namePool: Data,
                  segNameIds: [UInt32]) {
         self.metadata = metadata
+        self.sourceDirectory = sourceDirectory
         self.index = index
         self.tilesData = tilesData
         self.cameras = cameras
@@ -60,13 +64,18 @@ final class SpeedmapDatabase {
     }
 
     /// Tìm thư mục chứa speedmap trong bundle (xcodegen có thể phẳng hoá
-    /// resource về gốc bundle — thử cả hai).
+    /// resource về gốc bundle — thử cả hai, sau đó quét *.bin còn lại).
     static func defaultDirectory(bundle: Bundle = .main) -> URL? {
         if let url = bundle.url(forResource: "metadata", withExtension: "bin", subdirectory: "speedmap") {
             return url.deletingLastPathComponent()
         }
         if let url = bundle.url(forResource: "metadata", withExtension: "bin") {
             return url.deletingLastPathComponent()
+        }
+        // Fallback: bất kỳ *.bin nào trong bundle (layout lạ vẫn nạp được).
+        if let all = bundle.urls(forResourcesWithExtension: "bin", subdirectory: nil),
+           let first = all.first(where: { $0.lastPathComponent == "metadata.bin" }) ?? all.first {
+            return first.deletingLastPathComponent()
         }
         return nil
     }
@@ -100,6 +109,7 @@ final class SpeedmapDatabase {
                                           minimumCount: metadata.segmentCount + 1)
 
         return SpeedmapDatabase(metadata: metadata,
+                                sourceDirectory: directory,
                                 index: index,
                                 tilesData: tilesData,
                                 cameras: cameras,
