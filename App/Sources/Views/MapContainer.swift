@@ -102,6 +102,7 @@ enum AlertMapStyle {
             text.draw(at: CGPoint(x: (size - textSize.width) / 2,
                                   y: (size - textSize.height) / 2))
         }
+        .withRenderingMode(.alwaysOriginal)
         cache.setObject(image, forKey: key)
         return image
     }
@@ -181,6 +182,7 @@ struct MapContainer: UIViewRepresentable {
         updatePins(mapView, context: context)
         updateOverlays(mapView, context: context)
         updateNavigationCamera(mapView, context: context)
+        applyIdleCamera(mapView, context: context)
 
         if isNavigating {
             // Đang dẫn đường: camera do updateNavigationCamera quản lý, bỏ qua focus/fit.
@@ -228,6 +230,29 @@ struct MapContainer: UIViewRepresentable {
                                  fromDistance: distance,
                                  pitch: pitch,
                                  heading: heading)
+        mapView.setCamera(camera, animated: true)
+    }
+
+    /// Khi **không dẫn đường**: nút 3D/2D vẫn nghiêng hoặc trả bản đồ về nhìn thẳng.
+    /// Chỉ áp khi người dùng vừa đổi chế độ, để không cướp thao tác nghiêng bằng tay.
+    private func applyIdleCamera(_ mapView: MKMapView, context: Context) {
+        guard !isNavigating else {
+            context.coordinator.lastWasNavigating = true
+            return
+        }
+        if context.coordinator.lastWasNavigating {
+            context.coordinator.lastWasNavigating = false
+            context.coordinator.lastIdlePitch3D = nil
+        }
+        guard context.coordinator.lastIdlePitch3D != navigationPitch3D else { return }
+        context.coordinator.lastIdlePitch3D = navigationPitch3D
+
+        let pitch: CGFloat = navigationPitch3D ? 45 : 0
+        guard abs(mapView.camera.pitch - pitch) > 1 else { return }
+        let camera = MKMapCamera(lookingAtCenter: mapView.centerCoordinate,
+                                 fromDistance: mapView.camera.centerCoordinateDistance,
+                                 pitch: pitch,
+                                 heading: 0)
         mapView.setCamera(camera, animated: true)
     }
 
@@ -330,6 +355,10 @@ struct MapContainer: UIViewRepresentable {
         var lastFocusToken = -1
         var lastFitToken = -1
         var lastPOISetting: Bool?
+
+        // Góc nhìn khi chỉ xem bản đồ (2D / 3D đổi bất cứ lúc nào)
+        var lastIdlePitch3D: Bool?
+        var lastWasNavigating = false
 
         // Camera dẫn đường
         private var lastCameraCoordinate: CLLocationCoordinate2D?

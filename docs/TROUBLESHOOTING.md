@@ -276,3 +276,34 @@ nhưng bạn có thể cancel job test).
   AVSpeechSynthesizer vẫn đọc (audio session `.ambient`).
 - Trong app: Cài đặt → **Cảnh báo trên bản đồ** → *Đọc cảnh báo bằng giọng tiếng Việt*.
 - Nếu đang mở nhạc, app dùng `.duckOthers` nên nhạc sẽ nhỏ lại khi đọc cảnh báo.
+
+## 🤖 Trợ lý AI (2.2)
+
+### Bấm nút `sparkles` mà AI không trả lời
+
+- Kiểm tra **Cài đặt → Trợ lý AI → Kiểm tra kết nối**; thông báo lỗi hiện ngay dưới nút.
+- `HTTP 401/403` → key sai hoặc đã hết hạn. Dán lại key, chú ý không dính dấu cách.
+- `HTTP 404` → base URL thiếu `/v1` (ví dụ `https://api.xah.io` thay vì `https://api.xah.io/v1`).
+- `HTTP 429` → hết hạn mức miễn phí, chờ vài phút hoặc đổi nhà cung cấp.
+- Không có mạng → app tự dùng bộ phân tích tiếng Việt trên máy; câu trả lời sẽ ghi rõ
+  *“Đang dùng bộ phân tích trên máy”*.
+
+### AI trả lời nhưng không ra tuyến
+
+- Câu cần có **điểm đến** rõ ràng: “đi xe máy từ Cầu Giấy **đến Hồ Hoàn Kiếm**”.
+- Tên quá chung (“quán cà phê”) → ghi thêm quận/thành phố.
+- Xem bong bóng chat: nếu AI hỏi lại, trả lời ngay trong ô nhập.
+
+### Dùng Ollama / LM Studio trong LAN không kết nối được
+
+- Base URL phải là `http://<IP-máy-tính>:11434/v1` (Ollama) hoặc `:1234/v1` (LM Studio)
+  và **cùng Wi-Fi** với iPhone.
+- Lần đầu iOS sẽ hỏi quyền **Mạng nội bộ** → bấm *Cho phép*. Nếu đã lỡ từ chối:
+  iOS → Cài đặt → **Bản đồ Việt Nam** → bật *Mạng nội bộ*.
+- Kiểm tra trên máy tính: `curl http://<IP>:11434/v1/models`.
+
+### Tốn pin / nóng máy khi bật AI
+
+- AI chỉ gọi khi bạn gửi câu lệnh hoặc khi có ≥ 2 phương án tuyến cần chọn.
+- Tắt **Cho AI can thiệp sâu** nếu chỉ muốn AI đọc câu lệnh.
+- Không có nhu cầu AI: tắt **Bật trợ lý AI** — mọi tính năng khác vẫn chạy offline.

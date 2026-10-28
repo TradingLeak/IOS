@@ -98,7 +98,8 @@ Từ 2.2 **không còn HUD toàn màn hình** — mọi thứ cần nhìn khi l�
 - Khoảng cách ước tính cập nhật theo tốc độ thật, không cần mở màn hình phụ.
 
 Nút `view.3d` / `map` trên mép phải đổi **3D ↔ 2D bất cứ lúc nào** (cả khi chỉ xem bản đồ
-lẫn khi đang dẫn đường); lựa chọn được nhớ trong Cài đặt.
+lẫn khi đang dẫn đường); lựa chọn được nhớ trong Cài đặt. Khi chỉ xem bản đồ, 3D nghiêng 45°
+quanh vị trí đang xem; khi dẫn đường, 3D nghiêng 55° và xoay theo hướng đi.
 
 ---
 
