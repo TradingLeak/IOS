@@ -3,12 +3,17 @@
 Bản dựng **HTML một file** để duyệt bố cục trước khi sửa Swift và build IPA.
 
 ```bash
-# cách 1: mở trực tiếp
+# cách 1: mở trực tiếp file (không cần server)
 open demo/index.html
 
-# cách 2: chạy server (dùng được trên điện thoại cùng Wi-Fi)
-cd demo && python3 -m http.server 8000
+# cách 2: chạy server kèm sẵn cho preview / điện thoại cùng Wi-Fi
+python3 demo/serve.py            # → http://<ip-máy>:8000
+python3 demo/serve.py 8080       # đổi cổng
 ```
+
+`serve.py` là server tĩnh nhỏ (chuẩn hoá `charset=utf-8`, `Cache-Control: no-store`,
+mọi đường dẫn lạ đều trả `index.html`) để preview không bị lỗi font tiếng Việt hoặc hiện
+bản demo cũ sau khi sửa file.
 
 ## Demo có gì
 
@@ -20,6 +25,16 @@ cd demo && python3 -m http.server 8000
   phí cầu đường, giờ tới nơi.
 - **AI tuỳ chọn**: nhập câu tiếng Việt → JSON ý định → tuyến; tắt AI vẫn chạy bằng parser offline.
 - **Kịch bản mô phỏng**: chạy xe, vượt tốc độ, đi lệch tuyến, tới nơi.
+
+## Kiểm tra nhanh
+
+```bash
+curl -sI http://127.0.0.1:8000/ | head -6      # 200, charset utf-8, no-store
+```
+
+Các kịch bản trong console bên phải: **Bản đồ tự do → Tìm tuyến → Bắt đầu dẫn đường →
+Vượt tốc độ → Đi lệch tuyến → Tới nơi → Reset**, kèm slider tốc độ và công tắc 3D/2D,
+ngày/đêm, từng lớp hiển thị.
 
 ## Không phải bản build
 
