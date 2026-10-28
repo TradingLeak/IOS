@@ -70,13 +70,27 @@ struct AIAssistantSheet: View {
                     Button("Đóng") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        dismiss()
-                        onOpenSettings?()
-                    } label: {
-                        Image(systemName: "gearshape")
+                    HStack(spacing: 14) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                model.transcript.removeAll()
+                                model.aiPlan = nil
+                                model.aiError = nil
+                            }
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .disabled(model.transcript.isEmpty)
+                        .accessibilityLabel("Xoá hội thoại")
+
+                        Button {
+                            dismiss()
+                            onOpenSettings?()
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                        .accessibilityLabel("Cài đặt AI")
                     }
-                    .accessibilityLabel("Cài đặt AI")
                 }
             }
         }
