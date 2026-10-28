@@ -5,7 +5,7 @@ xe máy). File này **chưa có chữ ký Apple**, nên cần một trong các c
 
 Tải bản mới nhất:
 **Tải đúng phiên bản (khuyến nghị):**
-<https://github.com/TradingLeak/IOS/releases/download/v3.2.0-11/VietMap-3.2.0-11-unsigned.ipa>
+<https://github.com/TradingLeak/IOS/releases/download/v3.2.0-12/VietMap-3.2.0-12-unsigned.ipa>
 
 Link cố định dùng chung: <https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa>
 

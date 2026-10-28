@@ -26,10 +26,10 @@ Apple Developer.
 ## 📥 Tải IPA
 
 **Bản mới nhất — link bất biến (khuyến nghị):**
-<https://github.com/TradingLeak/IOS/releases/download/v3.2.0-11/VietMap-3.2.0-11-unsigned.ipa>
+<https://github.com/TradingLeak/IOS/releases/download/v3.2.0-12/VietMap-3.2.0-12-unsigned.ipa>
 
-Mỗi phiên bản có một thẻ release riêng (`v3.2.0-11`, …) nên link **không bao giờ bị ghi đè**
-và không bị cache. Phiên bản hiện tại: **3.2.0 (11)** · ~5,3 MB · `arm64` · iOS ≥ 16.0.
+Mỗi phiên bản có một thẻ release riêng (`v3.2.0-12`, …) nên link **không bao giờ bị ghi đè**
+và không bị cache. Phiên bản hiện tại: **3.2.0 (12)** · ~5,3 MB · `arm64` · iOS ≥ 16.0.
 
 Link cố định dùng chung (tiện cho người mới, nhưng có thể bị nhánh khác ghi đè):
 <https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa>

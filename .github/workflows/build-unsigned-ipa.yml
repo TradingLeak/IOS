@@ -333,9 +333,39 @@ jobs:
           path: |
             dist/*.ipa
             dist/*.sha256
+            dist-alt/*.ipa
+            dist-alt/*.sha256
             build/xcodebuild.log
           if-no-files-found: error
           retention-days: 30
+
+      - name: Bản cài song song (bundle ID riêng — tránh xung đột app cũ)
+        if: success()
+        id: alt
+        shell: bash
+        run: |
+          # Vì sao có bản này: nếu máy đang có bản cũ cùng bundle ID, iOS/ESign có thể
+          # không ghi đè (khác chứng chỉ) và người dùng vẫn thấy app cũ. Bản "-alt-"
+          # dùng bundle ID khác nên cài *song song*, luôn là bản mới tinh.
+          VERSIONED="${{ steps.verify.outputs.version }}"        # "3.2.0 (11)"
+          SHORT="${VERSIONED%% (*}"
+          BUILDNO="${VERSIONED##* (}"; BUILDNO="${BUILDNO%)}"
+          set -e
+          ./scripts/make-ipa.sh --scheme "$SCHEME" --output dist-alt \
+            --bundle-id "com.tradingleak.vietmap32" \
+            --display-name "Bản đồ VN 3.2" \
+            --short-version "$SHORT" --build-number "$BUILDNO" \
+            > dist-alt.log 2>&1 || { tail -n 30 dist-alt.log; exit 1; }
+          SRC="$(ls dist-alt/*.ipa | head -n 1)"
+          ALT="dist-alt/VietMap-${SHORT}-${BUILDNO}-alt-unsigned.ipa"
+          mv "$SRC" "$ALT"
+          shasum -a 256 "$ALT" > "$ALT.sha256"
+          rm -rf /tmp/alt-check && mkdir -p /tmp/alt-check
+          unzip -q "$ALT" -d /tmp/alt-check
+          ALT_APP="$(find /tmp/alt-check/Payload -maxdepth 1 -name '*.app' -type d | head -n 1)"
+          ALT_BUNDLE="$(plutil -extract CFBundleIdentifier raw -o - "$ALT_APP/Info.plist")"
+          echo "::notice title=Bản cài song song::$(basename "$ALT") · bundle $ALT_BUNDLE"
+          echo "name=$(basename "$ALT")" >> "$GITHUB_OUTPUT"
 
       - name: Phát hành Release "latest-ipa" (link tải cố định)
         if: success() && github.event_name != 'pull_request'
@@ -364,6 +394,8 @@ jobs:
           files: |
             dist/*.ipa
             dist/*.sha256
+            dist-alt/*.ipa
+            dist-alt/*.sha256
           fail_on_unmatched_files: true
 
       - name: Phát hành Release riêng cho phiên bản (link bất biến)
@@ -386,6 +418,10 @@ jobs:
             - **Commit**: `${{ github.sha }}`
             - **Nhánh**: `${{ github.ref_name }}`
 
+            Kèm bản cài song song `${{ steps.alt.outputs.name }}` — **bundle ID riêng**
+            (`com.tradingleak.vietmap32`), cài được cùng lúc với bản cũ nên không bị iOS/ESign
+            giữ lại app cũ. Dùng bản này khi cài đè mà vẫn ra giao diện cũ.
+
             Link tải bất biến:
             `https://github.com/${{ github.repository }}/releases/download/${{ steps.verify.outputs.tag }}/${{ steps.verify.outputs.name }}`
 
@@ -395,6 +431,8 @@ jobs:
           files: |
             dist/*.ipa
             dist/*.sha256
+            dist-alt/*.ipa
+            dist-alt/*.sha256
           fail_on_unmatched_files: true
 
       - name: Gắn IPA vào Release theo tag (khi push tag v*)
@@ -404,4 +442,6 @@ jobs:
           files: |
             dist/*.ipa
             dist/*.sha256
+            dist-alt/*.ipa
+            dist-alt/*.sha256
           fail_on_unmatched_files: true
