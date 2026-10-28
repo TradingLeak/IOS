@@ -10,7 +10,6 @@ final class AppSettings: ObservableObject {
         static let traffic = "vietmap.map.traffic"
         static let pois = "vietmap.map.pois"
 
-        static let vietmapKey = "vietmap.api.key"
         static let voiceAlerts = "vietmap.alert.voice"
         static let alertPins = "vietmap.alert.pins"
         static let tolerance = "vietmap.alert.tolerance"
@@ -73,10 +72,6 @@ final class AppSettings: ObservableObject {
 
     // MARK: Cảnh báo giao thông
 
-    /// API key VietMap (Keychain) — bật hồ sơ dẫn đường xe máy thật.
-    @Published var vietmapAPIKey: String {
-        didSet { KeychainStore.save(vietmapAPIKey, for: Keys.vietmapKey) }
-    }
     @Published var voiceAlerts: Bool {
         didSet { defaults.set(voiceAlerts, forKey: Keys.voiceAlerts) }
     }
@@ -127,7 +122,6 @@ final class AppSettings: ObservableObject {
         showTraffic = defaults.object(forKey: Keys.traffic) as? Bool ?? false
         showPOIs = defaults.object(forKey: Keys.pois) as? Bool ?? true
 
-        vietmapAPIKey = KeychainStore.read(Keys.vietmapKey)
         voiceAlerts = defaults.object(forKey: Keys.voiceAlerts) as? Bool ?? true
         showAlertPins = defaults.object(forKey: Keys.alertPins) as? Bool ?? true
         overspeedTolerance = defaults.object(forKey: Keys.tolerance) as? Int ?? 5
@@ -173,13 +167,6 @@ final class AppSettings: ObservableObject {
         aiModel = preset.model
         aiEnabled = true
     }
-
-    /// API key VietMap đã chuẩn hoá (rỗng = chưa có).
-    var vietmapKey: String {
-        vietmapAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var hasVietMapKey: Bool { !vietmapKey.isEmpty }
 
     var alertPreferences: AlertPreferences {
         var preferences = AlertPreferences()

@@ -8,7 +8,6 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var showVietMapKey = false
     @State private var showAlertsManager = false
 
     var body: some View {
@@ -44,45 +43,19 @@ struct SettingsView: View {
     private var routingCard: some View {
         SectionCard(title: "Dẫn đường xe máy", symbol: "scooter") {
             VStack(alignment: .leading, spacing: 12) {
+                InfoBanner(kind: .info,
+                           text: "Tuyến đường tính bằng Apple Maps rồi chấm điểm nội bộ: loại tuyến đi cao tốc "
+                                 + "(xe máy không được phép), ưu tiên đường lớn, tránh đường xấu. "
+                                 + "Không dùng API bên thứ ba.")
+
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Apple Maps không có hồ sơ xe máy. Nhập API key VietMap để có tuyến xe máy thật "
-                         + "(đi đúng đường cho phép, tránh cao tốc):")
-                        .font(.system(size: 12))
+                    Text("Thời gian xe máy lấy từ Apple Maps rồi hiệu chỉnh theo tuyến "
+                         + "(nội đô nhanh hơn ô tô 8%, có cao tốc thì chậm hơn 2%) và luôn được "
+                         + "ghi chú trong bảng so sánh tuyến.")
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Link("Đăng ký key VietMap (có gói miễn phí) →",
-                         destination: URL(string: "https://maps.vietmap.vn/console-v2/register")!)
-                        .font(.system(size: 11, weight: .semibold))
                 }
-
-                labeledField(title: "VietMap API key") {
-                    HStack(spacing: 8) {
-                        Group {
-                            if showVietMapKey {
-                                TextField("vietmap key", text: $settings.vietmapAPIKey)
-                            } else {
-                                SecureField("vietmap key", text: $settings.vietmapAPIKey)
-                            }
-                        }
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(.system(size: 13, design: .monospaced))
-
-                        Button {
-                            showVietMapKey.toggle()
-                        } label: {
-                            Image(systemName: showVietMapKey ? "eye.slash" : "eye")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                InfoBanner(kind: settings.hasVietMapKey ? .success : .info,
-                           text: settings.hasVietMapKey
-                           ? "Đang dùng VietMap Route v4 (vehicle=motorcycle)."
-                           : "Chưa có key → app ước lượng tuyến xe máy từ Apple Maps và cảnh báo nếu có cao tốc.")
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Phương tiện mặc định")
@@ -304,7 +277,7 @@ struct SettingsView: View {
                 infoRow("Bundle ID", AppInfo.current.bundleIdentifier)
                 infoRow("Commit", AppInfo.current.commit)
                 infoRow("Bản đồ", "Apple Maps (MapKit)")
-                infoRow("Xe máy", settings.hasVietMapKey ? "VietMap Route v4" : "ước lượng Apple Maps")
+                infoRow("Xe máy", "Apple Maps + chấm điểm nội bộ")
                 infoRow("Cảnh báo", "\(model.alertDatabase.count) điểm")
                 infoRow("Dẫn đường", settings.navigationPitch3D ? "3D xoay theo hướng" : "2D")
 

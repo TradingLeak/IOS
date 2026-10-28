@@ -4,21 +4,22 @@
 
 App chỉ đường cho Việt Nam, giao diện **kính mờ hiện đại** (card nổi, thanh tốc độ trên
 màn hình chính, bottom sheet), dùng **Apple Maps (MapKit)** để vẽ bản đồ và tính tuyến,
-**camera dẫn đường 3D/2D xoay theo hướng đi và tốc độ thời gian thực**, **VietMap Route v4**
-cho hồ sơ xe máy, cảnh báo **tốc độ / biển báo / camera ngay trên bản đồ**, và **trợ lý AI**
-tuỳ chọn (Ckey.vn hoặc base URL bạn tự nhập) để hiểu câu lệnh tìm đường.
+**camera dẫn đường 3D/2D xoay theo hướng đi và tốc độ thời gian thực**, cảnh báo
+**tốc độ / biển báo / camera ngay trên bản đồ** với dữ liệu tự có, và **trợ lý AI** tuỳ chọn
+(Ckey.vn hoặc base URL bạn tự nhập) để hiểu câu lệnh tìm đường.
 
-**Không cần mạng để tính điểm tuyến, không cần API key nào để dùng app** — mọi tính năng
-dẫn đường chạy offline trên máy (VietMap và AI đều là tuỳ chọn).
+**Không cần mạng để tính điểm tuyến, không cần API key nào để dùng app, không gọi API
+VietMap** — tuyến đường, chấm điểm, ước lượng thời gian xe máy và toàn bộ dữ liệu cảnh báo
+đều nằm trong app hoặc được tải từ OpenStreetMap (ODbL).
 
 Build ra **file IPA unsigned trên GitHub Actions** — không cần máy Mac, không cần tài khoản
 Apple Developer.
 
 ```
 ┌───────────────┐   MKDirections   ┌───────────────┐   so sánh + chấm điểm   ┌────────────────┐
-│ Tuyến thật từ │ ───────────────► │ 0–100 điểm,   │ ──────────────────────► │ Chọn tuyến →   │
-│ Apple Maps /  │   + cảnh báo     │ camera/cao tốc│   nhận xét offline      │ dẫn đường 3D   │
-│ VietMap v4    │   dọc tuyến      │ /phí cầu đường│                         │ bám vị trí     │
+│ Tuyến từ      │ ───────────────► │ 0–100 điểm,   │ ──────────────────────► │ Chọn tuyến →   │
+│ Apple Maps    │   + cảnh báo     │ camera/cao tốc│   nhận xét offline      │ dẫn đường 3D   │
+│ + chấm điểm   │   dọc tuyến      │ /phí cầu đường│                         │ bám vị trí     │
 └───────────────┘                  └───────────────┘                         └────────────────┘
 ```
 
@@ -35,6 +36,18 @@ Cài lên iPhone: xem **[docs/INSTALL.md](docs/INSTALL.md)** (TrollStore nếu i
 Sideloadly/SideStore với Apple ID miễn phí).
 
 ## ✨ Tính năng
+
+**🆕 3.0 — giao diện dẫn đường kiểu VietMap, dữ liệu tự có, bỏ API VietMap**
+
+- **Thẻ chỉ dẫn 2 dòng + thanh tiến trình tới chỗ rẽ**, dòng “Sau đó…” như app thương mại.
+- **Đồng hồ tốc độ dạng vòng cung** ngay trên bản đồ, chuyển đỏ và hiện “vượt X km/h”.
+- **Banner cảnh báo kiểu VietMap**: nhãn loại (CAMERA TỐC ĐỘ / BIỂN GIỚI HẠN…), tên điểm,
+  đếm lùi mét và thanh chạy tới điểm cảnh báo.
+- **Gợi ý làn đường** khi còn < 400 m tới chỗ rẽ (suy ra từ chỉ dẫn, không cần API).
+- **Dữ liệu phủ rộng**: biển giới hạn tốc độ, camera, trường học, khu dân cư, đường ngang
+  tàu hoả lấy từ **OpenStreetMap (ODbL)** bằng pipeline chạy trong GitHub Actions, giữ nguyên
+  795 camera TP.HCM.
+- **Bỏ hoàn toàn VietMap Route v4**: tuyến, thời gian xe máy và chấm điểm đều là logic nội bộ.
 
 **🆕 2.3 — bộ tính năng cao cấp: báo cáo sự cố, chia sẻ tuyến, tìm không dấu**
 
@@ -196,14 +209,14 @@ Unit test chạy trên Simulator cho cảnh báo, giới hạn tốc độ, tuy�
 | [docs/INSTALL.md](docs/INSTALL.md) | Cài IPA lên iPhone: TrollStore, Sideloadly, SideStore… |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Lỗi thường gặp (build, MapKit, GPS, cảnh báo) |
 
-## 🔧 Cấu hình xe máy (VietMap)
+## 🔧 Dẫn đường xe máy (không cần API key)
 
-1. Đăng ký key tại <https://maps.vietmap.vn/console-v2/register> (có gói miễn phí).
-2. App → ☰ → **Cài đặt** → **Dẫn đường xe máy** → dán key.
-3. Chọn phương tiện mặc định = **Xe máy**.
+1. App → ☰ → **Cài đặt** → **Dẫn đường xe máy** → chọn phương tiện mặc định = **Xe máy**.
+2. Chọn **nhóm xe hai bánh** (mô tô / xe gắn máy ≤ 50 cm³) để áp đúng bảng tốc độ TT 38/2024.
 
-Không có key: app vẫn dẫn đường xe máy được nhưng là **ước lượng** từ Apple Maps (đã loại
-tuyến cao tốc). Key lưu trong Keychain, không nằm trong repo.
+Tuyến tính bằng Apple Maps rồi **chấm điểm nội bộ**: loại phương án đi cao tốc (xe máy không
+được phép), ưu tiên đường lớn, trừ điểm theo mật độ camera/biển giới hạn. Thời gian xe máy là
+ước lượng và luôn được ghi chú trong bảng so sánh tuyến.
 
 ## 🤖 Trợ lý AI (tuỳ chọn)
 

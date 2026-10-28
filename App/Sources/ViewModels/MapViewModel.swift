@@ -42,7 +42,6 @@ final class MapViewModel: ObservableObject {
 
     // MARK: Cấu hình (đồng bộ từ AppSettings)
 
-    private(set) var vietmapKey = ""
     /// Tự bám theo vị trí khi bắt đầu dẫn đường (đồng bộ từ Cài đặt).
     private var followOnStart = true
     private var didApplyDefaultMode = false
@@ -142,9 +141,8 @@ final class MapViewModel: ObservableObject {
         refreshNearbyAlertsIfNeeded()
     }
 
-    /// Đồng bộ toàn bộ cài đặt (VietMap, cảnh báo, camera dẫn đường).
+    /// Đồng bộ toàn bộ cài đặt (cảnh báo, dẫn đường, AI).
     func syncSettings(_ settings: AppSettings) {
-        vietmapKey = settings.vietmapKey
         if aiConfig != settings.aiConfig {
             aiConfig = settings.aiConfig
         }
@@ -172,7 +170,7 @@ final class MapViewModel: ObservableObject {
     // MARK: - Dịch vụ dẫn xuất
 
     private var routing: RoutingService {
-        RoutingService(vietmapKey: vietmapKey)
+        RoutingService()
     }
 
     private var scorer: RouteScorer {

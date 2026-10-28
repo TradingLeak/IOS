@@ -79,6 +79,7 @@ struct MapScreen: View {
             VStack(spacing: 10) {
                 if model.isNavigating {
                     navigationBanner
+                    laneStrip
                 } else {
                     header
                     categoryChips
@@ -117,7 +118,6 @@ struct MapScreen: View {
             model.bootstrap()
             model.syncSettings(settings)
         }
-        .onChange(of: settings.vietmapAPIKey) { _ in model.syncSettings(settings) }
         .onChange(of: settings.voiceAlerts) { _ in model.syncSettings(settings) }
         .onChange(of: settings.showAlertPins) { _ in model.syncSettings(settings) }
         .onChange(of: settings.overspeedTolerance) { _ in model.syncSettings(settings) }
@@ -392,18 +392,10 @@ struct MapScreen: View {
     private var statusStrip: some View {
         HStack(alignment: .center, spacing: 12) {
             // Tốc độ hiện tại
-            VStack(spacing: -2) {
-                Text("\(Int(model.liveSpeedKmh.rounded()))")
-                    .font(.system(size: 30, weight: .heavy, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(model.isOverLimit ? AppTheme.danger : Color.primary)
-                    .contentTransition(.numericText())
-                    .lineLimit(1)
-                Text("km/h")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 58)
+            SpeedGauge(speed: model.liveSpeedKmh,
+                       limit: model.liveLimit,
+                       overLimit: model.isOverLimit,
+                       size: 62)
 
             if let limit = model.liveLimit {
                 SpeedLimitSignView(limit: limit, size: 38, muted: true)
@@ -720,6 +712,8 @@ struct MapScreen: View {
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
 
+            ProgressStripe(fraction: turnProgress, tint: AppTheme.accent)
+
             ProgressView(value: model.navigationProgress)
                 .tint(AppTheme.accent)
                 .scaleEffect(x: 1, y: 0.7, anchor: .center)
@@ -728,34 +722,67 @@ struct MapScreen: View {
         .floatingCard()
     }
 
+    /// 1 = còn xa chỗ rẽ, 0 = đã tới chỗ rẽ.
+    private var turnProgress: Double {
+        guard model.distanceToNextStep > 0 else { return 0 }
+        return min(1, model.distanceToNextStep / 400)
+    }
+
+    /// Dải gợi ý làn đường — chỉ hiện khi sắp rẽ và chỉ dẫn cho biết rẽ hướng nào.
+    @ViewBuilder
+    private var laneStrip: some View {
+        if let guidance = LaneGuidance.hint(for: model.currentStep,
+                                            distance: model.distanceToNextStep) {
+            LaneStrip(guidance: guidance)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
     // MARK: - Băng cảnh báo
 
+    /// Banner cảnh báo kiểu VietMap: nhãn loại + tên + đếm lùi + thanh chạy tới điểm cảnh báo.
     private func alertBanner(_ alert: ActiveAlert) -> some View {
-        HStack(spacing: 11) {
-            Image(systemName: alert.alert.kind.symbol)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(alert.alert.kind.tint))
+        VStack(spacing: 8) {
+            HStack(spacing: 11) {
+                Image(systemName: alert.alert.kind.symbol)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(alert.alert.kind.tint))
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(alert.alert.displayName)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                Text(alert.distanceText
-                     + (alert.alert.speedLimit.map { " · giới hạn \($0) km/h" } ?? ""))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(alert.levelColor)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(alert.alert.kind.shortTitle.uppercased())
+                        .font(.system(size: 9, weight: .heavy))
+                        .tracking(0.6)
+                        .foregroundStyle(alert.levelColor)
+                        .lineLimit(1)
+                    Text(alert.alert.displayName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                    Text(alert.distanceText
+                         + (alert.alert.speedLimit.map { " · giới hạn \($0) km/h" } ?? ""))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                if let limit = alert.alert.speedLimit {
+                    SpeedLimitSignView(limit: limit, size: 32, muted: true)
+                }
             }
 
-            Spacer(minLength: 0)
-
-            if let limit = alert.alert.speedLimit {
-                SpeedLimitSignView(limit: limit, size: 32, muted: true)
-            }
+            ProgressStripe(fraction: alertProgress(alert), tint: alert.levelColor)
         }
         .padding(10)
         .floatingCard(cornerRadius: 16)
+    }
+
+    /// 1 = còn xa, 0 = đã tới điểm cảnh báo.
+    private func alertProgress(_ alert: ActiveAlert) -> Double {
+        guard alert.warnDistance > 0 else { return 0 }
+        return max(0, min(1, alert.distance / alert.warnDistance))
     }
 
     // MARK: - Toast & helpers

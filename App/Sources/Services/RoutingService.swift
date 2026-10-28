@@ -1,56 +1,23 @@
 import Foundation
 import CoreLocation
 
-/// Chọn nhà cung cấp tuyến đường phù hợp với phương tiện:
+/// Tính tuyến đường **không phụ thuộc dịch vụ ngoài**: chỉ Apple Maps (MapKit) + logic nội bộ.
 ///
-/// - Ô tô / đi bộ / xe buýt → Apple Maps (MapKit).
-/// - Xe máy + có API key VietMap → VietMap Route v4 (`vehicle=motorcycle`),
-///   đây là dịch vụ duy nhất có hồ sơ xe máy thật cho đường Việt Nam.
-/// - Xe máy + không có key → Apple Maps rồi **lọc tuyến có cao tốc** và hiệu chỉnh
-///   thời gian theo tốc độ xe máy (ước lượng, có ghi chú rõ trong app).
+/// - Ô tô / đi bộ / xe buýt → Apple Maps nguyên bản.
+/// - Xe máy → Apple Maps (chưa có hồ sơ xe máy) rồi **lọc tuyến có cao tốc**, hiệu chỉnh
+///   thời gian theo tốc độ xe máy và chấm điểm bằng `RouteScorer`. Mọi điểm ước lượng
+///   đều được ghi rõ trong `advisoryNotices`.
+///
+/// Trước 3.0 app gọi VietMap Route v4 khi có API key; từ 3.0 đã bỏ hoàn toàn để
+/// không phụ thuộc bên thứ ba (xem `docs/NAVIGATION.md`).
 struct RoutingService {
 
-    var vietmapKey: String
     private let apple = DirectionsService()
-    private let vietmap = VietMapRoutingService()
-
-    init(vietmapKey: String = "") {
-        self.vietmapKey = vietmapKey
-    }
-
-    var hasVietMapKey: Bool {
-        !vietmapKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
 
     func routes(from origin: Place,
                 to destination: Place,
                 mode: TravelMode,
                 waypoints: [Place] = []) async throws -> [RouteOption] {
-
-        if mode == .motorcycle, hasVietMapKey {
-            do {
-                var result = try await vietmap.routes(from: origin,
-                                                      to: destination,
-                                                      waypoints: waypoints,
-                                                      mode: mode,
-                                                      apiKey: vietmapKey)
-                result = Self.sanitizeVietMap(result)
-                if !result.isEmpty { return result }
-            } catch {
-                // VietMap lỗi (hết quota, mạng, key sai) → vẫn phải có tuyến để đi.
-                var fallback = try await apple.routes(from: origin,
-                                                      to: destination,
-                                                      mode: mode,
-                                                      waypoints: waypoints)
-                fallback = Self.adjustForMotorcycle(fallback)
-                if !fallback.isEmpty {
-                    fallback[0].advisoryNotices.insert(
-                        "Không gọi được VietMap (\(error.localizedDescription)). Đang dùng tuyến ước lượng từ Apple Maps.",
-                        at: 0)
-                }
-                return fallback
-            }
-        }
 
         var result = try await apple.routes(from: origin,
                                             to: destination,
@@ -97,8 +64,8 @@ struct RoutingService {
                 adjusted.advisoryNotices.append(SpeedLimitRules.motorcycleExpresswayNotice)
             } else {
                 adjusted.advisoryNotices.append(
-                    "Thời gian xe máy là ước lượng từ Apple Maps (chưa có hồ sơ xe máy). "
-                    + "Nhập API key VietMap trong Cài đặt để có tuyến xe máy chính xác.")
+                    "Thời gian xe máy là ước lượng nội bộ từ Apple Maps "
+                    + "(tốc độ trung bình theo loại đường Việt Nam), không dùng dịch vụ ngoài.")
             }
 
             output.append(adjusted)
@@ -110,8 +77,8 @@ struct RoutingService {
         return output.sorted { (order[$0.id] ?? 0) < (order[$1.id] ?? 0) }
     }
 
-    /// VietMap có thể trả tuyến 0 mét hoặc trùng nhau — bỏ đi.
-    static func sanitizeVietMap(_ routes: [RouteOption]) -> [RouteOption] {
+    /// Bỏ tuyến 0 mét hoặc trùng nhau (Apple Maps đôi khi trả về nhiều phương án giống hệt).
+    static func sanitize(_ routes: [RouteOption]) -> [RouteOption] {
         var seen = Set<String>()
         var output: [RouteOption] = []
         for route in routes where route.distance > 1 && route.coordinates.count >= 2 {

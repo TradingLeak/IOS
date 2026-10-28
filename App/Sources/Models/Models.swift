@@ -124,18 +124,17 @@ struct Place: Identifiable {
 // MARK: - Tuyến đường
 
 /// Nhà cung cấp dịch vụ tính tuyến.
+///
+/// Từ 3.0 app chỉ dùng Apple Maps (MapKit); toàn bộ phần chấm điểm, ước lượng
+/// thời gian xe máy và cảnh báo là logic nội bộ.
 enum RouteProviderKind: String, Codable {
     case apple
-    case vietmap
 
     var title: String {
         switch self {
         case .apple: return "Apple Maps"
-        case .vietmap: return "VietMap"
         }
     }
-
-    var supportsMotorcycleProfile: Bool { self == .vietmap }
 }
 
 struct RouteStep: Identifiable {

@@ -88,7 +88,7 @@ final class MotorcycleRoutingTests: XCTestCase {
         let duplicate = makeRoute(name: "B", distance: 5_000, time: 600, stepText: "Đường Láng")
         let tiny = makeRoute(name: "C", distance: 0.4, time: 10, stepText: "Đường Láng")
 
-        let result = RoutingService.sanitizeVietMap([good, duplicate, tiny])
+        let result = RoutingService.sanitize([good, duplicate, tiny])
         XCTAssertEqual(result.count, 1)
     }
 
@@ -99,78 +99,5 @@ final class MotorcycleRoutingTests: XCTestCase {
 
         let city = makeRoute(name: "Phố", distance: 10_000, time: 600, stepText: "Đường Láng")
         XCTAssertNil(AlertEngine.motorcycleWarning(for: city))
-    }
-}
-
-final class VietMapParsingTests: XCTestCase {
-
-    func testParsesPathIntoRouteOption() throws {
-        let instruction = VietMapInstruction(distance: 1_200,
-                                            text: "Rẽ phải vào Quốc lộ 1A",
-                                            streetName: "Quốc lộ 1A",
-                                            sign: 2,
-                                            interval: [0, 1])
-        let path = VietMapPath(distance: 5_500,
-                               time: 720_000,
-                               points: "_p~iF~ps|U_ulLnnqC",
-                               pointsEncoded: true,
-                               instructions: [instruction],
-                               tollCost: 0)
-
-        let route = try XCTUnwrap(VietMapRoutingService.makeOption(path, index: 0, mode: .motorcycle))
-        XCTAssertEqual(route.provider, .vietmap)
-        XCTAssertEqual(route.distance, 5_500, accuracy: 0.01)
-        XCTAssertEqual(route.expectedTravelTime, 720, accuracy: 0.01)
-        XCTAssertEqual(route.coordinates.count, 2)
-        XCTAssertEqual(route.steps.count, 1)
-        XCTAssertEqual(route.steps.first?.roadName, "Quốc lộ 1A")
-        XCTAssertEqual(route.mode, .motorcycle)
-    }
-
-    func testParsesTollCostIntoNotice() throws {
-        let path = VietMapPath(distance: 80_000,
-                               time: 3_600_000,
-                               points: "_p~iF~ps|U_ulLnnqC",
-                               pointsEncoded: true,
-                               instructions: [],
-                               tollCost: 59_000)
-        let route = try XCTUnwrap(VietMapRoutingService.makeOption(path, index: 0, mode: .motorcycle))
-        XCTAssertEqual(route.tollCost, 59_000)
-        XCTAssertFalse(route.advisoryNotices.isEmpty)
-        XCTAssertNotNil(route.tollCostText)
-    }
-
-    func testRejectsEmptyGeometry() {
-        let path = VietMapPath(distance: 100, time: 1_000, points: "", pointsEncoded: true,
-                               instructions: [], tollCost: nil)
-        XCTAssertNil(VietMapRoutingService.makeOption(path, index: 0, mode: .motorcycle))
-    }
-
-    func testDecodesServerResponseShape() throws {
-        let json = """
-        {
-          "code": "OK",
-          "paths": [
-            {
-              "distance": 194465.7,
-              "time": 10854078,
-              "points": "_p~iF~ps|U_ulLnnqC",
-              "points_encoded": true,
-              "instructions": [
-                {"distance": 3590.7, "sign": 0, "interval": [0, 1], "text": "", "street_name": "Quốc Lộ 46"}
-              ],
-              "toll_cost": 59000
-            }
-          ]
-        }
-        """
-        let response = try JSONDecoder().decode(VietMapRouteResponse.self, from: Data(json.utf8))
-        XCTAssertEqual(response.code, "OK")
-        let path = try XCTUnwrap(response.paths?.first)
-        XCTAssertEqual(path.tollCost, 59_000)
-        XCTAssertEqual(path.instructions?.first?.streetName, "Quốc Lộ 46")
-
-        let route = try XCTUnwrap(VietMapRoutingService.makeOption(path, index: 0, mode: .motorcycle))
-        XCTAssertEqual(route.expectedTravelTime, 10_854, accuracy: 1)
     }
 }

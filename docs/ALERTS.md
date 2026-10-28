@@ -90,17 +90,41 @@ Nhận diện loại đường từ tên: `cao tốc / CT` → cao tốc; `quố
   trực tiếp từ máy chủ của cổng.
 - Đây là **camera giám sát**, không phải danh sách máy bắn tốc độ của cơ quan chức năng.
 
-### 4.2 OpenStreetMap (tải khi cần)
+### 4.2 OpenStreetMap — pipeline tự động (ODbL)
 
-Trong **Cảnh báo → Dữ liệu → Tải biển tốc độ từ OpenStreetMap**, app gọi Overpass API cho
-khu vực quanh tuyến đang chọn:
+`scripts/fetch-osm-alerts.py` tải dữ liệu toàn quốc từ Overpass API rồi
+`scripts/build-alert-data.py` gộp vào `App/Resources/Data/vn_alerts.json`:
 
-- `highway=speed_camera`, `enforcement=speed` → camera.
-- `maxspeed` trên `way` → vùng giới hạn (mốc = điểm đầu của way, `length` = độ dài way,
-  tối đa 5 km).
+| Tag OSM | Loại sinh ra | Ghi chú |
+|---|---|---|
+| `way[maxspeed]` trên `motorway/trunk/primary/secondary` | `speed_sign` | lấy mẫu mỗi 1 km, có `bearing` theo chiều way |
+| `node[highway=speed_camera]`, `node[enforcement=speed]` | `speed_camera` | |
+| `node[amenity=school]` | `school_zone` | |
+| `way[landuse=residential]` (tâm way) | `residential_zone` | giới hạn 60 km/h theo TT 38/2024 |
+| `node[railway=level_crossing]` | `hazard` | đường ngang tàu hoả |
 
-Dữ liệu © OpenStreetMap contributors, **ODbL 1.0**. Độ phủ `maxspeed` ở Việt Nam còn thấp
-(cao tốc ~89%, quốc lộ ~20%, đường phố rất ít) — vì vậy app luôn có bảng mặc định ở mục 3.
+Chạy tay:
+
+```bash
+python3 scripts/fetch-osm-alerts.py --self-test     # kiểm tra bộ phân tích, không cần mạng
+python3 scripts/fetch-osm-alerts.py                 # tải toàn quốc (18 ô 3°×3°)
+python3 scripts/build-alert-data.py                 # gộp + kiểm tra
+```
+
+Workflow **Cập nhật dữ liệu biển báo OSM** (`.github/workflows/update-osm-alerts.yml`) chạy
+việc này tự động mỗi Chủ nhật và commit kết quả; build IPA chỉ đọc tệp đã commit nên nếu
+Overpass lỗi thì bản build vẫn xanh với dữ liệu cũ.
+
+Dữ liệu © OpenStreetMap contributors, **ODbL 1.0**. OSM ở Việt Nam chỉ có `maxspeed` ở
+những đoạn đã được vẽ biển (cao tốc ~89%, quốc lộ ~20%, đường phố rất ít) — chỗ thiếu,
+app **suy luận theo TT 38/2024** lúc chạy và hiển thị nguồn là “Ước tính TT 38/2024”
+(xem mục 3), không giả làm biển báo thật.
+
+### 4.2b Tải theo tuyến (trong app, tuỳ chọn)
+
+Trong **Cảnh báo → Dữ liệu → Tải biển tốc độ từ OpenStreetMap**, app gọi Overpass cho khu
+vực quanh tuyến đang chọn (`speed_camera`, `enforcement=speed`, `maxspeed`). Phù hợp khi
+cần dữ liệu mới nhất cho một cung đường cụ thể mà chưa muốn chờ bản cập nhật tuần.
 
 ### 4.3 Dữ liệu bạn tự nhập
 

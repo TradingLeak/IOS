@@ -79,6 +79,35 @@ arrival           = bây giờ + remainingTime
 
 Thẻ tuyến ngoài bản đồ cũng hiện giờ tới nơi dự kiến trước khi bạn bấm Bắt đầu.
 
+Thẻ còn có **thanh tiến trình tới chỗ rẽ**: đầy dần khi bạn lại gần ngã rẽ (0 → 400 m).
+
+### 3.1 Gợi ý làn đường
+
+Khi còn **< 400 m** tới chỗ rẽ, dưới thẻ chỉ dẫn hiện **dải làn**: 3 làn, làn cần đi được tô
+sáng theo màu nhấn kèm nhãn “Làn trái / Làn phải / Vào vòng xuyến”.
+
+MapKit không trả dữ liệu làn, nên dải này **suy ra từ câu chỉ dẫn** theo quy tắc giao thông
+Việt Nam (`App/Sources/Models/LaneGuidance.swift`):
+
+| Câu chỉ dẫn | Làn tô sáng |
+|---|---|
+| rẽ trái, quay đầu | làn trái nhất |
+| rẽ phải, lối ra, nhập làn | làn phải nhất |
+| vòng xuyến | làn phải |
+| đi thẳng, tới nơi | không hiện |
+
+Logic thuần, không gọi mạng; có unit test trong `App/Tests/NavigationHUDTests.swift`.
+Khi bộ dữ liệu OSM bổ sung `turn:lanes`, chỉ cần thay hàm `hint(for:distance:)`.
+
+### 3.2 Không dùng API VietMap
+
+Từ 3.0 app **không gọi bất kỳ API VietMap nào**:
+
+- Tuyến: `MKDirections` của MapKit.
+- Xe máy: Apple Maps + lọc tuyến cao tốc + hiệu chỉnh thời gian (`RoutingService`).
+- Chấm điểm / so sánh phương án: `RouteScorer` nội bộ.
+- Cảnh báo: dữ liệu nhúng (OSM + cổng TP.HCM) + báo cáo người dùng.
+
 ---
 
 ## 4. Thanh tốc độ & cảnh báo trên màn hình chính
@@ -94,7 +123,10 @@ Từ 2.2 **không còn HUD toàn màn hình** — mọi thứ cần nhìn khi l�
   (xám → màu loại → cam → đỏ) theo mức nguy hiểm, không xoá/thêm lại nên bản đồ không nháy.
 - **Chưa chọn tuyến vẫn thấy cảnh báo**: app tự nạp cảnh báo trong bán kính 2,5 km và tải lại
   sau 45 giây hoặc khi bạn đi xa hơn 400 m.
-- **Băng cảnh báo** hiện phía trên khi cảnh báo kế tiếp đã vào ngưỡng `D_warn`.
+- **Đồng hồ tốc độ dạng vòng cung** thay cho con số trơn: cung chạy theo tốc độ, chuyển đỏ
+  và hiện “vượt X km/h” khi quá giới hạn (`SpeedGauge`).
+- **Băng cảnh báo** hiện phía trên khi cảnh báo kế tiếp đã vào ngưỡng `D_warn`, gồm **nhãn
+  loại**, tên điểm, đếm lùi mét và **thanh chạy** tới điểm cảnh báo (`ProgressStripe`).
 - Khoảng cách ước tính cập nhật theo tốc độ thật, không cần mở màn hình phụ.
 
 Nút `view.3d` / `map` trên mép phải đổi **3D ↔ 2D bất cứ lúc nào** (cả khi chỉ xem bản đồ
