@@ -1,5 +1,7 @@
 # 📦 iOS → IPA không cần tài khoản Apple
 
+[![Build unsigned IPA](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml/badge.svg)](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml)
+
 Template dựng sẵn để **build file `.ipa` mà không cần Apple Developer Program (99$/năm)**,
 thậm chí **không cần Apple ID** — bằng cách tạo **IPA unsigned** (không ký) trên
 **GitHub Actions** (không cần máy Mac) hoặc trên **Mac local**.
