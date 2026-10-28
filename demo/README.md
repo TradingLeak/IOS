@@ -79,3 +79,14 @@ App sẽ xuất đúng bộ trường đó nếu sau này bật lại HUD BLE.
 
 Dữ liệu thật dùng nguồn khác: cổng camera TP.HCM (795 điểm, đã có) + OpenStreetMap (ODbL)
 + suy luận tốc độ theo TT 38/2024 + người dùng báo camera mới.
+
+---
+
+## `map-style.html` — bản demo 3.2 (biển báo trên đường)
+
+`http://127.0.0.1:8000/map-style.html`
+
+Duyệt kiểu hiển thị mới: biển tròn trắng–đỏ + chân ghim cắm xuống đường, thẻ tốc độ khối tối
+góc trái, banner cảnh báo cùng chất liệu, hai nút pill “Về giữa” / “Tắt âm cảnh báo”.
+Đã duyệt và triển khai trong `App/Sources/Views/MapContainer.swift`
+(`AlertMapStyle.badge`, `AlertSignAnnotationView`) và `MapScreen.speedCard`.

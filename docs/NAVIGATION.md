@@ -118,6 +118,10 @@ Từ 2.2 **không còn HUD toàn màn hình** — mọi thứ cần nhìn khi l�
   tốc độ hiện tại (đổi màu đỏ khi vượt ngưỡng), biển giới hạn tốc độ kiểu P.127 +
   nguồn (biển báo / vùng / OSM / bảng TT 38/2024), và **2 cảnh báo gần nhất** kèm khoảng
   cách, tô màu theo mức nguy hiểm (`xanh → vàng → cam → đỏ`).
+- **Biển báo nằm ngay trên tuyến đường** (từ 3.2): biển tròn trắng–đỏ có số km/h, kèm
+  **chân ghim + đầu ghim**; `AlertSignAnnotationView` neo tâm đầu ghim đúng toạ độ nên biển
+  “cắm” xuống mép đường chứ không lơ lửng. Camera dùng nền tối + icon vàng, khu dân cư nền xanh.
+  Ảnh biển được vẽ một lần cho mỗi tổ hợp (giới hạn, loại, mức nguy hiểm) và cache lại.
 - **Biển báo và camera nằm trực tiếp trên bản đồ** dưới dạng marker/nhãn ruột (glyph + số
   km/h), phóng to khi tới gần; bấm vào marker để xem chi tiết. Marker **đổi màu tại chỗ**
   (xám → màu loại → cam → đỏ) theo mức nguy hiểm, không xoá/thêm lại nên bản đồ không nháy.

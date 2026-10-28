@@ -83,6 +83,120 @@ enum AlertMapStyle {
         return UIImage(systemName: symbol)
     }
 
+    // MARK: Biển báo kiểu "cắm trên đường"
+
+    /// Đường kính biển (pt).
+    static let badgeDiameter: CGFloat = 44
+    /// Chân ghim nối biển xuống mặt đường (pt).
+    static let badgeStem: CGFloat = 9
+    /// Đầu ghim tròn — **tâm điểm này trùng với toạ độ** trên bản đồ (pt).
+    static let badgeDot: CGFloat = 10
+
+    /// Một ảnh gồm **biển tròn + chân ghim + đầu ghim**.
+    ///
+    /// Kiểu hiển thị của các app dẫn đường Việt Nam: biển P.127 nổi ngay trên mép đường
+    /// thay vì bóng bay marker, nên nhìn vào là biết đoạn đường đó giới hạn bao nhiêu.
+    /// Đầu ghim nằm ở đáy ảnh; `AlertSignAnnotationView` đặt `centerOffset` để tâm đầu
+    /// ghim trùng đúng toạ độ.
+    static func badge(for pin: PinAnnotation, scale: CGFloat = 1) -> UIImage? {
+        let key = "badge-\(pin.limit.map(String.init) ?? "x")-\(pin.alertKind?.rawValue ?? "-")"
+            + "-\(pin.severity)-\(Int(scale * 100))" as NSString
+        if let cached = cache.object(forKey: key) { return cached }
+
+        let diameter = badgeDiameter * scale
+        let stem = badgeStem * scale
+        let dot = badgeDot * scale
+        let size = CGSize(width: diameter, height: diameter + stem + dot)
+        let ring = max(4.5, diameter * 0.155)
+
+        let image = UIGraphicsImageRenderer(size: size).image { context in
+            let cg = context.cgContext
+            cg.setShadow(offset: CGSize(width: 0, height: 2), blur: 5,
+                         color: UIColor.black.withAlphaComponent(0.28).cgColor)
+
+            let circleRect = CGRect(x: ring / 2, y: ring / 2,
+                                    width: diameter - ring, height: diameter - ring)
+            let circle = UIBezierPath(ovalIn: circleRect)
+
+            // Màu nền/viền/số theo loại cảnh báo.
+            let limitStyle = pin.limit != nil && (pin.alertKind?.carriesSpeedLimit ?? false)
+            let fill: UIColor
+            let stroke: UIColor
+            let glyphColor: UIColor
+            if limitStyle {
+                fill = .white
+                stroke = UIColor(red: 0.89, green: 0.13, blue: 0.10, alpha: 1)
+                glyphColor = .black
+            } else if pin.alertKind?.isCamera ?? false {
+                fill = UIColor(red: 0.11, green: 0.15, blue: 0.20, alpha: 1)
+                stroke = fill
+                glyphColor = UIColor(red: 1.0, green: 0.69, blue: 0.13, alpha: 1)
+            } else if pin.alertKind == .residentialZone || pin.alertKind == .schoolZone {
+                fill = UIColor(red: 0.12, green: 0.44, blue: 0.82, alpha: 1)
+                stroke = fill
+                glyphColor = .white
+            } else {
+                fill = UIColor(pin.alertKind?.tint ?? AppTheme.warning)
+                stroke = fill
+                glyphColor = .white
+            }
+
+            fill.setFill()
+            circle.fill()
+            if stroke != fill {
+                stroke.setStroke()
+                circle.lineWidth = ring
+                circle.stroke()
+            }
+
+            // Nội dung trong biển: số km/h hoặc icon loại cảnh báo.
+            if let limit = pin.limit, limitStyle {
+                let text = "\(limit)" as NSString
+                let font = UIFont.systemFont(ofSize: diameter * 0.46, weight: .heavy)
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: font, .foregroundColor: glyphColor
+                ]
+                let textSize = text.size(withAttributes: attributes)
+                text.draw(at: CGPoint(x: (diameter - textSize.width) / 2,
+                                      y: (diameter - textSize.height) / 2))
+            } else if let symbol = UIImage(systemName: pin.glyphSymbol
+                                           ?? pin.alertKind?.symbol
+                                           ?? "exclamationmark.triangle.fill",
+                                           withConfiguration: UIImage.SymbolConfiguration(
+                                            pointSize: diameter * 0.46, weight: .bold))?
+                .withTintColor(glyphColor, renderingMode: .alwaysOriginal) {
+                let glyphSize = symbol.size
+                symbol.draw(in: CGRect(x: (diameter - glyphSize.width) / 2,
+                                       y: (diameter - glyphSize.height) / 2,
+                                       width: glyphSize.width, height: glyphSize.height))
+            }
+
+            // Chân ghim.
+            cg.setShadow(offset: .zero, blur: 0, color: nil)
+            stroke.setFill()
+            UIBezierPath(rect: CGRect(x: diameter / 2 - max(1.2, scale * 1.5),
+                                      y: diameter - 1,
+                                      width: max(2.4, scale * 3),
+                                      height: stem)).fill()
+
+            // Đầu ghim (tâm = toạ độ).
+            let dotRect = CGRect(x: (diameter - dot) / 2, y: diameter + stem - 1,
+                                 width: dot, height: dot)
+            let dotPath = UIBezierPath(ovalIn: dotRect)
+            stroke.setFill()
+            dotPath.fill()
+            if limitStyle || pin.alertKind?.isCamera == true {
+                UIColor.white.setStroke()
+                dotPath.lineWidth = max(1.5, scale * 2)
+                dotPath.stroke()
+            }
+        }
+        .withRenderingMode(.alwaysOriginal)
+
+        cache.setObject(image, forKey: key)
+        return image
+    }
+
     /// Biển P.127 thu nhỏ: nền trắng, viền đỏ, số đen — nhìn ra ngay trên bản đồ.
     static func signImage(limit: Int, size: CGFloat = 26) -> UIImage? {
         let key = "sign-\(limit)-\(Int(size))" as NSString
@@ -111,6 +225,37 @@ enum AlertMapStyle {
         .withRenderingMode(.alwaysOriginal)
         cache.setObject(image, forKey: key)
         return image
+    }
+}
+
+/// Ghim cảnh báo hiển thị dạng **biển báo cắm trên đường** (không phải bóng bay marker).
+final class AlertSignAnnotationView: MKAnnotationView {
+    static let reuseIdentifier = "alert-sign"
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        backgroundColor = .clear
+        canShowCallout = true
+        collisionMode = .circle
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) chưa hỗ trợ") }
+
+    /// Vẽ lại ảnh biển + neo đầu ghim đúng toạ độ.
+    func apply(_ pin: PinAnnotation) {
+        let scale: CGFloat = pin.severity >= 3 ? 1.12 : 1
+        image = AlertMapStyle.badge(for: pin, scale: scale)
+        displayPriority = pin.severity >= 2 ? .required : .defaultHigh
+        clusteringIdentifier = pin.severity >= 3 ? nil : "alert"
+        zPriority = pin.severity >= 3 ? .max : .defaultUnselected
+        accessibilityLabel = pin.title
+
+        if let image {
+            // Ảnh vẽ từ trên xuống: biển → chân → đầu ghim. Đặt tâm ảnh cao hơn
+            // toạ độ đúng bằng khoảng cách từ tâm ảnh tới tâm đầu ghim.
+            let dotRadius = AlertMapStyle.badgeDot * scale / 2
+            centerOffset = CGPoint(x: 0, y: -(image.size.height / 2 - dotRadius))
+        }
     }
 }
 
@@ -298,8 +443,12 @@ struct MapContainer: UIViewRepresentable {
             }
             let restyle = annotation.needsRestyle(as: pin)
             annotation.apply(pin)
-            if restyle, let view = mapView.view(for: annotation) as? MKMarkerAnnotationView {
-                context.coordinator.style(view, with: annotation)
+            if restyle, let view = mapView.view(for: annotation) {
+                if let marker = view as? MKMarkerAnnotationView {
+                    context.coordinator.style(marker, with: annotation)
+                } else if let sign = view as? AlertSignAnnotationView {
+                    sign.apply(annotation)
+                }
             }
         }
         if !toAdd.isEmpty {
@@ -445,6 +594,17 @@ struct MapContainer: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
             guard let pin = annotation as? PinAnnotation else { return nil }
+
+            // Biển báo / camera: vẽ biển + chân ghim, không dùng bóng bay marker.
+            if pin.kind == .camera {
+                let view = (mapView.dequeueReusableAnnotationView(
+                    withIdentifier: AlertSignAnnotationView.reuseIdentifier) as? AlertSignAnnotationView)
+                    ?? AlertSignAnnotationView(annotation: annotation,
+                                               reuseIdentifier: AlertSignAnnotationView.reuseIdentifier)
+                view.annotation = annotation
+                view.apply(pin)
+                return view
+            }
 
             let identifier = "pin-\(pin.kind.rawValue)"
             var reusable = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView

@@ -37,6 +37,17 @@ Sideloadly/SideStore với Apple ID miễn phí).
 
 ## ✨ Tính năng
 
+**🆕 3.2 — biển báo cắm trên tuyến đường, thẻ tốc độ gọn**
+
+- **Biển báo vẽ như app dẫn đường chuyên nghiệp**: biển tròn trắng–đỏ có số km/h, thêm
+  **chân ghim + đầu ghim** cắm đúng xuống mép đường, đầu ghim trùng toạ độ. Không còn bóng bay
+  marker; camera dùng nền tối icon vàng, khu dân cư nền xanh, trường học nền xanh.
+- **Thẻ tốc độ khối tối** ở góc trái: biển giới hạn → “TỐC ĐỘ HIỆN TẠI” → số km/h (đỏ khi
+  vượt) → cảnh báo kế tiếp kèm khoảng cách. Thay cho thanh ngang cũ.
+- **Banner cảnh báo** cùng chất liệu tối, gọn một dòng với đếm lùi mét.
+- **Nút nhanh** dạng pill: “Về giữa”, “Tắt/Bật âm cảnh báo”.
+- Bố cục dọc giữ nguyên nguyên tắc không chồng lấn của 3.1.1.
+
 **🆕 3.1.1 — sửa bố cục: nút không còn đè lên nhau**
 
 - Toàn bộ nút trên màn hình bản đồ nằm trong **một luồng bố cục dọc** — bỏ lớp phủ neo

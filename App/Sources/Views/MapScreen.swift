@@ -415,73 +415,119 @@ struct MapScreen: View {
         .accessibilityLabel("Thêm tuỳ chọn bản đồ")
     }
 
-    // MARK: - Tốc độ hiện tại & cảnh báo sắp tới (màn hình chính)
+    // MARK: - Thẻ tốc độ & cảnh báo (kiểu app dẫn đường VN: khối tối gọn)
 
-    private var statusStrip: some View {
-        HStack(alignment: .center, spacing: 12) {
-            // Tốc độ hiện tại
-            SpeedGauge(speed: model.liveSpeedKmh,
-                       limit: model.liveLimit,
-                       overLimit: model.isOverLimit,
-                       size: 62)
+    /// Nền tối dùng chung cho thẻ tốc độ, banner cảnh báo và nút pill.
+    static let hudSurface = Color(red: 0.11, green: 0.15, blue: 0.20)
 
+    /// Thẻ tốc độ: biển giới hạn → nhãn → số km/h → cảnh báo kế tiếp.
+    /// Gọn trong ~132 pt nên không tranh chỗ với bản đồ.
+    private func speedCard(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
             if let limit = model.liveLimit {
-                SpeedLimitSignView(limit: limit, size: 38, muted: true)
+                SpeedLimitSignView(limit: limit, size: compact ? 48 : 56, muted: true)
+                    .padding(.bottom, compact ? 7 : 9)
             } else {
                 Image(systemName: "questionmark.circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 38, height: 38)
+                    .font(.system(size: (compact ? 48 : 56) * 0.55, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .frame(width: compact ? 48 : 56, height: compact ? 48 : 56)
+                    .padding(.bottom, compact ? 7 : 9)
             }
 
-            Rectangle()
-                .fill(AppTheme.cardStroke)
-                .frame(width: 1, height: 38)
+            Text("TỐC ĐỘ HIỆN TẠI")
+                .font(.system(size: 8.5, weight: .heavy))
+                .tracking(0.7)
+                .foregroundStyle(.white.opacity(0.55))
+                .lineLimit(1)
 
-            // Danh sách cảnh báo sắp tới
-            VStack(alignment: .leading, spacing: 4) {
-                if model.upcomingAlerts.isEmpty {
-                    Text(model.isNavigating ? "Không có cảnh báo phía trước" : "Cảnh báo hiện trên bản đồ")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text(model.speedLimitSourceText)
-                        .font(.system(size: 9.5))
-                        .foregroundStyle(.tertiary)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text("\(Int(model.liveSpeedKmh.rounded()))")
+                    .font(.system(size: compact ? 25 : 27, weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(model.isOverLimit
+                                     ? Color(red: 1.0, green: 0.42, blue: 0.38)
+                                     : Color.white)
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                Text("km/h")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+
+            if let alert = model.nextAlert {
+                Rectangle()
+                    .fill(Color.white.opacity(0.12))
+                    .frame(height: 1)
+                    .padding(.vertical, 6)
+
+                HStack(spacing: 5) {
+                    Image(systemName: alert.alert.kind.symbol)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(alert.alert.kind.tint)
+                    Text(alert.alert.kind.shortTitle)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
                         .lineLimit(1)
-                } else {
-                    ForEach(model.upcomingAlerts.prefix(2)) { alert in
-                        HStack(spacing: 6) {
-                            Image(systemName: alert.alert.kind.symbol)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 18, height: 18)
-                                .background(Circle().fill(alert.alert.kind.tint))
-                            Text(alert.alert.kind.shortTitle)
-                                .font(.system(size: 11, weight: .semibold))
-                                .lineLimit(1)
-                            Spacer(minLength: 2)
-                            Text(Format.hudDistance(max(0, alert.distance)))
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .monospacedDigit()
-                                .foregroundStyle(alert.levelColor)
-                        }
-                    }
-                    if model.upcomingAlerts.count > 2 {
-                        Text("+\(model.upcomingAlerts.count - 2) cảnh báo nữa")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                    }
+                    Spacer(minLength: 2)
+                    Text(Format.hudDistance(max(0, alert.distance)))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .floatingCard(cornerRadius: 18)
+        .padding(compact ? 10 : 12)
+        .frame(width: compact ? 116 : 132, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Self.hudSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Tốc độ \(Int(model.liveSpeedKmh.rounded())) km/h, giới hạn "
-                            + "\(model.liveLimit.map { "\($0)" } ?? "chưa rõ"), "
-                            + "\(model.upcomingAlerts.count) cảnh báo phía trước")
+                            + "\(model.liveLimit.map { "\($0)" } ?? "chưa rõ")"
+                            + (model.nextAlert.map { ", cảnh báo \($0.alert.kind.shortTitle) "
+                                + "cách \(Format.hudDistance(max(0, $0.distance)))" } ?? ""))
+    }
+
+    /// Hai nút nhanh kiểu pill dưới thẻ tốc độ: về giữa / tắt âm cảnh báo.
+    private var quickPills: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            pillButton(symbol: "location.fill", title: "Về giữa") {
+                model.focusOnUser()
+            }
+            pillButton(symbol: settings.voiceAlerts ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                       title: settings.voiceAlerts ? "Tắt âm cảnh báo" : "Bật âm cảnh báo") {
+                settings.voiceAlerts.toggle()
+            }
+        }
+    }
+
+    private func pillButton(symbol: String, title: String,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 13)
+            .frame(height: 36)
+            .background(Capsule().fill(Self.hudSurface))
+            .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1))
+            .shadow(color: .black.opacity(0.22), radius: 10, x: 0, y: 5)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 
     // MARK: - Bố cục dọc (không chồng lấn)
@@ -503,18 +549,19 @@ struct MapScreen: View {
         }
     }
 
-    /// Cụm đáy: trạng thái → (đồng hồ tốc độ | nút phụ) → thanh tuyến.
+    /// Cụm đáy: (nút nhanh + thẻ tốc độ | cột nút phụ) → thanh tuyến.
     /// Mọi thứ xếp trong VStack nên không bao giờ đè lên nhau.
     @ViewBuilder
     private func bottomCluster(compact: Bool) -> some View {
         VStack(spacing: compact ? 8 : 10) {
-            if !model.isNavigating, showsStatusStrip {
-                statusStrip
-            }
-
             HStack(alignment: .bottom, spacing: 10) {
-                if model.isNavigating {
-                    navigationSpeedPanel
+                VStack(alignment: .leading, spacing: 8) {
+                    if !model.isNavigating {
+                        quickPills
+                    }
+                    if showsSpeedCard {
+                        speedCard(compact: compact)
+                    }
                 }
                 Spacer(minLength: 0)
                 sideControls(compact: compact)
@@ -524,40 +571,9 @@ struct MapScreen: View {
         }
     }
 
-    private var showsStatusStrip: Bool {
-        model.hasRoute || location.isAuthorized
-    }
-
-    /// Đồng hồ tốc độ + biển giới hạn, đặt đáy trái khi đang dẫn đường.
-    private var navigationSpeedPanel: some View {
-        HStack(spacing: 10) {
-            SpeedGauge(speed: model.liveSpeedKmh,
-                       limit: model.liveLimit,
-                       overLimit: model.isOverLimit,
-                       size: 64)
-
-            if let limit = model.liveLimit {
-                SpeedLimitSignView(limit: limit, size: 38, muted: true)
-            }
-
-            if model.isOverLimit, let limit = model.liveLimit {
-                Text("Vượt \(Int((model.liveSpeedKmh - Double(limit)).rounded())) km/h")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(AppTheme.danger))
-            }
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .floatingCard(cornerRadius: 20)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Tốc độ \(Int(model.liveSpeedKmh.rounded())) km/h, giới hạn "
-                            + "\(model.liveLimit.map { "\($0)" } ?? "chưa rõ")")
+    /// Hiện thẻ tốc độ khi đang dẫn đường, đã có tuyến, hoặc đã được cấp quyền vị trí.
+    private var showsSpeedCard: Bool {
+        model.isNavigating || model.hasRoute || location.isAuthorized
     }
 
     /// Thanh đáy khi đang dẫn đường: còn bao xa / bao lâu / giờ tới + Kết thúc.
@@ -895,42 +911,62 @@ struct MapScreen: View {
     // MARK: - Băng cảnh báo
 
     /// Banner cảnh báo kiểu VietMap: nhãn loại + tên + đếm lùi + thanh chạy tới điểm cảnh báo.
+    /// Banner cảnh báo kiểu khối tối gọn: icon → nhãn loại + tên điểm → đếm lùi mét.
     private func alertBanner(_ alert: ActiveAlert) -> some View {
         VStack(spacing: 8) {
             HStack(spacing: 11) {
                 Image(systemName: alert.alert.kind.symbol)
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(alert.alert.kind.tint))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(alert.alert.kind.tint)
+                    .frame(width: 38, height: 38)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(alert.alert.kind.tint.opacity(0.18))
+                    )
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(alert.alert.kind.shortTitle.uppercased())
                         .font(.system(size: 9, weight: .heavy))
-                        .tracking(0.6)
-                        .foregroundStyle(alert.levelColor)
+                        .tracking(0.7)
+                        .foregroundStyle(.white.opacity(0.55))
                         .lineLimit(1)
-                    Text(alert.alert.displayName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .lineLimit(1)
-                    Text(alert.distanceText
-                         + (alert.alert.speedLimit.map { " · giới hạn \($0) km/h" } ?? ""))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
+                    Text(alert.alert.displayName
+                         + (alert.alert.speedLimit.map { " · \($0) km/h" } ?? ""))
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundStyle(.white)
                         .lineLimit(1)
                 }
 
                 Spacer(minLength: 0)
 
-                if let limit = alert.alert.speedLimit {
-                    SpeedLimitSignView(limit: limit, size: 32, muted: true)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("\(max(0, Int(alert.distance.rounded())))")
+                        .font(.system(size: 17, weight: .heavy, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(alert.levelColor)
+                        .lineLimit(1)
+                    Text(alert.distance < 0 ? "ĐÃ QUA" : "MÉT")
+                        .font(.system(size: 8.5, weight: .heavy))
+                        .tracking(0.5)
+                        .foregroundStyle(.white.opacity(0.45))
                 }
+                .fixedSize()
             }
 
             ProgressStripe(fraction: alertProgress(alert), tint: alert.levelColor)
         }
-        .padding(10)
-        .floatingCard(cornerRadius: 16)
+        .padding(11)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Self.hudSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(alert.alert.kind.title), \(alert.distanceText)")
     }
 
     /// 1 = còn xa, 0 = đã tới điểm cảnh báo.

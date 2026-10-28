@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>VietMap 3.2 — biển báo trên tuyến đường + bảng tốc độ gọn</title>
+<style>
+  :root{
+    --ink:#111826; --ink-2:#5b6675;
+    --land:#f3f0ea; --block:#e6e2da; --block-top:#fbfaf7;
+    --water:#bcd7f2; --park:#dbe7cf;
+    --road:#ffffff; --road-edge:#e2ddd3; --road-main:#fff6d8;
+    --accent:#2f7bff; --danger:#e2231a; --warn:#ffb020;
+    --dark:#1d2733; --dark-2:#27333f;
+    --shadow:0 10px 26px rgba(17,24,38,.16), 0 2px 6px rgba(17,24,38,.08);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(1200px 700px at 20% 0%,#22304a 0%,#111826 45%,#080c12 100%);
+    color:#e8eef8;min-height:100vh;display:flex;justify-content:center;padding:24px 20px 40px;
+  }
+  .app{display:flex;gap:32px;align-items:flex-start;max-width:1180px;width:100%}
+
+  /* ---------- thiết bị ---------- */
+  .device{position:relative;width:412px;height:866px;border-radius:56px;padding:11px;flex:0 0 auto;
+    background:linear-gradient(160deg,#2b3340,#0e1219 60%);
+    box-shadow:0 40px 90px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.08)}
+  .screen{position:relative;width:390px;height:844px;border-radius:46px;overflow:hidden;background:var(--land);color:var(--ink)}
+  .statusbar{position:absolute;top:0;left:0;right:0;height:48px;display:flex;align-items:center;justify-content:space-between;
+    padding:16px 26px 0;font-size:12.5px;font-weight:650;z-index:60;pointer-events:none;color:var(--ink)}
+  .notch{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:112px;height:26px;border-radius:15px;background:#05070b;z-index:61}
+
+  /* ---------- bản đồ 3D ---------- */
+  .mapstage{position:absolute;inset:0;overflow:hidden;background:var(--land);perspective:1300px;perspective-origin:50% 42%}
+  .tilt{position:absolute;inset:-40% -20% -10%;transform:rotateX(52deg) scale(1.35);transform-origin:50% 30%}
+  svg{position:absolute;inset:0;width:100%;height:100%}
+  svg text{font-family:inherit;user-select:none}
+  .rd{fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .rl{font-size:8.5px;font-weight:600;fill:#9a9488;letter-spacing:.2px}
+
+  /* lớp biển báo: đứng thẳng, không bị nghiêng theo bản đồ */
+  .signs{position:absolute;inset:0;z-index:10;pointer-events:none}
+  .sign{position:absolute;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center}
+  .sign .plate{
+    width:44px;height:44px;border-radius:50%;background:#fff;
+    border:7px solid var(--danger);display:grid;place-items:center;
+    box-shadow:0 3px 8px rgba(17,24,38,.28), 0 0 0 2px rgba(255,255,255,.9);
+    font-weight:850;font-size:19px;letter-spacing:-.5px;color:#111826;
+  }
+  .sign .stem{width:3px;height:9px;background:var(--danger);opacity:.9}
+  .sign .dot{width:9px;height:9px;border-radius:50%;background:var(--danger);border:2px solid #fff;
+    box-shadow:0 1px 4px rgba(17,24,38,.35);margin-top:-1px}
+  .sign.cam .plate{border-color:#1d2733;background:#1d2733;color:#ffb020;font-size:20px}
+  .sign.cam .stem,.sign.cam .dot{background:#1d2733}
+  .sign.zone .plate{border-color:#1f6fd0;background:#1f6fd0;color:#fff;font-size:17px}
+  .sign.zone .stem,.sign.zone .dot{background:#1f6fd0}
+  .sign.near .plate{box-shadow:0 0 0 3px rgba(226,35,26,.25), 0 4px 12px rgba(17,24,38,.3);transform:scale(1.08)}
+
+  /* ---------- UI ---------- */
+  .ui{position:absolute;inset:0;z-index:20;pointer-events:none}
+  .ui > *{pointer-events:auto}
+
+  /* thanh trên */
+  .topbar{position:absolute;top:52px;left:12px;right:12px;display:flex;align-items:center;gap:9px}
+  .circlebtn{width:44px;height:44px;border-radius:50%;background:#fff;box-shadow:var(--shadow);
+    display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .circlebtn svg{width:20px;height:20px}
+  .brand{flex:1;text-align:center;font-size:17px;font-weight:800;letter-spacing:-.3px;color:var(--ink);
+    text-shadow:0 1px 0 rgba(255,255,255,.6)}
+
+  /* thẻ tốc độ gọn (góc trái) */
+  .speedcard{
+    position:absolute;top:112px;left:12px;width:132px;border-radius:22px;background:var(--dark);
+    color:#fff;padding:12px 12px 11px;box-shadow:0 14px 30px rgba(17,24,38,.35);
+  }
+  .speedcard .plate{
+    width:60px;height:60px;border-radius:50%;background:#fff;border:9px solid var(--danger);
+    display:grid;place-items:center;font-size:26px;font-weight:850;color:#111826;letter-spacing:-1px;
+    margin-bottom:9px;
+  }
+  .speedcard .cap{font-size:8.5px;font-weight:800;letter-spacing:.8px;color:#93a3b6;text-transform:uppercase}
+  .speedcard .val{font-size:26px;font-weight:850;letter-spacing:-1px;margin-top:2px;font-variant-numeric:tabular-nums}
+  .speedcard .val span{font-size:13px;font-weight:700;color:#93a3b6;letter-spacing:0;margin-left:3px}
+  .speedcard.over .val{color:#ff6b62}
+
+  /* banner cảnh báo gọn */
+  .alertcard{
+    position:absolute;left:12px;right:12px;top:112px;border-radius:20px;background:var(--dark);color:#fff;
+    display:flex;align-items:center;gap:11px;padding:10px 12px;box-shadow:0 14px 30px rgba(17,24,38,.35);
+    transform:translateY(-10px);opacity:0;transition:.28s cubic-bezier(.2,.8,.2,1);
+  }
+  .alertcard.on{transform:none;opacity:1}
+  .alertcard .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto;
+    background:rgba(255,176,32,.16);color:var(--warn);font-size:18px}
+  .alertcard .t1{font-size:9px;font-weight:850;letter-spacing:.8px;color:#93a3b6;text-transform:uppercase}
+  .alertcard .t2{font-size:13.5px;font-weight:750;margin-top:1px;line-height:1.2}
+  .alertcard .cd{margin-left:auto;text-align:right;font-size:17px;font-weight:850;font-variant-numeric:tabular-nums}
+  .alertcard .cd small{display:block;font-size:8.5px;font-weight:800;color:#93a3b6;letter-spacing:.5px}
+
+  /* nút phải */
+  .rightbtns{position:absolute;right:12px;bottom:186px;display:flex;flex-direction:column;gap:10px;align-items:center}
+  .gear{width:44px;height:44px;border-radius:14px;background:var(--warn);color:#3a2a05;display:grid;place-items:center;
+    box-shadow:0 10px 22px rgba(255,176,32,.45);cursor:pointer}
+  .gear svg{width:21px;height:21px}
+
+  /* nút pill dưới trái */
+  .pills{position:absolute;left:12px;bottom:186px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+  .pillbtn{display:flex;align-items:center;gap:9px;height:44px;padding:0 16px 0 13px;border-radius:22px;
+    background:var(--dark);color:#fff;font-size:13.5px;font-weight:700;box-shadow:0 10px 24px rgba(17,24,38,.3);cursor:pointer}
+  .pillbtn svg{width:17px;height:17px}
+
+  /* ô tìm kiếm */
+  .search{position:absolute;left:12px;right:12px;bottom:24px;height:52px;border-radius:26px;background:#fff;
+    display:flex;align-items:center;gap:11px;padding:0 16px;box-shadow:var(--shadow);
+    font-size:14px;color:#8d97a5}
+  .search svg{width:19px;height:19px;color:var(--accent)}
+
+  /* ---------- ghi chú ---------- */
+  .notes{flex:1;min-width:0;max-width:520px;padding-top:4px}
+  .notes h1{font-size:23px;font-weight:850;letter-spacing:-.6px;margin:0 0 4px}
+  .notes .sub{color:#9fb0c8;font-size:13.5px;line-height:1.5;margin:0 0 16px}
+  .card{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px 16px;margin-bottom:12px}
+  .card h2{font-size:12px;font-weight:850;letter-spacing:.5px;text-transform:uppercase;color:#8fa3c0;margin:0 0 9px}
+  .card ul{margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:#cfdaea}
+  .card li{margin-bottom:5px}
+  .card b{color:#fff}
+  code{background:rgba(255,255,255,.09);padding:1px 5px;border-radius:5px;font-size:12px}
+  .row{display:flex;gap:10px;align-items:center;margin-bottom:9px}
+  .swatch{width:44px;height:44px;border-radius:50%;background:#fff;border:7px solid var(--danger);
+    display:grid;place-items:center;font-weight:850;font-size:18px;color:#111826;flex:0 0 auto}
+  .row .txt{font-size:12.5px;color:#cfdaea;line-height:1.4}
+  @media (max-width:980px){ .app{flex-direction:column;align-items:center} .notes{max-width:412px;width:100%} }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="device"><div class="screen">
+    <div class="notch"></div>
+    <div class="statusbar"><span>14:32</span><span>▮▮▮ ⌁ 82%</span></div>
+
+    <!-- ================= BẢN ĐỒ ================= -->
+    <div class="mapstage">
+      <div class="tilt">
+        <svg viewBox="0 0 900 900" preserveAspectRatio="xMidYMid slice">
+          <rect width="900" height="900" fill="var(--land)"/>
+
+          <!-- công viên + nước -->
+          <rect x="60" y="520" width="250" height="180" rx="6" fill="var(--park)"/>
+          <path d="M600 700 L900 700 L900 900 L640 900 Z" fill="var(--water)"/>
+
+          <!-- nhà (khối 3D nhẹ) -->
+          <g>
+            <g fill="var(--block)">
+              <rect x="120" y="150" width="70" height="46" rx="3"/><rect x="210" y="160" width="52" height="38" rx="3"/>
+              <rect x="300" y="140" width="80" height="52" rx="3"/><rect x="420" y="158" width="60" height="44" rx="3"/>
+              <rect x="530" y="146" width="90" height="50" rx="3"/><rect x="660" y="162" width="64" height="40" rx="3"/>
+              <rect x="140" y="248" width="60" height="44" rx="3"/><rect x="240" y="256" width="86" height="38" rx="3"/>
+              <rect x="380" y="246" width="54" height="48" rx="3"/><rect x="480" y="258" width="76" height="36" rx="3"/>
+              <rect x="600" y="244" width="62" height="46" rx="3"/><rect x="700" y="256" width="88" height="40" rx="3"/>
+              <rect x="150" y="360" width="74" height="40" rx="3"/><rect x="270" y="368" width="58" height="36" rx="3"/>
+              <rect x="420" y="356" width="80" height="44" rx="3"/><rect x="540" y="366" width="56" height="38" rx="3"/>
+              <rect x="650" y="352" width="92" height="46" rx="3"/>
+              <rect x="360" y="600" width="70" height="46" rx="3"/><rect x="470" y="612" width="60" height="38" rx="3"/>
+              <rect x="600" y="596" width="80" height="44" rx="3"/>
+              <rect x="120" y="700" width="66" height="40" rx="3"/><rect x="240" y="712" width="54" height="34" rx="3"/>
+              <rect x="380" y="700" width="78" height="44" rx="3"/><rect x="520" y="708" width="62" height="40" rx="3"/>
+            </g>
+            <g fill="var(--block-top)" opacity=".85">
+              <rect x="120" y="150" width="70" height="10" rx="3"/><rect x="300" y="140" width="80" height="10" rx="3"/>
+              <rect x="530" y="146" width="90" height="10" rx="3"/><rect x="420" y="356" width="80" height="10" rx="3"/>
+              <rect x="650" y="352" width="92" height="10" rx="3"/><rect x="188" y="694" width="70" height="10" rx="3"/>
+            </g>
+          </g>
+
+          <!-- đường -->
+          <g>
+            <path class="rd" d="M-20 320 H920" stroke="var(--road-edge)" stroke-width="30"/>
+            <path class="rd" d="M-20 320 H920" stroke="var(--road-main)" stroke-width="24"/>
+            <path class="rd" d="M-20 320 H920" stroke="#f6cf4f" stroke-width="3" opacity=".55"/>
+
+            <path class="rd" d="M-20 480 H920" stroke="var(--road-edge)" stroke-width="22"/>
+            <path class="rd" d="M-20 480 H920" stroke="var(--road)" stroke-width="16"/>
+
+            <path class="rd" d="M-20 660 H920" stroke="var(--road-edge)" stroke-width="20"/>
+            <path class="rd" d="M-20 660 H920" stroke="var(--road)" stroke-width="14"/>
+
+            <path class="rd" d="M-20 800 H920" stroke="var(--road-edge)" stroke-width="24"/>
+            <path class="rd" d="M-20 800 H920" stroke="var(--road)" stroke-width="18"/>
+
+            <path class="rd" d="M210 -20 V920" stroke="var(--road-edge)" stroke-width="22"/>
+            <path class="rd" d="M210 -20 V920" stroke="var(--road)" stroke-width="16"/>
+            <path class="rd" d="M470 -20 V920" stroke="var(--road-edge)" stroke-width="26"/>
+            <path class="rd" d="M470 -20 V920" stroke="var(--road)" stroke-width="19"/>
+            <path class="rd" d="M700 -20 V920" stroke="var(--road-edge)" stroke-width="18"/>
+            <path class="rd" d="M700 -20 V920" stroke="var(--road)" stroke-width="13"/>
+          </g>
+
+          <!-- nhãn -->
+          <text x="250" y="312" class="rl">Đường tỉnh 488C</text>
+          <text x="600" y="312" class="rl">Đường tỉnh 488C</text>
+          <text x="486" y="560" class="rl" transform="rotate(90 486 560)">Trần Hưng Đạo</text>
+          <text x="225" y="742" class="rl" transform="rotate(90 225 742)">Trần Nhật Duật</text>
+          <text x="720" y="600" class="rl">Nhà Thờ Liên Phú</text>
+        </svg>
+      </div>
+
+      <!-- biển báo đứng thẳng, neo đúng toạ độ -->
+      <div class="signs">
+        <div class="sign" style="left:36%;top:40%"><div class="plate">40</div><div class="stem"></div><div class="dot"></div></div>
+        <div class="sign near" style="left:66%;top:49%"><div class="plate">20</div><div class="stem"></div><div class="dot"></div></div>
+        <div class="sign zone" style="left:24%;top:57%"><div class="plate">⌂</div><div class="stem"></div><div class="dot"></div></div>
+        <div class="sign cam" style="left:74%;top:33%"><div class="plate">◉</div><div class="stem"></div><div class="dot"></div></div>
+        <div class="sign" style="left:46%;top:70%"><div class="plate">50</div><div class="stem"></div><div class="dot"></div></div>
+      </div>
+    </div>
+
+    <!-- ================= UI ================= -->
+    <div class="ui">
+      <div class="topbar">
+        <div class="circlebtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </div>
+        <div class="brand">DiOTO.net</div>
+        <div class="circlebtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.6"/><path d="M17.5 14v7M14 17.5h7"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- thẻ tốc độ gọn -->
+      <div class="speedcard" id="speedcard">
+        <div class="plate" id="limitPlate">50</div>
+        <div class="cap">Tốc độ hiện tại</div>
+        <div class="val"><span id="spdVal" style="font-size:26px;color:#fff;font-weight:850">0</span><span>km/h</span></div>
+      </div>
+
+      <!-- banner cảnh báo gọn (bật khi tới gần biển) -->
+      <div class="alertcard" id="alertcard">
+        <div class="ic">⚠</div>
+        <div>
+          <div class="t1" id="acKind">Biển giới hạn tốc độ</div>
+          <div class="t2" id="acTitle">40 km/h · Đường tỉnh 488C</div>
+        </div>
+        <div class="cd"><span id="acDist">180</span><small>MÉT</small></div>
+      </div>
+
+      <!-- nút pill dưới trái -->
+      <div class="pills">
+        <div class="pillbtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          Về giữa
+        </div>
+        <div class="pillbtn" id="muteBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l4 3V7L7 10H4z"/><path d="M16 9l4 6M20 9l-4 6"/></svg>
+          <span id="muteTxt">Tắt âm cảnh báo</span>
+        </div>
+      </div>
+
+      <!-- nút phải -->
+      <div class="rightbtns">
+        <div class="gear">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>
+          </svg>
+        </div>
+        <div class="circlebtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.4" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        </div>
+      </div>
+
+      <!-- ô tìm kiếm -->
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>
+        Tìm điểm đến hoặc nhấn giữ trên bản đồ
+      </div>
+    </div>
+  </div></div>
+
+  <!-- ================= GHI CHÚ ================= -->
+  <div class="notes">
+    <h1>3.2 — biển báo nằm trên tuyến đường, bảng tốc độ gọn</h1>
+    <p class="sub">Theo ảnh bạn gửi: biển tròn trắng–đỏ có số km/h, chân ghim nhỏ cắm đúng xuống mép đường; thẻ tốc độ là một khối tối gọn ở góc trái.</p>
+
+    <div class="card">
+      <h2>Biển báo trên bản đồ</h2>
+      <div class="row">
+        <div class="swatch">50</div>
+        <div class="txt"><b>Biển tốc độ thật</b> — tròn 44 pt, viền đỏ 7 pt, số đen đậm; chân ghim 9 pt màu đỏ cắm xuống đường. Không còn bóng bay (marker balloon).</div>
+      </div>
+      <div class="row">
+        <div class="swatch" style="border-color:#1d2733;background:#1d2733;color:#ffb020">◉</div>
+        <div class="txt"><b>Camera</b> — cùng khuôn nhưng nền tối, icon vàng.</div>
+      </div>
+      <div class="row" style="margin-bottom:0">
+        <div class="swatch" style="border-color:#1f6fd0;background:#1f6fd0;color:#fff;font-size:16px">⌂</div>
+        <div class="txt"><b>Khu dân cư</b> — nền xanh, ký hiệu nhà.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Bảng tốc độ & cảnh báo</h2>
+      <ul>
+        <li><b>Thẻ tốc độ</b> 132 pt, nền tối: biển 60 pt → nhãn “TỐC ĐỘ HIỆN TẠI” → số km/h. Vượt tốc độ thì số chuyển đỏ, không cần thêm chip.</li>
+        <li><b>Banner cảnh báo</b> cùng chất liệu tối, một dòng: nhãn loại + tên điểm + đếm lùi mét.</li>
+        <li><b>Nút phụ</b> là pill tối (“Về giữa”, “Tắt âm cảnh báo”), nút cài đặt màu vàng, định vị tròn trắng.</li>
+        <li>Tất cả xếp trong luồng dọc — không đè lên nhau như bản 3.1.1 vừa sửa.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Sẽ đổi trong Swift</h2>
+      <ul>
+        <li><code>MapContainer</code>: thay <code>MKMarkerAnnotationView</code> bằng <code>MKAnnotationView</code> tự vẽ ảnh biển (đã có <code>AlertMapStyle.signImage</code>, chỉ cần thêm chân ghim + <code>centerOffset</code> để mũi ghim đúng toạ độ).</li>
+        <li><code>MapScreen</code>: <code>statusStrip</code> → <code>SpeedCard</code> tối; banner cảnh báo theo cùng khuôn; nút phụ đổi sang pill.</li>
+        <li>Giữ nguyên dữ liệu (108.528 điểm), 3D/2D, reroute, ETA, giọng đọc.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+  // minh hoạ: tốc độ chạy lên, banner hiện khi tới gần biển
+  const speeds = [0, 12, 24, 33, 41, 47, 52];
+  let i = 0;
+  setInterval(() => {
+    i = (i + 1) % speeds.length;
+    const v = speeds[i];
+    document.getElementById('spdVal').textContent = v;
+    document.getElementById('speedcard').classList.toggle('over', v > 50);
+    document.getElementById('limitPlate').textContent = i > 3 ? '40' : '50';
+    const card = document.getElementById('alertcard');
+    if (i === 4 || i === 5) {
+      card.classList.add('on');
+      document.getElementById('acDist').textContent = i === 4 ? 180 : 60;
+    } else if (i === 6) {
+      card.classList.remove('on');
+    }
+  }, 1600);
+
+  document.getElementById('muteBtn').onclick = () => {
+    const t = document.getElementById('muteTxt');
+    t.textContent = t.textContent.startsWith('Tắt') ? 'Bật âm cảnh báo' : 'Tắt âm cảnh báo';
+  };
+</script>
+</body>
+</html>
