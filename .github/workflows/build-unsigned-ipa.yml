@@ -264,6 +264,19 @@ jobs:
             *) echo "::warning::Không xác định được platform (${PLATFORM:-trống})" ;;
           esac
 
+          # --- Kiểm tra tài nguyên bắt buộc nằm trong app (lỗi hay gặp: quên bundle dữ liệu)
+          DATA="$(find "$APP" -name vn_alerts.json -size +1M | head -1)"
+          if [ -z "$DATA" ]; then
+            echo "::error::App thiếu App/Resources/Data/vn_alerts.json (>1 MB) — bản build sẽ không có dữ liệu cảnh báo"
+            exit 1
+          fi
+          ALERT_COUNT="$(python3 -c "import json,sys;print(len(json.load(open(sys.argv[1]))['alerts']))" "$DATA")"
+          echo "::notice title=Dữ liệu cảnh báo::${ALERT_COUNT} điểm trong $(basename "$DATA")"
+          if [ "$ALERT_COUNT" -lt 10000 ]; then
+            echo "::error::Chỉ có $ALERT_COUNT điểm cảnh báo trong app (mong đợi >10.000)"
+            exit 1
+          fi
+
           echo "::notice title=IPA đã build::$VERSIONED ($SIZE)"
           echo "::notice title=Bundle ID::$BUNDLE"
           echo "::notice title=Phiên bản::$SHORT ($BUILD_NUM)"
