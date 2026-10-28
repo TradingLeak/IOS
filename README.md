@@ -16,18 +16,38 @@ App/ (SwiftUI) ──xcodebuild archive──▶ Payload/HelloIPA.app ──zip�
 
 ---
 
-## ⚡ Bắt đầu nhanh (không cần máy Mac)
+## ⚡ Tải IPA ngay (không cần Mac, không cần đăng nhập)
 
-1. **Fork / push** repo này lên GitHub (repo **public** thì Actions miễn phí không giới hạn phút).
-2. Vào tab **Actions** → chọn workflow **Build unsigned IPA** → **Run workflow**.
-3. Chờ ~5–10 phút → mở run vừa xong → tải artifact **`unsigned-ipa-<số>`**.
-4. Giải nén → được file `HelloIPA-1.0.0-1-unsigned.ipa` → cài theo [docs/INSTALL.md](docs/INSTALL.md).
+**Link tải cố định — luôn là bản build mới nhất:**
 
-Muốn build tự động mỗi lần push: workflow đã bật sẵn cho mọi branch.
-Push tag `v1.0.0` sẽ tự tạo **GitHub Release** kèm file IPA.
+```
+https://github.com/TradingLeak/IOS/releases/download/latest-ipa/HelloIPA-unsigned.ipa
+```
 
-> ⚠️ Nếu repo là **private**, macOS runner sẽ trừ quota phút Actions của bạn
-> (nhân hệ số 10). Repo public thì không bị tính phí.
+Mở trang **[Releases](https://github.com/TradingLeak/IOS/releases/tag/latest-ipa)** để tải
+bằng trình duyệt (kèm file `.sha256`). Mỗi lần code thay đổi, GitHub Actions build lại và
+cập nhật đúng link này — bạn không phải làm gì cả.
+
+Muốn build theo ý mình (đổi bundle ID, tên app, số build):
+
+1. Vào tab **Actions** → workflow **Build unsigned IPA** → **Run workflow**.
+2. Điền `bundle_id`, `display_name` nếu cần → **Run**.
+3. ~5–10 phút sau, tải ở **Artifacts** (`unsigned-ipa-<số>`) hoặc ở **Releases**.
+
+Workflow tự chạy khi push lên bất kỳ branch nào và khi có pull request.
+Push tag `v1.0.0` sẽ tạo thêm Release riêng cho phiên bản đó.
+
+> ✅ Repo này đang **public** → Actions không tốn phí, không giới hạn số phút.
+
+### Cài file IPA lên iPhone
+
+IPA này **chưa ký** (unsigned) nên cần một bước ký khi cài — xem
+**[docs/INSTALL.md](docs/INSTALL.md)**. Tóm tắt:
+
+| iOS của bạn | Cách cài |
+|---|---|
+| 14.0 → 16.6.1, 16.7 RC, 17.0 | **TrollStore** — cài vĩnh viễn, không cần Apple ID |
+| 17.0.1 trở lên | **Sideloadly / SideStore** — Apple ID miễn phí, chứng chỉ 7 ngày |
 
 ## 💻 Build trên máy Mac (không cần đăng nhập Apple ID)
 
@@ -81,7 +101,7 @@ CI cũng chạy hai bước này ở job `lint` trên `ubuntu-latest` trước k
 | `scripts/setup-macos.sh` | Cài đặt môi trường macOS (Xcode, xcodegen) |
 | `scripts/selfcheck.sh` | Kiểm tra repo không cần macOS (shell, plist, icon, YAML) — chạy ở job `lint` trên CI |
 | `Makefile` | Lệnh tắt: `make setup`, `make ipa`, `make test`, `make lint` |
-| `.github/workflows/build-unsigned-ipa.yml` | CI build IPA trên `macos-15`, upload artifact, release khi tag `v*` |
+| `.github/workflows/build-unsigned-ipa.yml` | CI build IPA trên `macos-15`: artifact + Release `latest-ipa` (link tải cố định) + Release theo tag `v*` |
 | `docs/BUILD.md` | Giải thích cơ chế, đổi bundle ID / tên app / icon, thêm Swift Package |
 | `docs/INSTALL.md` | Cài IPA lên iPhone: TrollStore, Sideloadly, AltStore, SideStore, ESign… |
 | `docs/TROUBLESHOOTING.md` | Lỗi thường gặp và cách sửa |

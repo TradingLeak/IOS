@@ -91,6 +91,45 @@ jobs:
           set -x
           ./scripts/make-ipa.sh "${args[@]}"
 
+      - name: Chuẩn hoá tên file + kiểm tra nội dung IPA
+        if: success()
+        shell: bash
+        run: |
+          IPA="$(ls dist/*.ipa | head -n 1)"
+          VERSIONED="$(basename "$IPA")"
+          STABLE="${SCHEME}-unsigned.ipa"
+
+          # Bản sao tên cố định để link tải không bao giờ đổi
+          cp "$IPA" "dist/$STABLE"
+          shasum -a 256 "dist/$STABLE" > "dist/$STABLE.sha256"
+
+          SIZE="$(du -h "$IPA" | awk '{print $1}')"
+          ENTRIES="$(unzip -l "$IPA" | grep -c 'Payload/')"
+          SIGNED="$(unzip -l "$IPA" | grep -cE '_CodeSignature|embedded\.mobileprovision' || true)"
+          unzip -p "$IPA" "Payload/*.app/Info.plist" > /tmp/app-info.plist
+          BUNDLE="$(plutil -extract CFBundleIdentifier raw -o - /tmp/app-info.plist)"
+          SHORT="$(plutil -extract CFBundleShortVersionString raw -o - /tmp/app-info.plist)"
+          BUILD_NUM="$(plutil -extract CFBundleVersion raw -o - /tmp/app-info.plist)"
+          SHA="$(shasum -a 256 "$IPA" | awk '{print $1}')"
+
+          # In ra annotation để xem nhanh ngay trên trang run
+          echo "::notice title=IPA đã build::$VERSIONED ($SIZE)"
+          echo "::notice title=Bundle ID::$BUNDLE"
+          echo "::notice title=Phiên bản::$SHORT ($BUILD_NUM)"
+          echo "::notice title=Số entry trong Payload::$ENTRIES"
+          echo "::notice title=Dấu chữ ký còn lại::$SIGNED (0 = unsigned, đúng)"
+          echo "::notice title=SHA-256::$SHA"
+
+          {
+            echo "name=$VERSIONED"
+            echo "stable=$STABLE"
+            echo "sha=$SHA"
+            echo "bundle=$BUNDLE"
+            echo "version=$SHORT ($BUILD_NUM)"
+            echo "size=$SIZE"
+          } >> "$GITHUB_OUTPUT"
+        id: verify
+
       - name: Tóm tắt kết quả
         if: always()
         run: |
@@ -103,14 +142,14 @@ jobs:
                 echo "- SHA-256: \`$(shasum -a 256 "$f" | awk '{print $1}')\`"
               done
               echo
-              echo "Tải file trong mục **Artifacts** ở trang này, giải nén và cài theo"
-              echo "[docs/INSTALL.md](../blob/${GITHUB_REF_NAME}/docs/INSTALL.md)."
+              echo "Tải ở mục **Artifacts** hoặc ở trang **Releases**."
+              echo "Hướng dẫn cài: [docs/INSTALL.md](../blob/main/docs/INSTALL.md)."
             else
               echo "Không có IPA được tạo. Xem log bước *Build IPA (unsigned)*."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload IPA
+      - name: Upload IPA (artifact, giữ 30 ngày)
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -130,7 +169,36 @@ jobs:
           path: build/*.xcarchive
           retention-days: 7
 
-      - name: Gắn IPA vào GitHub Release (khi push tag v*)
+      - name: Phát hành Release "latest-ipa" (link tải cố định, không cần đăng nhập)
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-ipa
+          name: "IPA mới nhất (unsigned)"
+          prerelease: true
+          make_latest: false
+          body: |
+            Build tự động từ GitHub Actions — không cần Mac, không cần tài khoản Apple.
+
+            - **File**: `${{ steps.verify.outputs.name }}`
+            - **Kích thước**: ${{ steps.verify.outputs.size }}
+            - **Bundle ID**: `${{ steps.verify.outputs.bundle }}`
+            - **Phiên bản**: ${{ steps.verify.outputs.version }}
+            - **SHA-256**: `${{ steps.verify.outputs.sha }}`
+            - **Commit**: `${{ github.sha }}`
+
+            Link tải cố định:
+            `https://github.com/${{ github.repository }}/releases/download/latest-ipa/${{ steps.verify.outputs.stable }}`
+
+            IPA này **chưa ký**. Cách cài lên iPhone: xem
+            [docs/INSTALL.md](https://github.com/${{ github.repository }}/blob/main/docs/INSTALL.md)
+            (TrollStore nếu iOS ≤ 17.0, hoặc Sideloadly/SideStore với Apple ID miễn phí).
+          files: |
+            dist/*.ipa
+            dist/*.sha256
+          fail_on_unmatched_files: true
+
+      - name: Gắn IPA vào Release theo tag (khi push tag v*)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
