@@ -37,6 +37,8 @@ Sideloadly/SideStore với Apple ID miễn phí).
   gian — có ghi chú rõ trong app.
 - **Cảnh báo tốc độ & biển báo**: HUD toàn màn hình với tốc độ hiện tại, biển tròn giới hạn
   (kiểu P.127), nguồn giới hạn (biển báo / vùng / OSM / bảng mặc định **TT 38/2024**).
+  Chọn **nhóm xe hai bánh** trong Cài đặt: xe mô tô (> 50 cm³) dùng bảng 60/50 – 70/60,
+  xe gắn máy ≤ 50 cm³ và xe đạp điện luôn **40 km/h**.
 - **Cảnh báo camera**: 795 camera giao thông TP.HCM có sẵn (kèm ảnh tải trực tiếp từ cổng),
   tải thêm biển tốc độ/camera từ **OpenStreetMap**, hoặc **nhập JSON** tự làm.
 - **Ngưỡng cảnh báo động** `D_warn = clamp(v × 3 m; 150; 500)`, đọc bằng **giọng tiếng Việt**
