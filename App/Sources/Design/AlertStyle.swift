@@ -20,6 +20,20 @@ extension AlertKind {
     }
 }
 
+extension IncidentKind {
+    /// Màu marker cho báo cáo sự cố — khác màu camera/biển báo để không lẫn.
+    var tint: Color {
+        switch self {
+        case .police: return Color(red: 0.20, green: 0.45, blue: 0.85)
+        case .accident: return Color(red: 0.85, green: 0.20, blue: 0.24)
+        case .flooding: return Color(red: 0.13, green: 0.55, blue: 0.80)
+        case .pothole: return Color(red: 0.72, green: 0.45, blue: 0.12)
+        case .roadClosed: return Color(red: 0.55, green: 0.30, blue: 0.75)
+        case .trafficJam: return Color(red: 0.90, green: 0.48, blue: 0.10)
+        }
+    }
+}
+
 extension ActiveAlert {
     var distanceText: String {
         if distance < 0 {

@@ -29,6 +29,8 @@ struct MapPin: Identifiable {
     var severity: Int = 0
     /// Khoảng cách còn lại (mét) khi đang dẫn đường — hiện trong nhãn phụ.
     var distance: Double? = nil
+    /// Icon riêng (báo cáo sự cố dùng biểu tượng theo loại thay vì icon cảnh báo chung).
+    var glyphSymbol: String? = nil
 }
 
 /// Một đường vẽ trên bản đồ (tuyến chính, viền, hoặc tuyến thay thế).

@@ -26,7 +26,7 @@ Apple Developer.
 
 **[https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa](https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa)**
 
-Phiên bản hiện tại: **2.2.0 (4)** · ~3,5 MB · `arm64` · iOS ≥ 16.0 · không cần đăng nhập.
+Phiên bản hiện tại: **2.3.0 (5)** · ~3,5 MB · `arm64` · iOS ≥ 16.0 · không cần đăng nhập.
 
 Link cố định, cập nhật mỗi lần build. Hoặc vào tab **Actions** → *Build unsigned IPA* →
 **Run workflow** để tự build với bundle ID / tên hiển thị riêng.
@@ -35,6 +35,18 @@ Cài lên iPhone: xem **[docs/INSTALL.md](docs/INSTALL.md)** (TrollStore nếu i
 Sideloadly/SideStore với Apple ID miễn phí).
 
 ## ✨ Tính năng
+
+**🆕 2.3 — bộ tính năng cao cấp: báo cáo sự cố, chia sẻ tuyến, tìm không dấu**
+
+- **Báo cáo sự cố trên đường**: CSGT, tai nạn, ngập, ổ gà, cấm đường, kẹt xe — ghi ngay tại vị
+  trí đang đứng, hiện thành marker trên bản đồ, mỗi loại tự hết hạn (45 phút → 7 ngày) và được
+  **đọc lên khi bạn tới gần** (350 m). Lưu trên máy, không gửi đi đâu.
+- **Chia sẻ tuyến** bằng một nút: tin nhắn có quãng đường, thời gian, giờ tới nơi, điểm dừng và
+  **link Apple Maps** để người nhận mở ngay lộ trình.
+- **Tìm kiếm không dấu**: gõ “ho hoan kiem”, “duong nguyen trai” vẫn ra đúng; kết quả ưu tiên
+  khớp đầu tên rồi tới gần nhất, kèm khoảng cách “cách 320 m”. Yêu thích/gần đây được lọc ngay
+  khi gõ.
+- **Giấy phép rõ ràng**: repo dùng MIT (`LICENSE`), dữ liệu bên thứ ba giữ giấy phép gốc.
 
 **🆕 2.2 — bỏ HUD, cảnh báo trên bản đồ, trợ lý AI tìm tuyến**
 
@@ -131,6 +143,7 @@ App/
 │   │   ├── AIClient.swift         # OpenAI-compatible: base URL tự nhập, đọc JSON "bẩn"
 │   │   ├── RouteIntentParser.swift# schema ý định + bộ phân tích tiếng Việt offline
 │   │   ├── AIRoutePlanner.swift   # 4 prompt: hiểu câu lệnh, chọn tuyến, điểm dừng, nhận xét
+│   │   ├── IncidentStore.swift    # lưu báo cáo sự cố trên máy (JSON trong Documents)
 │   │   ├── SearchService.swift    # MKLocalSearchCompleter + MKLocalSearch + reverse geocode
 │   │   ├── DirectionsService.swift# MKDirections, ghép chặng, đổi sang model của app
 │   │   ├── LocationService.swift  # CLLocationManager, quyền, cập nhật vị trí
@@ -140,7 +153,7 @@ App/
 │   ├── ViewModels/MapViewModel.swift  # trạng thái trung tâm (tuyến, camera dẫn đường, cảnh báo)
 │   └── Views/                     # MapScreen, MapContainer (MKMapView + camera 3D),
 │                                  # AIAssistantSheet, AISettingsSection, RouteSheet,
-│                                  # AlertsSheet, SearchSheet, SettingsView…
+│                                  # ReportIncidentSheet, AlertsSheet, SearchSheet, SettingsView…
 ├── Resources/Data/vn_alerts.json  # 795 camera + dữ liệu cảnh báo (sinh bằng script)
 └── Tests/                         # cảnh báo, tốc độ, xe máy, polyline, chấm điểm, format, AI
 ```
@@ -155,7 +168,7 @@ App/
 ```bash
 brew install xcodegen
 ./scripts/setup-macos.sh          # kiểm tra Xcode + sinh VietMap.xcodeproj
-./scripts/make-ipa.sh             # → dist/VietMap-2.2.0-4-unsigned.ipa
+./scripts/make-ipa.sh             # → dist/VietMap-2.3.0-5-unsigned.ipa
 ```
 
 **Kiểm tra không cần Xcode:**
@@ -201,6 +214,11 @@ tuyến cao tốc). Key lưu trong Keychain, không nằm trong repo.
 
 Base URL mặc định `https://api.xah.io/v1`, model `gpt-4o-mini`, temperature 0.2 — tất cả
 đổi được, kể cả trỏ về Ollama/LM Studio trong LAN. Chi tiết: [docs/AI.md](docs/AI.md).
+
+## 📄 Giấy phép
+
+Mã nguồn theo **MIT** ([LICENSE](LICENSE)). Dữ liệu cảnh báo lấy từ nguồn công khai, giữ nguyên
+giấy phép gốc — xem [data/README.md](data/README.md) và [docs/ALERTS.md](docs/ALERTS.md).
 
 ## ⚖️ Lưu ý
 

@@ -134,6 +134,20 @@ miễn phí) — xem [README](../README.md#-cấu-hình-xe-máy-vietmap).
 
 ---
 
+## 7. Báo cáo sự cố & chia sẻ tuyến
+
+**Báo cáo sự cố** (nút `exclamationmark.bubble.fill`, mép phải bản đồ): chọn loại (CSGT, tai nạn,
+ngập, ổ gà, cấm đường, kẹt xe), thêm ghi chú, bấm *Ghi báo cáo tại vị trí của tôi*. Báo cáo:
+
+- hiện thành marker riêng (màu + icon theo loại, không lẫn với camera/biển báo),
+- tự hết hạn theo loại (45 phút với CSGT, 3 giờ tai nạn, 6 giờ ngập, 24 giờ cấm đường,
+  7 ngày ổ gà),
+- được đọc lên **một lần** khi bạn tới gần 350 m (nếu bật đọc cảnh báo),
+- lưu trong `Documents/user-incidents.json` trên máy, xoá từng cái hoặc xoá tất cả.
+
+**Chia sẻ tuyến** (nút chia sẻ trên thẻ tuyến): nội dung gồm điểm đi → điểm đến, quãng đường,
+thời gian, giờ tới nơi, các điểm dừng và **link `maps.apple.com`** mở đúng lộ trình.
+
 ## 8. Sự cố thường gặp
 
 | Hiện tượng | Nguyên nhân | Cách xử lý |

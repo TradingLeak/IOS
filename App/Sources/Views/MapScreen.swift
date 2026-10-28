@@ -28,6 +28,7 @@ struct MapScreen: View {
         case favorites
         case cities
         case alerts
+        case reportIncident
 
         var id: String {
             switch self {
@@ -38,6 +39,7 @@ struct MapScreen: View {
             case .favorites: return "favorites"
             case .cities: return "cities"
             case .alerts: return "alerts"
+            case .reportIncident: return "report-incident"
             }
         }
     }
@@ -200,6 +202,8 @@ struct MapScreen: View {
                 }
             case .alerts:
                 AlertsSheet(model: model, settings: settings)
+            case .reportIncident:
+                ReportIncidentSheet(model: model, settings: settings)
             }
         }
     }
@@ -344,6 +348,13 @@ struct MapScreen: View {
                                badge: model.routeAlerts.isEmpty ? nil : "\(model.routeAlerts.count)",
                                accessibilityLabel: "Cảnh báo giao thông") {
                 activeSheet = .alerts
+            }
+
+            FloatingIconButton(symbol: "exclamationmark.bubble.fill",
+                               active: !model.activeIncidents.isEmpty,
+                               badge: model.activeIncidents.isEmpty ? nil : "\(model.activeIncidents.count)",
+                               accessibilityLabel: "Báo cáo sự cố trên đường") {
+                activeSheet = .reportIncident
             }
 
             FloatingIconButton(symbol: "sparkles",
@@ -503,6 +514,17 @@ struct MapScreen: View {
         }
     }
 
+    /// Nội dung chia sẻ của tuyến đang chọn (tin nhắn + link Apple Maps).
+    private func shareMessage(_ route: RouteOption) -> String? {
+        guard let destination = model.destination else { return nil }
+        return RouteShare.message(origin: model.origin,
+                                  destination: destination,
+                                  waypoints: model.waypoints,
+                                  route: route,
+                                  alerts: model.routeAlerts.count,
+                                  mode: route.mode)
+    }
+
     private func routeCard(_ route: RouteOption) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
@@ -525,6 +547,14 @@ struct MapScreen: View {
                 Spacer(minLength: 0)
                 if let score = model.score(for: route) {
                     ScoreBadge(score: score)
+                }
+                if let message = shareMessage(route) {
+                    ShareLink(item: message) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(AppTheme.accent)
+                    }
+                    .accessibilityLabel("Chia sẻ tuyến")
                 }
                 Button {
                     model.clearRoute()

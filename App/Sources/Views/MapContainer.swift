@@ -12,6 +12,7 @@ final class PinAnnotation: NSObject, MKAnnotation {
     var alertKind: AlertKind?
     var limit: Int?
     var severity: Int
+    var glyphSymbol: String?
 
     init(pin: MapPin) {
         coordinate = pin.coordinate
@@ -22,6 +23,7 @@ final class PinAnnotation: NSObject, MKAnnotation {
         alertKind = pin.alertKind
         limit = pin.limit
         severity = pin.severity
+        glyphSymbol = pin.glyphSymbol
         super.init()
     }
 
@@ -36,6 +38,7 @@ final class PinAnnotation: NSObject, MKAnnotation {
         severity != pin.severity
             || limit != pin.limit
             || alertKind != pin.alertKind
+            || glyphSymbol != pin.glyphSymbol
             || kind != pin.kind
     }
 
@@ -45,6 +48,7 @@ final class PinAnnotation: NSObject, MKAnnotation {
         alertKind = pin.alertKind
         limit = pin.limit
         severity = pin.severity
+        glyphSymbol = pin.glyphSymbol
     }
 }
 
@@ -73,7 +77,9 @@ enum AlertMapStyle {
            let sign = signImage(limit: limit) {
             return sign
         }
-        let symbol = pin.alertKind?.symbol ?? (pin.kind == .camera ? "exclamationmark.triangle.fill" : "mappin")
+        let symbol = pin.glyphSymbol
+            ?? pin.alertKind?.symbol
+            ?? (pin.kind == .camera ? "exclamationmark.triangle.fill" : "mappin")
         return UIImage(systemName: symbol)
     }
 
@@ -532,7 +538,8 @@ struct MapContainer: UIViewRepresentable {
                                        alertKind: pin.alertKind,
                                        limit: pin.limit,
                                        severity: pin.severity,
-                                       distance: nil))
+                                       distance: nil,
+                                       glyphSymbol: pin.glyphSymbol))
         }
     }
 }

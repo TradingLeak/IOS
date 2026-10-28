@@ -39,6 +39,7 @@ struct SearchSheet: View {
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         emptyQueryContent
                     } else {
+                        localMatchContent
                         suggestionContent
                         searchResultContent
                     }
@@ -139,6 +140,32 @@ struct SearchSheet: View {
         }
     }
 
+    /// Yêu thích / gần đây khớp câu tìm — tìm không dấu vẫn ra ("ho tay" → "Hồ Tây").
+    @ViewBuilder
+    private var localMatchContent: some View {
+        let matches = SearchRanking.rank(SearchRanking.filter(favorites + recents, query: query),
+                                         query: query,
+                                         near: currentPlace?.coordinate)
+        if !matches.isEmpty {
+            Section {
+                ForEach(matches.prefix(5)) { place in
+                    Button {
+                        onSelect(place)
+                    } label: {
+                        row(title: place.name,
+                            subtitle: place.displaySubtitle,
+                            symbol: favorites.contains(where: { $0.id == place.id }) ? "star.fill" : "clock.arrow.circlepath",
+                            tint: favorites.contains(where: { $0.id == place.id }) ? AppTheme.warning : AppTheme.accentDeep,
+                            badge: SearchRanking.distanceText(place, from: currentPlace?.coordinate))
+                    }
+                    .buttonStyle(.plain)
+                }
+            } header: {
+                Text("Trong máy bạn")
+            }
+        }
+    }
+
     @ViewBuilder
     private var suggestionContent: some View {
         if !searchService.suggestions.isEmpty {
@@ -171,7 +198,8 @@ struct SearchSheet: View {
                         row(title: place.name,
                             subtitle: place.displaySubtitle,
                             symbol: "mappin.circle.fill",
-                            tint: AppTheme.success)
+                            tint: AppTheme.success,
+                            badge: SearchRanking.distanceText(place, from: currentPlace?.coordinate))
                     }
                     .buttonStyle(.plain)
                 }
@@ -248,7 +276,8 @@ struct SearchSheet: View {
             isSearching = true
             errorText = nil
             do {
-                results = try await searchService.search(query: text)
+                let found = try await searchService.search(query: text)
+                results = SearchRanking.rank(found, query: text, near: currentPlace?.coordinate)
                 if results.isEmpty {
                     errorText = "Không tìm thấy địa điểm nào khớp với \"\(text)\"."
                 }

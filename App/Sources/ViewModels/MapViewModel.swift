@@ -79,6 +79,8 @@ final class MapViewModel: ObservableObject {
     @Published var routeAlerts: [ActiveAlert] = []
     @Published var aheadAlerts: [ActiveAlert] = []
     @Published var nearbyAlertPoints: [RoadAlert] = []
+    /// Báo cáo sự cố do người lái tạo (lưu trên máy, tự hết hạn).
+    @Published var incidents: [IncidentReport] = []
     @Published var speedContext = SpeedContext()
     @Published var speedKmh: Double = 0
     @Published var isLoadingAlerts = false
@@ -126,6 +128,7 @@ final class MapViewModel: ObservableObject {
         self.bundledSources = database.sources
         self.alertDatabase = database
         self.importedAlerts = AlertFileStore.loadImported()
+        self.incidents = IncidentStore.load()
         if !importedAlerts.isEmpty {
             rebuildDatabase()
         }
@@ -224,6 +227,20 @@ final class MapViewModel: ObservableObject {
             pins.append(MapPin(id: place.id.uuidString, coordinate: place.coordinate,
                                title: place.name, subtitle: place.displaySubtitle, kind: .poi))
         }
+        for incident in incidents where !incident.isExpired {
+            let distance = location.coordinate.map { incident.distance(from: $0) }
+            pins.append(MapPin(id: "incident-\(incident.id)",
+                               coordinate: incident.coordinate,
+                               title: incident.title,
+                               subtitle: incident.subtitle,
+                               kind: .camera,
+                               alertKind: incident.kind.alertKind,
+                               limit: nil,
+                               severity: incident.severityHint,
+                               distance: distance,
+                               glyphSymbol: incident.kind.symbol))
+        }
+
         if preferences.showOnMap {
             for item in alertPinItems {
                 let alert = item.alert
@@ -542,6 +559,11 @@ final class MapViewModel: ObservableObject {
     func updateNavigation(with coordinate: CLLocationCoordinate2D) {
         speedKmh = location.speedKmh
         navigationCoordinate = coordinate
+
+        // Báo cáo sự cố của chính bạn: đọc lên một lần khi tới gần.
+        if preferences.voiceEnabled, let incident = nearestIncident(to: coordinate) {
+            speak(incident.kind.spokenWarning, key: "incident-\(incident.id)", cooldown: 900)
+        }
         if let course = location.courseDegrees {
             courseDegrees = Self.smoothHeading(old: courseDegrees, new: course)
         }
@@ -758,6 +780,59 @@ final class MapViewModel: ObservableObject {
         } else {
             alertStatusMessage = "\(nearbyAlertPoints.count) điểm cảnh báo quanh bạn (bán kính 3,5 km)."
         }
+    }
+
+    // MARK: - Báo cáo sự cố (lưu trên máy)
+
+    /// Sự cố còn hiệu lực, mới nhất trước.
+    var activeIncidents: [IncidentReport] {
+        incidents
+            .filter { !$0.isExpired }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// Ghi nhận báo cáo tại vị trí người dùng (mặc định: vị trí hiện tại).
+    @discardableResult
+    func reportIncident(_ kind: IncidentKind,
+                        coordinate: CLLocationCoordinate2D? = nil,
+                        note: String? = nil) -> IncidentReport? {
+        let point = coordinate ?? location.coordinate ?? selectedPreset.coordinate
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let report = IncidentReport(kind: kind,
+                                    coordinate: point,
+                                    note: (trimmed?.isEmpty ?? true) ? nil : trimmed)
+        incidents = IncidentStore.save(incidents + [report])
+        toast = "Đã ghi báo cáo \(kind.shortTitle) tại vị trí này"
+        return report
+    }
+
+    func removeIncident(_ report: IncidentReport) {
+        incidents = IncidentStore.save(incidents.filter { $0.id != report.id })
+        toast = "Đã xoá báo cáo"
+    }
+
+    func clearIncidents() {
+        IncidentStore.clear()
+        incidents = []
+        toast = "Đã xoá toàn bộ báo cáo sự cố"
+    }
+
+    /// Dọn báo cáo hết hạn (gọi khi mở app / mở sheet báo cáo).
+    func refreshIncidents() {
+        let alive = incidents.filter { !$0.isExpired }
+        if alive.count != incidents.count {
+            incidents = IncidentStore.save(alive)
+        }
+    }
+
+    /// Sự cố gần nhất trong bán kính — dùng cho cảnh báo giọng nói.
+    func nearestIncident(to coordinate: CLLocationCoordinate2D,
+                         within radius: Double = 350) -> IncidentReport? {
+        activeIncidents
+            .map { ($0, $0.distance(from: coordinate)) }
+            .filter { $0.1 <= radius }
+            .min { $0.1 < $1.1 }?
+            .0
     }
 
     func clearNearbyAlerts() {
