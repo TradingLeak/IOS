@@ -1,11 +1,21 @@
 # Chuẩn bị và phát hành gói OpenStreetMap Việt Nam
 
-## Phần còn thiếu trước khi dùng thực tế
+## Gói dùng được trong app đã phát hành
 
-Cần **một file PNG MBTiles Việt Nam thực sự** và máy chủ HTTPS cho file + manifest.
-Repository này chỉ triển khai reader/downloader/validator, chưa tạo bản đồ toàn Việt Nam,
-chưa cấp máy chủ và chưa nhúng URL nguồn vào IPA. Không có gói giả hay link tải mẫu được
-coi là dữ liệu thật. Nút tải chỉ hoạt động sau khi cấu hình nguồn hợp lệ.
+Nguồn mặc định app 1.0.1:
+<https://github.com/TradingLeak/IOS/releases/download/offline-vietnam/manifest.json>.
+
+Gói **VietMap Basic** `20261029-1`: 854.712.320 byte, 58.527 tile PNG/TMS, native zoom 5–13.
+Được dựng từ extract OSM/Geofabrik và mask theo polygon extract, có attribution/ODbL.
+Đây là style đường/sông/nhãn cơ bản, không phải OSM Carto đầy đủ; không có graph tính tuyến offline.
+Phóng to vượt native zoom trong app mới chỉ phóng ảnh tile cha, không tạo thêm dữ liệu chi tiết.
+
+[Release](https://github.com/TradingLeak/IOS/releases/tag/offline-vietnam) ·
+[Build đã hoàn tất](https://github.com/TradingLeak/IOS/actions/runs/40815945473) ·
+[Hướng dẫn tái tạo và giới hạn](../scripts/maps/README.md).
+
+Các bước bên dưới dành cho nhà xuất bản muốn thay gói hoặc dựng lại. Người dùng bình thường
+không phải tự render PBF hay tìm URL gói nữa; app đã có nguồn mặc định và màn hình xác nhận tải.
 
 Không dùng tile OSM công cộng để scrape/prefetch hàng loạt. Không đổi tên `.osm.pbf`
 thành `.mbtiles`: PBF là dữ liệu thô, không phải ảnh bản đồ mà MapKit có thể đọc trực tiếp.
@@ -98,6 +108,6 @@ sửa hash. Nếu cần cập nhật tự động từ nhiều mirror, bổ sung
 - Tải xong có kiểm tra byte count và SHA-256 streaming; chỉ ghi receipt sau khi SQLite hợp lệ.
 - Receipt `.atomic` trỏ tới file UUID mới; bản cũ giữ đến lúc cài thành công. Sau đó dọn file cũ.
 - Startup kiểm tra file/size/metadata chứ không băm lại hàng GB. File/tile hỏng sau cài có thể cần tải lại.
-- Nguồn chưa có gói thật là blocker phát hành, không phải chức năng tự sinh bản đồ trên iPhone.
+- Render gói trên GitHub Actions/máy chủ, không phải chức năng tự sinh bản đồ từ PBF trên iPhone.
 
 Kiểm thử trước phát hành: [MAP-PROVIDERS.md](MAP-PROVIDERS.md).

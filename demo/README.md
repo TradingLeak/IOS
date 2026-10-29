@@ -40,8 +40,9 @@ Nếu chặn localStorage thì demo vẫn chạy, nhưng không lưu được gi
 - Không dùng demo để lái xe hoặc làm bằng chứng dữ liệu bản đồ đã đầy đủ.
 - Không cần CDN, font bên ngoài, ảnh ngoài hoặc kết nối mạng sau khi mở file độc lập.
 
-Chức năng iOS thật được triển khai riêng trong `App/`; blocker gói MBTiles Việt Nam thật vẫn
-được mô tả ở `docs/OFFLINE-MAPS.md`. Demo không giải quyết nguồn hoặc giấy phép phân phối gói.
+Chức năng iOS thật được triển khai riêng trong `App/`; gói VietMap Basic Việt Nam và nguồn
+manifest mặc định đã được phát hành, xem `docs/OFFLINE-MAPS.md`. HTML này vẫn chỉ mô phỏng,
+không tải gói thật và dung lượng 1,26 GB trong demo không phải kích thước gói phát hành.
 
 ## Chỉnh sửa và xuất lại
 

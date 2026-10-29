@@ -39,10 +39,14 @@ OSM yêu cầu tải gói Việt Nam khi chưa có dữ liệu trên máy. Tải
 không tải lại mỗi lần mở và không tải tile qua Internet. Có tiến trình, Wi-Fi-only mặc định,
 huỷ tải, kiểm tra SHA-256, cập nhật/xoá gói. Cảnh báo Speedmap là dữ liệu cục bộ riêng.
 
-**Còn thiếu trước khi phát hành:** cần dựng và host gói MBTiles Việt Nam thật, sau đó cấu hình
-URL manifest. Repo chưa có gói hoặc link tải thật; app hiển thị rõ khi chưa cấu hình nguồn.
-Xem [cơ chế tải và lưu dữ liệu](docs/MAP-PROVIDERS.md) và
-[hướng dẫn chuẩn bị/phát hành gói Việt Nam](docs/OFFLINE-MAPS.md).
+**Đã phát hành gói VietMap Basic Việt Nam** từ dữ liệu OSM/Geofabrik: phiên bản
+`20261029-1`, 854.712.320 byte (~855 MB), 58.527 tile PNG, native zoom 5–13.
+App 1.0.1 đã cấu hình [nguồn manifest mặc định](https://github.com/TradingLeak/IOS/releases/download/offline-vietnam/manifest.json).
+Bản đồ cơ bản có đường, sông hồ và tên nơi chốn; không tương đương OSM Carto đầy đủ,
+chưa có POI/địa chỉ toàn diện hoặc tính tuyến offline. Zoom cao hơn chỉ phóng ảnh tile gốc.
+
+[Release dữ liệu](https://github.com/TradingLeak/IOS/releases/tag/offline-vietnam) ·
+[cơ chế tải/lưu](docs/MAP-PROVIDERS.md) · [pipeline tái tạo](scripts/maps/README.md).
 
 ## 🚘 Chế độ HUD lái xe (mới)
 
@@ -58,8 +62,8 @@ chạy trực tiếp trên iPhone bằng GPS, không cần thiết bị ESP32 ho
 Chỉ hoạt động khi app đang mở. Biển báo thực tế luôn được ưu tiên hơn dữ liệu ứng dụng.
 Xem [hướng dẫn HUD, checklist thử máy thật và cách build](docs/HUD.md).
 
-**Trạng thái:** mã nguồn HUD mới cần được build/test bằng Xcode hoặc GitHub Actions;
-link IPA bên dưới không tự phản ánh thay đổi chưa push/build.
+**Trạng thái:** HUD/OSM đã được build trên GitHub Actions. Xem kết quả của đúng run/phiên bản IPA;
+chất lượng GPS/cảnh báo và bản đồ vẫn cần kiểm chứng trên máy thật.
 
 ## 📥 Tải IPA
 

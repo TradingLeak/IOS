@@ -11,10 +11,20 @@
   tải/cập nhật/xoá gói. Nguồn bản đồ được lưu giữa các lần mở app.
 - Nếu gói bị xoá hoặc metadata/file không hợp lệ, app không coi là đã tải.
 
-**Quan trọng:** repository chưa chứa gói bản đồ Việt Nam thật hoặc máy chủ phân phối.
-`VNOfflineMapManifestURL` trong `App/Info.plist` cố ý để trống, không dùng URL giả.
-Bản triển khai cung cấp cơ chế tải/lưu/đọc; phải chuẩn bị và host gói thật trước khi phát hành
-IPA có chức năng tải ngay cho người dùng. Xem [OFFLINE-MAPS.md](OFFLINE-MAPS.md).
+## Nguồn mặc định đã phát hành
+
+App 1.0.1 cấu hình sẵn:
+<https://github.com/TradingLeak/IOS/releases/download/offline-vietnam/manifest.json>.
+Mở trình tải khi chưa có gói sẽ tự lấy metadata để hiện dung lượng trước khi xác nhận tải.
+
+Gói đầu tiên: `20261029-1`, 854.712.320 byte (~855 MB), 58.527 PNG tile, native zoom 5–13,
+được dựng từ 3.256.313 feature OSM/Geofabrik. Đây là **VietMap Basic**, style cơ bản gồm
+đường, sông/closed-way hồ, một số mảng xanh và nhãn địa điểm; không đầy đủ như OSM Carto.
+Mask theo polygon extract Geofabrik và envelope VN, không phải xác nhận ranh giới hành chính.
+
+Release: <https://github.com/TradingLeak/IOS/releases/tag/offline-vietnam>.
+Build dữ liệu: <https://github.com/TradingLeak/IOS/actions/runs/40815945473>.
+Nguồn, giấy phép và cách tái tạo: [pipeline bản đồ](../scripts/maps/README.md).
 
 ## Phạm vi offline
 
@@ -45,7 +55,8 @@ OSM offline độc lập. Muốn có tuyến offline còn cần engine routing v
 - Khi cập nhật, bản cũ vẫn tồn tại đến khi bản mới hợp lệ. Cần dung lượng trống tối thiểu
   bằng file mới + 128 MB ngoài dữ liệu cũ đang chiếm chỗ.
 - MBTiles dùng TMS; reader đổi hàng XYZ của MapKit bằng `(1 << z) - 1 - y`.
-- Ngoài vùng/mức zoom của gói: không có tile, **không fallback qua Internet**.
+- Ngoài vùng gói: không có tile. App 1.0.1 phóng ảnh tile cha cục bộ nếu zoom vượt mức gốc
+  (tới zoom hiển thị 19), không thêm chi tiết và **không fallback qua Internet**.
   Camera OSM bị giới hạn theo envelope khai báo của gói. Envelope không thay polygon biên giới.
 
 ## Quyền riêng tư và nguồn
