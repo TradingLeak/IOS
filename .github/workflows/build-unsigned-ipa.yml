@@ -44,7 +44,7 @@ concurrency:
 jobs:
   inspect-ipa:
     name: Kiểm tra IPA đã phát hành (ESign/import)
-    if: github.event_name == 'workflow_dispatch' && inputs.inspect_run_id != ''
+    if: (github.event_name == 'workflow_dispatch' && inputs.inspect_run_id != '') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[audit-ipa]'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -53,8 +53,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      INSPECT_RUN_ID: ${{ inputs.inspect_run_id }}
-      INSPECT_SHA256: ${{ inputs.inspect_sha256 }}
+      INSPECT_RUN_ID: ${{ inputs.inspect_run_id || '40814336890' }}
+      INSPECT_SHA256: ${{ inputs.inspect_sha256 || 'b2d5b76241d160bbc34566359873c7b22b927f961a96db066aa8d89f0115dd2d' }}
     steps:
       - uses: actions/checkout@v7
       - name: Tải chính IPA từ artifact của lần build được chỉ định
@@ -81,7 +81,7 @@ jobs:
 
   # ---------------------------------------------------------------- lint
   lint:
-    if: inputs.inspect_run_id == ''
+    if: inputs.inspect_run_id == '' && !contains(github.event.head_commit.message, '[audit-ipa]')
     name: Kiểm tra repo (ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 5
