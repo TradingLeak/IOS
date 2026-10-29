@@ -85,13 +85,13 @@ def inspect(path, expected_sha=None):
     with zipfile.ZipFile(path) as archive:
         names = archive.namelist()
         require(len(names) == len(set(names)), "Duplicate ZIP entries")
-        require(archive.testzip() is None, "ZIP CRC integrity check failed")
         for entry in archive.infolist():
             parts = PurePosixPath(entry.filename).parts
             require(not entry.filename.startswith(("/", "\\")) and ".." not in parts and "\\" not in entry.filename,
                     "Unsafe archive path")
             require(entry.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED), "Nonstandard ZIP compression for IPA")
             require(not entry.flag_bits & 1, "IPA ZIP must not be password-encrypted")
+        require(archive.testzip() is None, "ZIP CRC integrity check failed")
         plist_paths = [name for name in names if re.fullmatch(r"Payload/[^/]+\.app/Info\.plist", name)]
         require(len(plist_paths) == 1, "Expected exactly one Payload/App.app/Info.plist at the archive root")
         app = plist_paths[0].rsplit("/", 1)[0]
