@@ -204,6 +204,13 @@ else
   fail "Test gói bản đồ offline thất bại"
 fi
 
+printf '\n\033[1m6. Test kiểm tra cấu trúc IPA\033[0m\n'
+if python3 scripts/test_verify_ipa.py; then
+  pass "IPA audit nhận diện ZIP, plist, quyền executable và Mach-O sai"
+else
+  fail "Test kiểm tra IPA thất bại"
+fi
+
 if [[ "$FAIL" -eq 0 ]]; then
   printf '\033[1;32m✔ Tất cả kiểm tra đều đạt\033[0m\n\n'
 else

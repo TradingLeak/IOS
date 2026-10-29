@@ -23,6 +23,12 @@ on:
       ai_model:
         description: "Tên model AI nhúng vào bản build (vd gpt-4o-mini)"
         required: false
+      inspect_run_id:
+        description: "Chỉ kiểm tra IPA từ run ID đã có (không build/phát hành lại)"
+        required: false
+      inspect_sha256:
+        description: "SHA-256 kỳ vọng của IPA cần kiểm tra (tuỳ chọn)"
+        required: false
       run_tests:
         description: "Chạy unit test (lâu hơn ~3 phút)"
         type: boolean
@@ -36,8 +42,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  inspect-ipa:
+    name: Kiểm tra IPA đã phát hành (ESign/import)
+    if: github.event_name == 'workflow_dispatch' && inputs.inspect_run_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      INSPECT_RUN_ID: ${{ inputs.inspect_run_id }}
+      INSPECT_SHA256: ${{ inputs.inspect_sha256 }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tải chính IPA từ artifact của lần build được chỉ định
+        shell: bash
+        run: |
+          [[ "$INSPECT_RUN_ID" =~ ^[0-9]+$ ]] || { echo "Run ID không hợp lệ"; exit 1; }
+          gh run download "$INSPECT_RUN_ID" --pattern 'unsigned-ipa-*' --dir build/inspect-source
+      - name: Kiểm tra ZIP, plist, quyền executable, Mach-O và mã hoá
+        shell: bash
+        run: |
+          IPA="$(find build/inspect-source -type f -name '*-unsigned.ipa' ! -name 'VietMap-unsigned.ipa' | head -n 1)"
+          [[ -n "$IPA" ]] || { echo "::error::Không tìm thấy IPA trong artifact"; exit 1; }
+          args=("$IPA" --report build/ipa-audit.json --github)
+          [[ -z "$INSPECT_SHA256" ]] || args+=(--expected-sha256 "$INSPECT_SHA256")
+          python3 scripts/verify-ipa.py "${args[@]}"
+      - name: Lưu báo cáo chẩn đoán (không công bố lại IPA)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ipa-import-audit-${{ github.run_number }}
+          path: build/ipa-audit.json
+          if-no-files-found: warn
+          retention-days: 14
+
   # ---------------------------------------------------------------- lint
   lint:
+    if: inputs.inspect_run_id == ''
     name: Kiểm tra repo (ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 5
