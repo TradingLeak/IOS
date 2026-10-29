@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111c2c"><title>VietMap — Bản xem trước</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="studio">
+    <aside class="intro">
+      <a class="brand" href="#" aria-label="VietMap"><span class="brand-icon" data-icon="navigation"></span>vietmap<span class="brand-dot">.</span></a>
+      <div class="eyebrow"><span class="live-dot"></span> IOS EXPERIENCE · BẢN XEM TRƯỚC</div>
+      <h1>Mọi hành trình.<br>Một góc nhìn <span>mới.</span></h1>
+      <p class="intro-copy">Bản đồ quen thuộc. Cảnh báo thông minh.<br>Đồng hành cùng bạn trên những cung đường Việt Nam.</p>
+      <div class="explore-label">KHÁM PHÁ GIAO DIỆN</div>
+      <div class="preview-steps">
+        <button data-page="map" class="step active"><span class="step-number">01</span><span><strong>Bản đồ & chỉ đường</strong><small>Apple Maps hoặc OpenStreetMap</small></span><span data-icon="arrow-right"></span></button>
+        <button data-page="hud" class="step"><span class="step-number">02</span><span><strong>HUD lái xe</strong><small>Tập trung vào điều quan trọng</small></span><span data-icon="arrow-right"></span></button>
+        <button data-page="data" class="step"><span class="step-number">03</span><span><strong>Việt Nam, luôn bên bạn</strong><small>Tải bản đồ để sử dụng offline</small></span><span data-icon="arrow-right"></span></button>
+      </div>
+      <div class="prototype-note"><span data-icon="info"></span><p><strong>Đây là demo tương tác.</strong><br>Bản đồ, GPS, lộ trình và tải dữ liệu được mô phỏng. Không sử dụng để điều hướng thực tế.</p></div>
+      <div class="intro-footer"><span>THIẾT KẾ CHO NHỮNG CHUYẾN ĐI</span><span>VIETMAP / 2026</span></div>
+    </aside>
+
+    <main class="preview-area">
+      <div class="device-label"><span class="live-dot"></span> LIVE PREVIEW <span class="device-type">iPhone · iOS 16+</span></div>
+      <div class="phone">
+        <div class="status-bar"><span>9:41</span><div class="dynamic-island"></div><div class="system-icons"><span data-icon="signal"></span><span data-icon="wifi"></span><span class="battery"></span></div></div>
+        <div id="app" class="app">
+          <section class="page map-page active" id="page-map" aria-label="Bản đồ">
+            <div class="map-canvas" id="mapCanvas">
+              <svg id="cityMap" viewBox="0 0 430 850" role="img" aria-label="Sơ đồ đường Hà Nội minh họa, không phải bản đồ thực tế">
+                <defs><pattern id="blocks" width="76" height="65" patternTransform="rotate(-15)" patternUnits="userSpaceOnUse"><rect width="76" height="65" fill="var(--map-ground)"/><rect x="7" y="7" width="57" height="45" rx="6" fill="var(--map-block)"/><path d="M0 60H76M70 0V65" stroke="#fff" stroke-width="7"/></pattern><filter id="pinShadow"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity=".18"/></filter></defs>
+                <g id="mapDrawing">
+                  <rect x="-250" y="-250" width="1000" height="1400" fill="url(#blocks)"/>
+                  <path d="M382-50C335 65 433 135 392 242S337 393 393 459 478 539 430 634L520 820 600-50Z" fill="var(--map-water)"/><path d="M399-40C355 69 450 139 409 247S360 384 415 453 489 553 447 627" fill="none" stroke="#a9d2db" stroke-width="2"/>
+                  <path d="M37 80Q48 112 26 147L-10 185 14 227Q36 251 36 289L63 313Q90 321 119 291L154 284Q170 270 153 247L137 211Q119 180 137 156L126 122 104 83 66 65Z" fill="var(--map-water)" stroke="#adced8" stroke-width="2"/>
+                  <path d="M51 323L115 311 145 351 108 382 48 370Z" fill="var(--map-park)"/>
+                  <path d="M188 464L240 455 253 505 199 522Z" fill="var(--map-park)"/><path d="M38 598L132 574 147 627 70 661 29 643Z" fill="var(--map-park)"/>
+                  <g class="minor-roads" fill="none" stroke-linejoin="round"><path d="M-20 391L390 278M-20 459L420 343M-20 523L430 410M-20 590L440 474M-20 666L443 550M-20 742L450 623M-20 808L440 693M159 45L375 845M95 295L246 865M233 13L447 808M-50 303L104 859"/></g>
+                  <g class="major-roads" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M-30 341L170 285 219 258 352 218 500 184M-30 571L168 518 223 513 461 445M162-20L193 153 204 222 238 311 265 424 277 478 321 625 380 871M-30 694L155 644 235 624 316 602 462 567M74 322L162 344 226 352 376 310M-10 248L38 310 74 322"/></g>
+                  <g class="road-centers" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M-30 341L170 285 219 258 352 218 500 184M-30 571L168 518 223 513 461 445M162-20L193 153 204 222 238 311 265 424 277 478 321 625 380 871M-30 694L155 644 235 624 316 602 462 567M74 322L162 344 226 352 376 310M-10 248L38 310 74 322"/></g>
+                  <path d="M314 552Q325 548 332 565L342 606Q346 628 334 643 324 642 320 620L308 575Q305 562 314 552Z" fill="var(--map-water)" stroke="#a9cdd3" stroke-width="2"/>
+                  <g class="map-labels"><text x="62" y="198" class="water-label">Hồ Tây</text><text x="355" y="377" class="water-label" transform="rotate(70 355 377)">Sông Hồng</text><text x="48" y="437" class="district-label">BA ĐÌNH</text><text x="203" y="435" class="district-label">HOÀN KIẾM</text><text x="75" y="719" class="district-label">ĐỐNG ĐA</text><text x="208" y="298" transform="rotate(-16 208 298)">Phan Đình Phùng</text><text x="265" y="467" transform="rotate(-16 265 467)">Trần Nhật Duật</text><text x="180" y="577" transform="rotate(74 180 577)">Điện Biên Phủ</text><text x="57" y="537" transform="rotate(-16 57 537)">Kim Mã</text><text x="302" y="673">Tràng Tiền</text><text x="41" y="615" class="park-label">Công viên</text><text x="39" y="628" class="park-label">Lê-nin</text><text x="195" y="487" class="park-label">Vườn hoa</text><text x="190" y="500" class="park-label">Hàng Đậu</text></g>
+                  <path class="route-casing" d="M109 351L164 344 226 352 241 399 265 424 277 478 293 528 314 552"/><path class="route-line" id="routeLine" d="M109 351L164 344 226 352 241 399 265 424 277 478 293 528 314 552"/>
+                  <g class="map-pois"><circle cx="63" cy="484" r="12" fill="#f5e6d9"/><text x="63" y="489">☕</text><circle cx="158" cy="413" r="11" fill="#e2ddf1"/><text x="158" y="418">✚</text><circle cx="360" cy="520" r="12" fill="#f6e8dc"/><text x="360" y="525">☕</text></g>
+                  <g filter="url(#pinShadow)"><circle cx="109" cy="351" r="23" fill="#3471f2" fill-opacity=".15"/><circle cx="109" cy="351" r="10" fill="#3471f2" stroke="white" stroke-width="4"/><path d="M314 520C296 520 292 543 314 559 336 543 332 520 314 520Z" fill="#2864ed"/><circle cx="314" cy="535" r="5" fill="white"/></g>
+                  <g class="destination-label"><rect x="248" y="572" width="128" height="29" rx="9" fill="white"/><text x="312" y="591">Hồ Hoàn Kiếm</text></g>
+                </g>
+              </svg>
+            </div>
+            <div class="map-top">
+              <div class="app-heading"><div><span class="overline">HÀNH TRÌNH CỦA BẠN</span><h2>Chào buổi sáng <span class="sun">☀</span></h2></div><button class="avatar" data-page="settings" aria-label="Mở cài đặt">V<span></span></button></div>
+              <button class="search-box" data-action="search"><span data-icon="search"></span><span>Bạn muốn đi đâu?</span><kbd data-icon="mic"></kbd></button>
+              <div class="map-chips"><button id="providerButton" class="chip" data-action="providers"><span class="source-dot"></span><span id="providerName">Apple Maps</span><span data-icon="chevron-down"></span></button><button class="chip" data-action="download"><span data-icon="download"></span><span id="offlineChip">Việt Nam offline</span></button></div>
+              <div id="cameraBanner" class="camera-banner"><div class="hazard-icon" data-icon="camera"></div><div><strong>Camera phía trước</strong><small>Giảm tốc và chú ý quan sát</small></div><span id="cameraDistance">350 <small>m</small></span></div>
+            </div>
+            <div id="missingMap" class="missing-map" hidden><span data-icon="map"></span><h3>Mang Việt Nam theo bạn</h3><p>Tải gói bản đồ Việt Nam để sử dụng OSM<br>ngay cả khi không có kết nối.</p><button class="primary-button" data-action="download">Tải bản đồ Việt Nam <span data-icon="download"></span></button><small>Không có dữ liệu bản đồ thật trong demo</small></div>
+            <div class="map-speed"><strong id="miniSpeed">48</strong><span>KM/H</span></div><div class="map-limit">60</div>
+            <div class="map-tools"><button data-action="recenter" aria-label="Về vị trí hiện tại"><span data-icon="locate"></span></button><button data-action="providers" aria-label="Đổi nguồn bản đồ"><span data-icon="layers"></span></button><button data-action="zoom" aria-label="Phóng to"><span data-icon="plus"></span></button></div>
+            <span class="map-watermark">BẢN ĐỒ MINH HOẠ</span>
+            <div class="route-card" id="routeCard"><div class="route-title"><div class="destination-icon" data-icon="flag"></div><div><h3>Hồ Hoàn Kiếm</h3><p>Từ vị trí hiện tại · Hà Nội</p></div><button class="icon-button" data-action="route-details" aria-label="Chi tiết tuyến"><span data-icon="more"></span></button></div><div class="route-bottom"><div class="route-metrics"><strong>18 <span>phút</span></strong><p>6,4 km <i></i> Đến lúc 10:02</p></div><button class="start-button" data-action="navigate"><span data-icon="navigation"></span><span id="navigateLabel">Bắt đầu</span></button></div></div>
+          </section>
+
+          <section class="page hud-page" id="page-hud" aria-label="HUD lái xe">
+            <div class="hud-header"><div class="hud-brand">VIETMAP<span>/ HUD</span></div><span id="gpsBadge" class="gps-badge"><span class="live-dot"></span> GPS tốt</span></div>
+            <div class="hud-subtitle">DỮ LIỆU MÔ PHỎNG · KHÔNG DÙNG ĐỂ LÁI XE</div>
+            <div class="hud-mirrorable" id="hudMirrorable">
+              <div class="hud-dial"><div class="dial-ticks"></div><div class="dial-inner"><span class="speed-caption">TỐC ĐỘ HIỆN TẠI</span><strong id="hudSpeed">48</strong><span class="speed-unit">KM/H</span><div class="hud-safe" id="speedState"><span></span> TRONG GIỚI HẠN AN TOÀN</div></div></div>
+              <div class="hud-road"><div class="limit-sign">60</div><div><small>GIỚI HẠN TỐC ĐỘ</small><strong>Phố Phan Đình Phùng</strong><span>Ba Đình, Hà Nội</span></div><span class="road-direction" data-icon="arrow-up"></span></div>
+              <div class="hud-alert" id="hudAlert"><span class="hazard-icon" data-icon="camera"></span><div><small>SẮP ĐẾN</small><strong>Camera phạt nguội</strong></div><div class="hud-distance"><strong id="hudDistance">350</strong><span>MÉT</span></div></div>
+              <div class="hud-next"><span data-icon="shield"></span><span>Cảnh báo hoạt động offline</span><span class="live-dot"></span></div>
+            </div>
+            <div class="hud-controls"><button id="mirrorButton" data-action="mirror"><span data-icon="mirror"></span>Phản chiếu</button><button id="voiceButton" data-action="voice" class="selected"><span data-icon="volume"></span>Giọng nói</button><button data-action="gps"><span data-icon="locate"></span>Thử GPS</button></div>
+            <div class="simulator"><div><label for="speedSlider">Mô phỏng tốc độ</label><output id="sliderValue">48 km/h</output></div><input id="speedSlider" type="range" min="0" max="120" value="48" aria-label="Tốc độ mô phỏng"><div class="slider-labels"><span>0</span><span>60</span><span>120 km/h</span></div></div>
+          </section>
+
+          <section class="page data-page" id="page-data" aria-label="Dữ liệu offline"><div class="page-title"><span class="overline">SẴN SÀNG CHO MỌI CUNG ĐƯỜNG</span><h2>Bản đồ offline<span>.</span></h2><p>Kết nối có thể mất.<br>Hành trình của bạn thì không.</p></div><div class="country-card"><div class="country-card-top"><span class="pill-light"><span class="live-dot"></span> OPENSTREETMAP</span><span class="country-code">VN</span></div><div class="vietnam-art"><svg viewBox="0 0 170 220" aria-hidden="true"><path d="M50 12L68 19 81 11 90 22 104 19 113 31 128 39 124 50 112 58 119 72 110 85 113 96 121 107 127 127 143 145 146 162 137 176 125 183 116 198 95 207 79 204 70 213 53 212 54 201 67 192 82 186 93 172 108 166 115 152 109 134 99 117 97 101 93 91 94 77 84 67 72 64 62 55 52 57 42 48 31 43 34 31 42 28Z" fill="currentColor"/><circle cx="94" cy="59" r="5" fill="#fff"/><circle cx="126" cy="151" r="4" fill="#fff"/><circle cx="87" cy="192" r="5" fill="#fff"/><path d="M94 59Q84 106 126 151T87 192" fill="none" stroke="white" stroke-width="1.5" stroke-dasharray="3 4"/><circle cx="155" cy="135" r="2"/><circle cx="158" cy="173" r="3"/><circle cx="164" cy="181" r="2"/></svg></div><div class="country-copy"><h3>Việt Nam</h3><p>Từ những con phố nhỏ<br>đến những hành trình lớn.</p><span>GÓI BẢN ĐỒ MINH HOẠ</span></div><div class="country-card-footer"><span data-icon="database"></span><span>1,26 GB</span><i></i><span>Phiên bản 2026.10</span></div></div><div class="data-state" id="dataState"></div><div class="data-features"><div><span data-icon="wifi-off"></span><span><strong>Xem bản đồ không cần mạng</strong><small>Sau khi tải dữ liệu về thiết bị</small></span></div><div><span data-icon="shield"></span><span><strong>Kiểm tra trước khi cài đặt</strong><small>Mô phỏng xác minh gói dữ liệu</small></span></div></div><p class="data-disclaimer">Demo chỉ lưu trạng thái trong trình duyệt, không tải file MBTiles. Tìm kiếm và tính tuyến trong app iOS vẫn dùng Apple Maps.</p></section>
+
+          <section class="page settings-page" id="page-settings" aria-label="Cài đặt"><div class="page-title"><span class="overline">THEO CÁCH CỦA BẠN</span><h2>Cài đặt<span>.</span></h2><p>Một hành trình, nhiều lựa chọn.</p></div><div class="profile-card"><div class="avatar">V</div><div><strong>Người bạn đồng hành</strong><span>VietMap · Bản thiết kế iOS</span></div><span class="version-tag">v1.0</span></div><div class="settings-group"><h3>BẢN ĐỒ & DỮ LIỆU</h3><button class="settings-row" data-action="providers"><span class="setting-icon blue" data-icon="layers"></span><span>Nguồn bản đồ</span><small id="settingsProvider">Apple Maps</small><span data-icon="chevron-right"></span></button><button class="settings-row" data-action="download"><span class="setting-icon green" data-icon="download"></span><span>Gói bản đồ Việt Nam</span><span data-icon="chevron-right"></span></button><div class="settings-row"><span class="setting-icon blue" data-icon="wifi"></span><label for="wifiSetting">Chỉ tải qua Wi-Fi</label><input id="wifiSetting" class="switch" type="checkbox" checked></div></div><div class="settings-group"><h3>HUD & CẢNH BÁO</h3><div class="settings-row"><span class="setting-icon orange" data-icon="volume"></span><label for="voiceSetting">Giọng nói tiếng Việt</label><input id="voiceSetting" class="switch" type="checkbox" checked></div><div class="settings-row"><span class="setting-icon purple" data-icon="sun"></span><label for="awakeSetting">Giữ sáng màn hình</label><input id="awakeSetting" class="switch" type="checkbox" checked></div><div class="settings-row"><span class="setting-icon blue" data-icon="mirror"></span><label for="mirrorSetting">Phản chiếu HUD</label><input id="mirrorSetting" class="switch" type="checkbox"></div></div><div class="settings-about"><span class="brand-icon" data-icon="navigation"></span><strong>Được tạo cho những chuyến đi.</strong><p>Thiết kế lấy cảm hứng từ VietHUD.<br>HTML demo — không phải ứng dụng iOS thực tế.</p><button class="text-button" data-action="reset">Đặt lại toàn bộ demo</button></div></section>
+
+          <nav class="tab-bar" aria-label="Điều hướng ứng dụng"><button data-page="map" class="active"><span data-icon="map"></span><span>Bản đồ</span></button><button data-page="hud"><span data-icon="gauge"></span><span>HUD lái xe</span></button><button data-page="data"><span data-icon="download"></span><span>Dữ liệu</span><i id="downloadDot" hidden></i></button><button data-page="settings"><span data-icon="settings"></span><span>Cài đặt</span></button></nav>
+          <div class="home-indicator"></div>
+          <div class="modal-backdrop" id="modalBackdrop" hidden><section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" tabindex="-1"><div class="sheet-handle"></div><button class="sheet-close icon-button" id="closeSheet" aria-label="Đóng hộp thoại"><span data-icon="x"></span></button><div id="sheetContent"></div></section></div>
+          <div id="toast" class="toast" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+      <div class="preview-caption"><span data-icon="mouse"></span> Chạm để khám phá <span>·</span> Không cần cài đặt</div>
+    </main>
+    <aside class="review-note"><div class="review-tag">INTERACTIVE PROTOTYPE</div><span class="review-line"></span><p>Thiết kế gọn gàng.<br>Thông tin rõ ràng.<br><strong>An tâm trên mọi nẻo đường.</strong></p><div class="color-swatches"><i></i><i></i><i></i><i></i></div><small>Bản duyệt giao diện 01</small></aside>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

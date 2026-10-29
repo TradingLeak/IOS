@@ -36,6 +36,7 @@ final class AppSettings: ObservableObject {
         static let temperature = "vietmap.ai.temperature"
         static let apiKey = "ai.api.key"
         static let useAI = "vietmap.ai.enabled"
+        static let mapProvider = "vietmap.map.provider"
         static let mapType = "vietmap.map.type"
         static let traffic = "vietmap.map.traffic"
         static let pois = "vietmap.map.pois"
@@ -57,6 +58,9 @@ final class AppSettings: ObservableObject {
     }
     @Published var useAI: Bool {
         didSet { defaults.set(useAI, forKey: Keys.useAI) }
+    }
+    @Published var mapProvider: MapProvider {
+        didSet { defaults.set(mapProvider.rawValue, forKey: Keys.mapProvider) }
     }
     @Published var mapTypeIndex: Int {
         didSet { defaults.set(mapTypeIndex, forKey: Keys.mapType) }
@@ -95,6 +99,7 @@ final class AppSettings: ObservableObject {
         apiKey = savedKey.isEmpty ? (bundledKey ?? "") : savedKey
 
         useAI = defaults.object(forKey: Keys.useAI) as? Bool ?? true
+        mapProvider = MapProvider.savedValue(defaults.string(forKey: Keys.mapProvider))
         mapTypeIndex = defaults.object(forKey: Keys.mapType) as? Int ?? 0
         showTraffic = defaults.object(forKey: Keys.traffic) as? Bool ?? false
         showPOIs = defaults.object(forKey: Keys.pois) as? Bool ?? true

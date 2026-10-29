@@ -85,6 +85,7 @@ final class SpeedmapController: ObservableObject {
         metadata = db.metadata
         loadError = nil
         isReady = true
+        tick()
     }
 
     /// Nạp 7 file speedmap từ bundle (nền — không chặn frame đầu).
@@ -108,20 +109,43 @@ final class SpeedmapController: ObservableObject {
     // MARK: - Input GPS
 
     func update(with location: CLLocation) {
+        if let lastLocation, location.timestamp < lastLocation.timestamp { return }
         lastLocation = location
         guard database != nil else { return }
         tick()
     }
 
+    /// Gọi định kỳ ngay cả khi CoreLocation không gửi mẫu mới.
+    func invalidateIfNeeded(now: Date = Date()) {
+        if !HUDSafety.hasUsableFix(lastLocation, now: now) { clearReadings() }
+    }
+
+    func resetLocation() {
+        lastLocation = nil
+        clearReadings()
+    }
+
+    private func clearReadings() {
+        speedKmh = nil
+        speedLimitKmh = nil
+        road = nil
+        if !alerts.isEmpty { alerts = [] }
+        active = []
+    }
+
     /// Chạy một lượt tính toán (test gọi trực tiếp sau khi `update`).
     func tick() {
         guard let db = database, let loc = lastLocation else { return }
+        guard HUDSafety.hasUsableFix(loc) else {
+            clearReadings()
+            return
+        }
 
         let coord = loc.coordinate
         let moving = loc.speed >= 0.5
         let course: Double? = (moving && loc.course >= 0 && loc.course <= 359) ? loc.course : nil
-        let speed = loc.speed >= 0 ? loc.speed * 3.6 : 0
-        speedKmh = loc.speed >= 0 ? speed : nil
+        speedKmh = HUDSafety.speedKmh(loc)
+        let speed = speedKmh ?? 0
 
         // ① Đường hiện tại (hysteresis giữ segment cũ)
         let match = db.matchRoad(at: coord,
@@ -197,7 +221,10 @@ final class SpeedmapController: ObservableObject {
             let dist = SpeedmapMath.meters(coord, old.coordinate)
             let ahead = isAhead(old.coordinate, course: course)
             if dist <= 40 || ((ahead ?? true) && dist <= max(horizon, signHorizon) + 30) {
-                kept.append(old)
+                kept.append(HazardAlert(id: old.id, kind: old.kind, title: old.title,
+                                        subtitle: old.subtitle, distanceM: dist,
+                                        speedLimitKmh: old.speedLimitKmh,
+                                        coordinate: old.coordinate))
             }
         }
 

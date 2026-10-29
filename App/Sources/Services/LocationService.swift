@@ -5,6 +5,7 @@ import Combine
 /// Bọc CLLocationManager: xin quyền, lấy vị trí hiện tại, theo dõi khi đang chỉ đường.
 final class LocationService: NSObject, ObservableObject {
     private let manager = CLLocationManager()
+    private var wantsContinuousUpdates = false
 
     @Published private(set) var authorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published private(set) var coordinate: CLLocationCoordinate2D?
@@ -48,6 +49,7 @@ final class LocationService: NSObject, ObservableObject {
     }
 
     func startUpdating() {
+        wantsContinuousUpdates = true
         guard isAuthorized else {
             requestLocation()
             return
@@ -56,15 +58,16 @@ final class LocationService: NSObject, ObservableObject {
     }
 
     func stopUpdating() {
+        wantsContinuousUpdates = false
         manager.stopUpdatingLocation()
     }
 
     /// Chế độ chỉ đường: tần suất GPS cao hơn (3m) để HUD/cảnh báo chạy mượt.
     func setNavigationMode(_ active: Bool) {
         manager.distanceFilter = active ? 3 : 8
-        if active, isAuthorized {
-            manager.startUpdatingLocation()
-        }
+        manager.desiredAccuracy = active ? kCLLocationAccuracyBestForNavigation : kCLLocationAccuracyBest
+        manager.activityType = active ? .automotiveNavigation : .other
+        if active { startUpdating() }
     }
 }
 
@@ -72,12 +75,20 @@ extension LocationService: CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
         if isAuthorized {
-            manager.requestLocation()
+            if wantsContinuousUpdates {
+                manager.startUpdatingLocation()
+            } else {
+                manager.requestLocation()
+            }
+        } else {
+            coordinate = nil
+            lastLocation = nil
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
+        if let lastLocation, location.timestamp < lastLocation.timestamp { return }
         coordinate = location.coordinate
         lastLocation = location
         isLocating = false

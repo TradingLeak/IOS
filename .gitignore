@@ -28,3 +28,10 @@ Package.resolved
 # ---- Khác ----
 .env
 .env.*
+
+# ---- Offline maps: publish externally, never bundle large datasets ----
+*.mbtiles
+*.osm.pbf
+*.pmtiles
+__pycache__/
+*.pyc

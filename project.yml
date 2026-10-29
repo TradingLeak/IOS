@@ -29,6 +29,8 @@ targets:
         # Ép .bin (speedmap) + Assets vào Resources phase — không phụ thuộc
         # infer-extension của xcodegen.
         buildPhase: resources
+    dependencies:
+      - sdk: libsqlite3.tbd
     settings:
       base:
         PRODUCT_NAME: VietMap

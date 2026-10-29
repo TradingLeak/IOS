@@ -4,6 +4,8 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var model: MapViewModel
+    @ObservedObject var offlineMaps: OfflineMapStore = .shared
+    @State private var showsOfflineDownload = false
     /// HUD speedmap (tuỳ chọn) — hiển thị chẩn đoán dữ liệu .bin trong app.
     var hud: SpeedmapController? = nil
 
@@ -38,6 +40,12 @@ struct SettingsView: View {
             }
             .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
             .onAppear { runSpeedmapSelfTestIfNeeded() }
+            .onChange(of: settings.mapProvider) { provider in
+                if provider == .openStreetMap, !offlineMaps.isReady { showsOfflineDownload = true }
+            }
+            .sheet(isPresented: $showsOfflineDownload) {
+                OfflineMapDownloadView(store: offlineMaps) { settings.mapProvider = .apple }
+            }
             .navigationTitle("Cài đặt")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -217,6 +225,17 @@ struct SettingsView: View {
     private var mapCard: some View {
         SectionCard(title: "Bản đồ", symbol: "map") {
             VStack(alignment: .leading, spacing: 12) {
+                Picker("Nguồn bản đồ", selection: $settings.mapProvider) {
+                    ForEach(MapProvider.allCases) { provider in
+                        Text(provider.title).tag(provider)
+                    }
+                }
+                .pickerStyle(.menu)
+                Button { showsOfflineDownload = true } label: {
+                    Label(offlineMaps.isReady ? "Quản lý gói Việt Nam đã tải" : "Tải bản đồ Việt Nam offline",
+                          systemImage: "arrow.down.circle")
+                }
+
                 Picker("Kiểu bản đồ", selection: $settings.mapTypeIndex) {
                     Text("Tiêu chuẩn").tag(0)
                     Text("Vệ tinh lai").tag(1)
@@ -224,18 +243,27 @@ struct SettingsView: View {
                     Text("Tối giản").tag(3)
                 }
                 .pickerStyle(.segmented)
+                .disabled(settings.mapProvider != .apple)
 
                 Toggle(isOn: $settings.showTraffic) {
                     Label("Hiện mật độ giao thông", systemImage: "car.2.fill")
                         .font(.system(size: 13))
                 }
                 .tint(AppTheme.accent)
+                .disabled(settings.mapProvider != .apple)
 
                 Toggle(isOn: $settings.showPOIs) {
                     Label("Hiện địa điểm của Apple Maps", systemImage: "mappin.and.ellipse")
                         .font(.system(size: 13))
                 }
                 .tint(AppTheme.accent)
+                .disabled(settings.mapProvider != .apple)
+                if settings.mapProvider == .openStreetMap {
+                    Link("© OpenStreetMap contributors", destination: OpenStreetMapOverlay.copyrightURL)
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("Bản đồ OSM chỉ đọc từ gói Việt Nam đã tải trên iPhone, không tải tile trực tuyến. Nhãn/POI nằm sẵn trong tile. Tìm kiếm và tính tuyến vẫn dùng Apple Maps; cảnh báo VietHUD không đổi.")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -341,7 +369,8 @@ struct SettingsView: View {
                 infoRow("Phiên bản", "\(AppInfo.current.version) (\(AppInfo.current.build))")
                 infoRow("Bundle ID", AppInfo.current.bundleIdentifier)
                 infoRow("Commit", AppInfo.current.commit)
-                infoRow("Bản đồ", "Apple Maps (MapKit)")
+                infoRow("Bản đồ nền", settings.mapProvider.title)
+                infoRow("Tìm kiếm / tính tuyến", "Apple Maps")
                 infoRow("AI", settings.config.isConfigured ? settings.model : "chưa cấu hình")
 
                 Text("Bản IPA này không có chữ ký Apple: dùng TrollStore (iOS ≤ 17.0) "

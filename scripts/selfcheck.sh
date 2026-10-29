@@ -197,6 +197,13 @@ else
 fi
 
 printf '\n'
+printf '\n\033[1m5. Test gói bản đồ Việt Nam offline\033[0m\n'
+if python3 scripts/test_offline_map.py; then
+  pass "Manifest, SHA-256 và SQLite mẫu offline hợp lệ"
+else
+  fail "Test gói bản đồ offline thất bại"
+fi
+
 if [[ "$FAIL" -eq 0 ]]; then
   printf '\033[1;32m✔ Tất cả kiểm tra đều đạt\033[0m\n\n'
 else

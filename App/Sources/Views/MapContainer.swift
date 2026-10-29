@@ -19,13 +19,15 @@ final class PinAnnotation: NSObject, MKAnnotation {
     }
 }
 
-/// Bọc MKMapView (Apple Maps) cho SwiftUI: vẽ tuyến, ghim, nhấn giữ để chọn điểm.
+/// Bọc MKMapView (Apple Maps hoặc raster OpenStreetMap) cho SwiftUI: vẽ tuyến, ghim, nhấn giữ để chọn điểm.
 struct MapContainer: UIViewRepresentable {
     var pins: [MapPin] = []
     var polylines: [MapPolyline] = []
     var focusCoordinate: CLLocationCoordinate2D? = nil
     var focusToken: Int = 0
     var fitToken: Int = 0
+    var mapProvider: MapProvider = .apple
+    var offlineDatabase: OfflineMBTiles? = nil
     var mapTypeIndex: Int = 0
     var showTraffic: Bool = false
     var showPOIs: Bool = true
@@ -56,13 +58,19 @@ struct MapContainer: UIViewRepresentable {
     func updateUIView(_ mapView: MKMapView, context: Context) {
         context.coordinator.parent = self
 
-        let type = Self.mapType(for: mapTypeIndex)
+        updateBasemap(mapView, context: context)
+        let apple = mapProvider == .apple
+        let type = apple ? Self.mapType(for: mapTypeIndex) : .standard
         if mapView.mapType != type { mapView.mapType = type }
-        if mapView.showsTraffic != showTraffic { mapView.showsTraffic = showTraffic }
+        let traffic = apple && showTraffic
+        if mapView.showsTraffic != traffic { mapView.showsTraffic = traffic }
+        mapView.showsBuildings = apple
+        mapView.isPitchEnabled = apple
 
-        if context.coordinator.lastPOISetting != showPOIs {
-            context.coordinator.lastPOISetting = showPOIs
-            mapView.pointOfInterestFilter = showPOIs ? .includingAll : .excludingAll
+        let pois = apple && showPOIs
+        if context.coordinator.lastPOISetting != pois {
+            context.coordinator.lastPOISetting = pois
+            mapView.pointOfInterestFilter = pois ? .includingAll : .excludingAll
         }
 
         updatePins(mapView, context: context)
@@ -92,6 +100,11 @@ struct MapContainer: UIViewRepresentable {
 
     // MARK: - Pins & overlays
 
+    /// Thay lớp nền tại chỗ, không reset camera/ghim/tuyến khi đổi nguồn.
+    private func updateBasemap(_ mapView: MKMapView, context: Context) {
+        context.coordinator.updateBasemap(mapView, provider: mapProvider, database: offlineDatabase)
+    }
+
     private func updatePins(_ mapView: MKMapView, context: Context) {
         let signature = pins
             .map { "\($0.id)|\($0.kind.rawValue)|\(String(format: "%.5f", $0.coordinate.latitude))|\(String(format: "%.5f", $0.coordinate.longitude))" }
@@ -111,12 +124,13 @@ struct MapContainer: UIViewRepresentable {
         guard signature != context.coordinator.lastOverlaySignature else { return }
         context.coordinator.lastOverlaySignature = signature
 
-        mapView.removeOverlays(mapView.overlays)
+        // Không xoá tile nền OSM khi tuyến thay đổi hoặc kết thúc điều hướng.
+        mapView.removeOverlays(mapView.overlays.filter { $0 is MKPolyline })
         for line in polylines where line.coordinates.count > 1 {
             var coordinates = line.coordinates
             let polyline = MKPolyline(coordinates: &coordinates, count: coordinates.count)
             polyline.title = line.style.rawValue
-            mapView.addOverlay(polyline, level: .aboveRoads)
+            mapView.addOverlay(polyline, level: .aboveLabels)
         }
     }
 
@@ -154,6 +168,9 @@ struct MapContainer: UIViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var parent: MapContainer
+        var lastOfflineMapID: UUID?
+        var lastProvider: MapProvider?
+        var tileOverlay: OpenStreetMapOverlay?
         var lastPinSignature = ""
         var lastOverlaySignature = ""
         var lastFocusToken = -1
@@ -162,6 +179,29 @@ struct MapContainer: UIViewRepresentable {
 
         init(_ parent: MapContainer) {
             self.parent = parent
+        }
+
+        func updateBasemap(_ mapView: MKMapView, provider: MapProvider, database: OfflineMBTiles? = nil) {
+            guard lastProvider != provider || (provider == .openStreetMap && lastOfflineMapID != database?.id) else { return }
+            lastProvider = provider
+            lastOfflineMapID = database?.id
+            if let tileOverlay {
+                mapView.removeOverlay(tileOverlay)
+                self.tileOverlay = nil
+            }
+            if provider == .openStreetMap {
+                let bounds = database?.manifest.bounds ?? [102, 8, 110, 24]
+                let northwest = MKMapPoint(CLLocationCoordinate2D(latitude: bounds[3], longitude: bounds[0]))
+                let southeast = MKMapPoint(CLLocationCoordinate2D(latitude: bounds[1], longitude: bounds[2]))
+                let rect = MKMapRect(x: northwest.x, y: northwest.y,
+                                     width: southeast.x - northwest.x, height: southeast.y - northwest.y)
+                mapView.setCameraBoundary(MKMapView.CameraBoundary(mapRect: rect), animated: false)
+                let overlay = OpenStreetMapOverlay(database: database)
+                tileOverlay = overlay
+                mapView.insertOverlay(overlay, at: 0, level: .aboveRoads)
+            } else {
+                mapView.setCameraBoundary(nil, animated: false)
+            }
         }
 
         @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
@@ -213,6 +253,9 @@ struct MapContainer: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let tileOverlay = overlay as? MKTileOverlay {
+                return MKTileOverlayRenderer(tileOverlay: tileOverlay)
+            }
             guard let polyline = overlay as? MKPolyline else {
                 return MKOverlayRenderer(overlay: overlay)
             }

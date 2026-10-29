@@ -3,7 +3,8 @@
 [![Build unsigned IPA](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml/badge.svg)](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml)
 
 App chỉ đường cho Việt Nam, giao diện kiểu **OsmAnd / Organic Maps** (card nổi, tìm kiếm
-nhanh, bottom sheet), dùng **Apple Maps (MapKit)** để vẽ bản đồ và tính tuyến, tích hợp
+nhanh, bottom sheet), cho chọn **Apple Maps hoặc OpenStreetMap** làm bản đồ nền (hiển thị bằng MapKit),
+dùng **Apple Maps** để tìm địa điểm và tính tuyến, tích hợp
 **AI model tuỳ chỉnh** (mặc định **ckey.vn**, chuẩn OpenAI) để hiểu câu lệnh tiếng Việt.
 
 Build ra **file IPA unsigned trên GitHub Actions** — không cần máy Mac, không cần tài khoản
@@ -16,6 +17,49 @@ Apple Developer.
 │  nhiên       │   ckey.vn / khác   │  + waypoint  │                  │  turn        │
 └──────────────┘                    └──────────────┘                  └──────────────┘
 ```
+
+## 🖥️ Demo HTML để duyệt giao diện
+
+Mở **[demo/VietMap-demo.html](demo/VietMap-demo.html)** trực tiếp trong trình duyệt
+hoặc dùng Live Preview. Có thể thử chuyển nguồn, tải gói Việt Nam giả lập, tìm điểm mẫu,
+HUD/vượt tốc/mất GPS và tuỳ chọn. Không cần API key hoặc dữ liệu bản đồ thật.
+
+**Chỉ là demo giao diện:** bản đồ/GPS/tải dữ liệu/dung lượng đều mô phỏng, không dùng để
+điều hướng và không tạo IPA. Xem [hướng dẫn demo](demo/README.md).
+
+## 🌍 Chọn nguồn bản đồ nền
+
+- **Apple Maps (MapKit)**: tiêu chuẩn, vệ tinh lai, vệ tinh, tối giản và giao thông Apple.
+- **OpenStreetMap**: đọc gói bản đồ Việt Nam offline (PNG MBTiles), giữ ghim/tuyến/HUD và attribution.
+- Đổi tại **☰ → Bản đồ → Nguồn bản đồ**, trong Cài đặt, hoặc nút lớp bản đồ khi chưa có tuyến.
+  Lựa chọn được lưu trên thiết bị.
+
+Đổi nguồn nền **không đổi dịch vụ tìm kiếm/tính tuyến**: các chức năng đó vẫn dùng Apple.
+OSM yêu cầu tải gói Việt Nam khi chưa có dữ liệu trên máy. Tải xong dùng bản đồ nền cục bộ,
+không tải lại mỗi lần mở và không tải tile qua Internet. Có tiến trình, Wi-Fi-only mặc định,
+huỷ tải, kiểm tra SHA-256, cập nhật/xoá gói. Cảnh báo Speedmap là dữ liệu cục bộ riêng.
+
+**Còn thiếu trước khi phát hành:** cần dựng và host gói MBTiles Việt Nam thật, sau đó cấu hình
+URL manifest. Repo chưa có gói hoặc link tải thật; app hiển thị rõ khi chưa cấu hình nguồn.
+Xem [cơ chế tải và lưu dữ liệu](docs/MAP-PROVIDERS.md) và
+[hướng dẫn chuẩn bị/phát hành gói Việt Nam](docs/OFFLINE-MAPS.md).
+
+## 🚘 Chế độ HUD lái xe (mới)
+
+Bổ sung HUD toàn màn hình lấy cảm hứng từ [VietHUD](https://github.com/911273/VietHUD),
+chạy trực tiếp trên iPhone bằng GPS, không cần thiết bị ESP32 hoặc API AI:
+
+- Đồng hồ tốc độ lớn, giới hạn tốc độ, tên đường và thẻ camera/biển báo offline.
+- Hỗ trợ dọc/ngang, phản chiếu nội dung lên kính, tuỳ chọn giữ sáng màn hình.
+- Báo vượt tốc bằng màu/âm/giọng Việt, giới hạn tần suất đọc để tránh lặp liên tục.
+- GPS mất tín hiệu hoặc sai số lớn sẽ xoá dữ liệu cũ, không hiển thị tốc độ giả.
+
+**Mở:** nút đồng hồ tốc độ bên phải bản đồ hoặc ☰ → **HUD lái xe offline**.
+Chỉ hoạt động khi app đang mở. Biển báo thực tế luôn được ưu tiên hơn dữ liệu ứng dụng.
+Xem [hướng dẫn HUD, checklist thử máy thật và cách build](docs/HUD.md).
+
+**Trạng thái:** mã nguồn HUD mới cần được build/test bằng Xcode hoặc GitHub Actions;
+link IPA bên dưới không tự phản ánh thay đổi chưa push/build.
 
 ## 📥 Tải IPA
 

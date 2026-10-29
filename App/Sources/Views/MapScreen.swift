@@ -7,7 +7,10 @@ struct MapScreen: View {
     @StateObject private var location: LocationService
     @StateObject private var model: MapViewModel
     @StateObject private var settings = AppSettings()
-    /// HUD speedmap: cảnh báo camera/biển báo trực tiếp trên màn hình (7 file .bin).
+    /// Gói OSM Việt Nam dùng chung giữa bản đồ và màn hình quản lý dữ liệu.
+    @StateObject private var offlineMaps = OfflineMapStore.shared
+    @State private var didPromptMissingMap = false
+    /// HUD speedmap: dữ liệu camera/biển báo độc lập với gói bản đồ nền.
     @StateObject private var hud = SpeedmapController()
     /// Giọng nói tiếng Việt: chỉ đường + đọc cảnh báo.
     @StateObject private var voice = VoiceGuide()
@@ -16,6 +19,9 @@ struct MapScreen: View {
     @State private var seenAlertIDs: Set<String> = []
 
     @State private var activeSheet: ActiveSheet?
+    @State private var showsDrivingHUD = false
+    @Environment(\.scenePhase) private var scenePhase
+    private let hudClock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     // MARK: - Sheets
 
@@ -34,6 +40,7 @@ struct MapScreen: View {
         case settings
         case favorites
         case cities
+        case offlineMap
 
         var id: String {
             switch self {
@@ -43,6 +50,7 @@ struct MapScreen: View {
             case .settings: return "settings"
             case .favorites: return "favorites"
             case .cities: return "cities"
+            case .offlineMap: return "offlineMap"
             }
         }
     }
@@ -62,6 +70,8 @@ struct MapScreen: View {
                          focusCoordinate: model.focusCoordinate,
                          focusToken: model.focusToken,
                          fitToken: model.fitToken,
+                         mapProvider: settings.mapProvider,
+                         offlineDatabase: offlineMaps.database,
                          mapTypeIndex: settings.mapTypeIndex,
                          showTraffic: settings.showTraffic,
                          showPOIs: settings.showPOIs,
@@ -79,6 +89,7 @@ struct MapScreen: View {
                     SpeedHudOverlay(controller: hud)
                 }
                 Spacer(minLength: 0)
+                mapSourceNotice
                 bottomPanel
             }
             .padding(.horizontal, 14)
@@ -106,9 +117,22 @@ struct MapScreen: View {
             model.bootstrap()
             model.syncConfig(settings.config)
             hud.loadBundled()
+            syncLocationMode()
+        }
+        .task {
+            await offlineMaps.restore()
+            if !offlineMaps.isReady, !didPromptMissingMap, activeSheet == nil, !showsDrivingHUD {
+                didPromptMissingMap = true
+                activeSheet = .offlineMap
+            }
+        }
+        .onChange(of: settings.mapProvider) { provider in
+            if provider == .openStreetMap, !offlineMaps.isReady, activeSheet == nil {
+                activeSheet = .offlineMap
+            }
         }
         .onChange(of: model.isNavigating) { navigating in
-            location.setNavigationMode(navigating)
+            syncLocationMode()
             // Không stop() khi kết thúc: thông báo "Đã đến nơi" (nếu có) phải kịp phát.
             if navigating, settings.voiceGuidance, let first = model.currentStep {
                 voice.speak("Bắt đầu chỉ đường. \(first.instruction)")
@@ -136,8 +160,8 @@ struct MapScreen: View {
         .onChange(of: hud.alerts) { alerts in
             let currentIDs = Set(alerts.map(\.id))
             let newIDs = currentIDs.subtracting(seenAlertIDs)
-            seenAlertIDs.formUnion(currentIDs)
-            guard !newIDs.isEmpty,
+            seenAlertIDs = currentIDs
+            guard scenePhase == .active, !newIDs.isEmpty,
                   let first = alerts.first(where: { newIDs.contains($0.id) }) else { return }
             let urgent: Set<HazardAlert.Kind> = [.camera, .noOvertaking, .speedLimitChange]
             if settings.alertBeep, urgent.contains(first.kind) {
@@ -148,8 +172,24 @@ struct MapScreen: View {
             }
         }
         .onReceive(model.location.$lastLocation) { lastLocation in
-            guard let lastLocation else { return }
+            guard scenePhase == .active, location.isAuthorized, let lastLocation else {
+                hud.resetLocation()
+                return
+            }
             hud.update(with: lastLocation)
+        }
+        .onReceive(hudClock) { now in hud.invalidateIfNeeded(now: now) }
+        .onChange(of: showsDrivingHUD) { _ in syncLocationMode() }
+        .onChange(of: scenePhase) { phase in
+            syncLocationMode()
+            if phase != .active {
+                hud.resetLocation()
+                seenAlertIDs = []
+                voice.stop()
+            }
+        }
+        .fullScreenCover(isPresented: $showsDrivingHUD) {
+            DrivingHUDScreen(location: location, controller: hud, settings: settings, voice: voice)
         }
         .onChange(of: settings.baseURL) { _ in model.syncConfig(settings.config) }
         .onChange(of: settings.model) { _ in model.syncConfig(settings.config) }
@@ -204,6 +244,8 @@ struct MapScreen: View {
                 AIAssistantSheet(model: model, settings: settings) {
                     activeSheet = nil
                 }
+            case .offlineMap:
+                OfflineMapDownloadView(store: offlineMaps) { settings.mapProvider = .apple }
             case .settings:
                 SettingsView(settings: settings, model: model, hud: hud)
             case .favorites:
@@ -228,6 +270,11 @@ struct MapScreen: View {
     private var header: some View {
         HStack(spacing: 10) {
             Menu {
+                Section("Lái xe") {
+                    Button { showsDrivingHUD = true } label: {
+                        Label("HUD lái xe offline", systemImage: "speedometer")
+                    }
+                }
                 Section("Trợ lý") {
                     Button { activeSheet = .ai } label: {
                         Label("Hỏi trợ lý AI", systemImage: "sparkles")
@@ -242,19 +289,23 @@ struct MapScreen: View {
                     }
                 }
                 Section("Bản đồ") {
-                    Picker("Kiểu bản đồ", selection: Binding(
-                        get: { settings.mapTypeIndex },
-                        set: { settings.mapTypeIndex = $0 }
-                    )) {
-                        Text("Tiêu chuẩn").tag(0)
-                        Text("Vệ tinh lai").tag(1)
-                        Text("Vệ tinh").tag(2)
-                        Text("Tối giản").tag(3)
+                    Button { activeSheet = .offlineMap } label: {
+                        Label("Tải bản đồ Việt Nam offline", systemImage: "arrow.down.circle")
                     }
-                    Toggle("Giao thông", isOn: Binding(
-                        get: { settings.showTraffic },
-                        set: { settings.showTraffic = $0 }
-                    ))
+                    Picker("Nguồn bản đồ", selection: $settings.mapProvider) {
+                        ForEach(MapProvider.allCases) { provider in
+                            Text(provider.title).tag(provider)
+                        }
+                    }
+                    if settings.mapProvider == .apple {
+                        Picker("Kiểu bản đồ", selection: $settings.mapTypeIndex) {
+                            Text("Tiêu chuẩn").tag(0)
+                            Text("Vệ tinh lai").tag(1)
+                            Text("Vệ tinh").tag(2)
+                            Text("Tối giản").tag(3)
+                        }
+                        Toggle("Giao thông", isOn: $settings.showTraffic)
+                    }
                 }
                 Section {
                     Button { activeSheet = .settings } label: {
@@ -346,29 +397,58 @@ struct MapScreen: View {
 
     private var sideControls: some View {
         VStack(spacing: 10) {
+            FloatingIconButton(symbol: "speedometer", accessibilityLabel: "Mở HUD lái xe offline") {
+                showsDrivingHUD = true
+            }
             FloatingIconButton(symbol: "location.fill",
                                active: location.isAuthorized,
                                accessibilityLabel: "Về vị trí của tôi") {
                 model.focusOnUser()
             }
             FloatingIconButton(symbol: model.hasRoute ? "arrow.up.left.and.arrow.down.right" : "square.stack.3d.up.fill",
-                               accessibilityLabel: model.hasRoute ? "Xem toàn bộ tuyến" : "Đổi kiểu bản đồ") {
+                               accessibilityLabel: model.hasRoute ? "Xem toàn bộ tuyến" : "Đổi nguồn Apple Maps / OpenStreetMap") {
                 if model.hasRoute {
                     model.fitToken += 1
                 } else {
-                    settings.mapTypeIndex = (settings.mapTypeIndex + 1) % 4
+                    settings.mapProvider = settings.mapProvider == .apple ? .openStreetMap : .apple
                 }
             }
-            FloatingIconButton(symbol: "point.topleft.down.curvedto.point.bottomright.up",
-                               active: settings.showTraffic,
-                               accessibilityLabel: "Bật/tắt giao thông") {
-                settings.showTraffic.toggle()
+            if settings.mapProvider == .apple {
+                FloatingIconButton(symbol: "point.topleft.down.curvedto.point.bottomright.up",
+                                   active: settings.showTraffic,
+                                   accessibilityLabel: "Bật/tắt giao thông") {
+                    settings.showTraffic.toggle()
+                }
             }
             FloatingIconButton(symbol: "sparkles",
                                active: model.aiThinking,
                                accessibilityLabel: "Trợ lý AI") {
                 activeSheet = .ai
             }
+        }
+    }
+
+    @ViewBuilder
+    private var mapSourceNotice: some View {
+        if settings.mapProvider == .openStreetMap {
+            VStack(spacing: 3) {
+                Link("© OpenStreetMap contributors", destination: OpenStreetMapOverlay.copyrightURL)
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(minHeight: 28)
+                if !offlineMaps.isReady {
+                    Button("Chưa có bản đồ Việt Nam · Bấm để tải") { activeSheet = .offlineMap }
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                Text(offlineMaps.isReady
+                     ? "OSM Việt Nam: offline · Tìm kiếm & tính tuyến: Apple Maps"
+                     : "Cần tải gói OSM Việt Nam trước khi xem bản đồ")
+                    .font(.system(size: 10))
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+            .accessibilityElement(children: .contain)
         }
     }
 
@@ -568,6 +648,17 @@ struct MapScreen: View {
             get: { model.errorMessage != nil },
             set: { value in if !value { model.dismissError() } }
         )
+    }
+
+    /// HUD tự lấy GPS liên tục ngay cả khi chưa chọn tuyến. Không yêu cầu quyền nền.
+    private func syncLocationMode() {
+        let driving = model.isNavigating || showsDrivingHUD
+        location.setNavigationMode(driving && scenePhase == .active)
+        if driving && scenePhase == .active {
+            location.startUpdating()
+        } else {
+            location.stopUpdating()
+        }
     }
 
     private func handlePinTap(_ pin: MapPin) {

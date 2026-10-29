@@ -40,12 +40,15 @@
 
 	<!-- Quyền truy cập vị trí (bắt buộc, nếu thiếu app sẽ bị từ chối) -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Ứng dụng dùng vị trí của bạn để chỉ đường, tìm địa điểm gần đây và tính tuyến đường từ chỗ bạn đang đứng.</string>
+	<string>Ứng dụng dùng vị trí chính xác và tốc độ GPS để chỉ đường, hiển thị HUD và cảnh báo camera, biển báo offline khi ứng dụng đang mở.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Ứng dụng dùng vị trí của bạn để chỉ đường và cập nhật lộ trình khi đang di chuyển.</string>
 
 	<!-- Cấu hình AI, được truyền vào lúc build từ biến môi trường/GitHub Secrets.
 	     Để trống thì người dùng tự nhập trong màn hình Cài đặt (lưu bằng Keychain). -->
+	<!-- URL manifest của gói PNG MBTiles Việt Nam được phép phân phối offline. -->
+	<key>VNOfflineMapManifestURL</key>
+	<string></string>
 	<key>AIBaseURL</key>
 	<string>$(AI_BASE_URL)</string>
 	<key>AIModel</key>
@@ -72,6 +75,8 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
