@@ -1,0 +1,103 @@
+name: Build Vietnam offline map
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - '.github/workflows/build-vietnam-map.yml'
+      - 'scripts/maps/**'
+      - 'scripts/prepare-vietnam-map.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vietnam-offline-map-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  vietnam-map:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[map-data]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install render dependencies and test the full pipeline on tiny fixtures
+        run: |
+          python -m pip install -r scripts/maps/requirements.txt
+          test -f /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+          python scripts/maps/test_builder.py
+      - name: Download licensed Vietnam extract, polygon and checksum (not public map tiles)
+        run: |
+          mkdir -p build/map-input build/map-work build/map-publish
+          curl --fail --location --retry 3 --connect-timeout 30 --max-time 1800 \
+            https://download.geofabrik.de/asia/vietnam-latest.osm.pbf -o build/map-input/vietnam-latest.osm.pbf
+          curl --fail --location --retry 3 --max-time 120 \
+            https://download.geofabrik.de/asia/vietnam-latest.osm.pbf.md5 -o build/map-input/vietnam-latest.osm.pbf.md5
+          curl --fail --location --retry 3 --max-time 120 \
+            https://download.geofabrik.de/asia/vietnam.poly -o build/map-input/vietnam.poly
+          (cd build/map-input && md5sum --check vietnam-latest.osm.pbf.md5)
+          VERSION="$(date -u +%Y%m%d)-${GITHUB_RUN_NUMBER}"
+          echo "MAP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "MAP_FILE=vietnam-basic-$VERSION.mbtiles" >> "$GITHUB_ENV"
+      - name: Render and country-mask Vietnam roads, water and place labels
+        run: |
+          python -u scripts/maps/build_vietnam.py \
+            --source build/map-input/vietnam-latest.osm.pbf \
+            --polygon build/map-input/vietnam.poly \
+            --output "build/map-publish/$MAP_FILE" \
+            --work build/map-work --workers 3 --min-zoom 5 --max-zoom 13 \
+            --version "$MAP_VERSION" 2>&1 | tee build/render.log
+      - name: Validate package and create a manifest with real byte count and SHA-256
+        run: |
+          python scripts/prepare-vietnam-map.py "build/map-publish/$MAP_FILE" \
+            --url "https://github.com/$GH_REPO/releases/download/offline-vietnam/$MAP_FILE" \
+            --version "$MAP_VERSION" --output build/map-publish/manifest.json
+          cp build/map-work/build-report.json build/map-publish/build-report.json
+          cp build/map-input/vietnam-latest.osm.pbf.md5 build/map-publish/source-pbf.md5
+          cp scripts/maps/DATA-LICENSE.txt build/map-publish/DATA-LICENSE.txt
+          (cd build/map-publish && sha256sum "$MAP_FILE" > "$MAP_FILE.sha256")
+          python - <<'PY'
+          import json, pathlib
+          manifest = json.loads(pathlib.Path('build/map-publish/manifest.json').read_text())
+          report = json.loads(pathlib.Path('build/map-publish/build-report.json').read_text())
+          print('::notice title=Vietnam map result::' + json.dumps(dict(manifest=manifest, build=report)))
+          PY
+      - name: Publish data first, manifest last
+        run: |
+          if ! gh release view offline-vietnam >/dev/null 2>&1; then
+            gh release create offline-vietnam --target "$GITHUB_SHA" \
+              --title 'OpenStreetMap Việt Nam — VietMap Basic offline' --prerelease \
+              --notes 'Basic road/water/place raster map, zoom 5–13, rendered from the Geofabrik Vietnam OSM extract and masked to its extract polygon. Not a complete POI/address map or an offline routing engine. © OpenStreetMap contributors, ODbL. Source: https://download.geofabrik.de/asia/vietnam.html . See DATA-LICENSE.txt and build-report.json.'
+          fi
+          gh release upload offline-vietnam "build/map-publish/$MAP_FILE" \
+            "build/map-publish/$MAP_FILE.sha256" build/map-publish/DATA-LICENSE.txt \
+            build/map-publish/build-report.json build/map-publish/source-pbf.md5 --clobber
+          gh release upload offline-vietnam build/map-publish/manifest.json --clobber
+          echo "::notice title=Vietnam manifest URL::https://github.com/$GH_REPO/releases/download/offline-vietnam/manifest.json"
+      - name: Expose useful diagnostics if generation fails
+        if: failure()
+        run: |
+          if [ -f build/render.log ]; then
+            tail -n 18 build/render.log | while IFS= read -r line; do
+              printf '::error title=Map generation::%s\n' "$(printf '%s' "$line" | cut -c1-800)"
+            done
+          fi
+      - name: Store build report and manifest, not large raw extracts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vietnam-map-report-${{ github.run_number }}
+          path: |
+            build/map-work/build-report.json
+            build/map-publish/manifest.json
+            build/render.log
+          if-no-files-found: ignore
+          retention-days: 14

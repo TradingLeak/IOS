@@ -1,0 +1,40 @@
+VietMap Basic — Vietnam offline raster map
+
+DATA SOURCE
+OpenStreetMap contributors. Extract downloaded from:
+https://download.geofabrik.de/asia/vietnam.html
+Raw extract: https://download.geofabrik.de/asia/vietnam-latest.osm.pbf
+Clipping mask: https://download.geofabrik.de/asia/vietnam.poly
+The source PBF MD5 is recorded alongside each published package.
+
+COPYRIGHT / DATABASE LICENSE
+© OpenStreetMap contributors.
+OpenStreetMap data is available under the Open Database License (ODbL) 1.0:
+https://www.openstreetmap.org/copyright
+https://opendatacommons.org/licenses/odbl/1-0/
+Underlying database rights remain with their respective owners.
+Raster tiles are a Produced Work derived from OpenStreetMap; preserve the above
+attribution and links when displaying, redistributing or building upon this map.
+The source extract is available from Geofabrik. This repository provides the
+rendering code and reproduction instructions; no public tile service was scraped.
+
+RENDERING STYLE
+Custom VietMap Basic style: roads, simple closed-way water/park areas, place names.
+Not the OpenStreetMap Carto style. Not an official OSM, Geofabrik or Apple product.
+Text is rendered using DejaVu Sans; font information/license:
+https://dejavu-fonts.github.io/License.html
+No font files are embedded in the MBTiles package.
+
+COVERAGE AND LIMITS
+PNG 256x256 / TMS, native zoom 5–13. Cropped to the Geofabrik Vietnam extract
+polygon and a regional technical envelope. The extract polygon is not an official
+administrative boundary; border/coast/island coverage follows that source.
+No satellite imagery, exhaustive POI/address layer, buildings or routing graph.
+The simple renderer does not reconstruct complex OSM multipolygon relations;
+water/land cover and labels can therefore be incomplete. Data is not real-time.
+Do not use absence of a mapped object as proof that no road, sign or hazard exists.
+No guarantee of fitness for navigation; obey actual road signs and conditions.
+
+See build-report.json and manifest.json for the actual output size, bounds,
+version, zoom range, tile/feature counts and checksum. These describe an actual
+rendered data package, not a mock download.

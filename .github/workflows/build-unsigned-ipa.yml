@@ -81,7 +81,7 @@ jobs:
 
   # ---------------------------------------------------------------- lint
   lint:
-    if: inputs.inspect_run_id == '' && !contains(github.event.head_commit.message, '[audit-ipa]')
+    if: inputs.inspect_run_id == '' && !contains(github.event.head_commit.message, '[audit-ipa]') && !contains(github.event.head_commit.message, '[map-data]')
     name: Kiểm tra repo (ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 5
