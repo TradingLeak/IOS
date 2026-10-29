@@ -8,6 +8,7 @@ struct OfflineMapDownloadView: View {
     @AppStorage("vietmap.osm.manifestURL") private var source = ""
     @AppStorage("vietmap.osm.wifiOnly") private var wifiOnly = true
     @State private var confirmsRemoval = false
+    @State private var didCheckDefaultSource = false
 
     var body: some View {
         NavigationStack {
@@ -46,6 +47,8 @@ struct OfflineMapDownloadView: View {
                         LabeledContent("Dung lượng", value: ByteCountFormatter.string(fromByteCount: manifest.byteCount, countStyle: .file))
                         LabeledContent("Mức zoom", value: "\(manifest.minZoom)–\(manifest.maxZoom)")
                         Text(manifest.attribution).font(.caption)
+                        Text("VietMap Basic hiển thị đường sá, sông hồ và tên địa điểm cơ bản; chưa có đầy đủ POI/địa chỉ và không có bộ tính tuyến offline.")
+                            .font(.caption).foregroundStyle(.secondary)
                         Button(store.isReady ? "Tải và thay thế gói Việt Nam" : "Tải bản đồ Việt Nam về máy") {
                             store.download(allowsCellular: !wifiOnly)
                         }
@@ -65,7 +68,7 @@ struct OfflineMapDownloadView: View {
                 }
                 Section {
                     Link("© OpenStreetMap contributors", destination: OpenStreetMapOverlay.copyrightURL)
-                    Text("Gói dữ liệu chỉ dành cho khu vực Việt Nam, không phải bản đồ toàn thế giới. Ngoài vùng hoặc mức zoom có trong gói sẽ không có tile. Tìm địa điểm và tính tuyến vẫn dùng Apple Maps và có thể cần Internet. Cảnh báo VietHUD không phụ thuộc gói này.")
+                    Text("Gói dữ liệu chỉ dành cho khu vực Việt Nam, không phải bản đồ toàn thế giới. Ngoài vùng gói sẽ không có tile. Phóng to vượt mức zoom gốc chỉ phóng ảnh, không bổ sung chi tiết. Tìm địa điểm và tính tuyến vẫn dùng Apple Maps và có thể cần Internet. Cảnh báo VietHUD không phụ thuộc gói này.")
                         .font(.caption).foregroundStyle(.secondary)
                     if let onUseAppleMaps {
                         Button("Dùng Apple Maps") { onUseAppleMaps(); dismiss() }
@@ -83,7 +86,13 @@ struct OfflineMapDownloadView: View {
                    !bundled.hasPrefix("$(") { source = bundled }
             }
             .onChange(of: source) { _ in store.clearOffer() }
-            .task { await store.restore() }
+            .task {
+                await store.restore()
+                if !store.isReady, !didCheckDefaultSource, !source.isEmpty {
+                    didCheckDefaultSource = true
+                    store.checkSource(source)
+                }
+            }
         }
     }
 }

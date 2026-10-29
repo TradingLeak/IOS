@@ -1,11 +1,19 @@
 import Foundation
 import SQLite3
 import CryptoKit
+import CoreGraphics
+import ImageIO
 
 /// SQLite chỉ đọc, tất cả truy vấn tile tuần tự; không giữ cả MBTiles trong RAM.
 final class OfflineMBTiles {
     let id = UUID()
     let manifest: OfflineMapManifest
+    private let tileCache: NSCache<NSString, NSData> = {
+        let cache = NSCache<NSString, NSData>()
+        cache.totalCostLimit = 16 * 1024 * 1024
+        cache.countLimit = 128
+        return cache
+    }()
     private var db: OpaquePointer?
     private let queue = DispatchQueue(label: "vietmap.osm.mbtiles", qos: .userInitiated)
 
@@ -81,32 +89,73 @@ final class OfflineMBTiles {
         return east > bounds[0] && west < bounds[2] && north > bounds[1] && south < bounds[3]
     }
 
+    /// Phóng ảnh tile gốc khi vượt native zoom; không tạo thêm chi tiết hoặc tải qua mạng.
+    static func sourceTile(x: Int, y: Int, z: Int, maximumNativeZoom: Int)
+        -> (x: Int, y: Int, z: Int, offsetX: Int, offsetY: Int, scale: Int)? {
+        guard (0...19).contains(maximumNativeZoom), (0...19).contains(z),
+              x >= 0, y >= 0, x < (1 << z), y < (1 << z) else { return nil }
+        let shift = max(0, z - maximumNativeZoom)
+        let scale = 1 << shift
+        return (x / scale, y / scale, min(z, maximumNativeZoom), x % scale, y % scale, scale)
+    }
+
     func tile(x: Int, y: Int, z: Int, completion: @escaping (Data?, Error?) -> Void) {
-        guard z >= manifest.minZoom, z <= manifest.maxZoom,
-              let row = Self.tmsRow(y: y, z: z),
+        guard z >= manifest.minZoom,
+              let source = Self.sourceTile(x: x, y: y, z: z, maximumNativeZoom: manifest.maxZoom),
+              let row = Self.tmsRow(y: source.y, z: source.z),
               Self.tileIntersectsBounds(x: x, y: y, z: z, bounds: manifest.bounds) else {
             completion(nil, OfflineMapError.missingTile)
             return
         }
         queue.async { [self] in
+            let key = "\(z)/\(x)/\(y)" as NSString
+            if let cached = tileCache.object(forKey: key) { completion(cached as Data, nil); return }
             var statement: OpaquePointer?
             defer { sqlite3_finalize(statement) }
             let sql = "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ? LIMIT 1"
             guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
                 completion(nil, OfflineMapError.invalidDatabase("không đọc được tile")); return
             }
-            sqlite3_bind_int(statement, 1, Int32(z))
-            sqlite3_bind_int(statement, 2, Int32(x))
+            sqlite3_bind_int(statement, 1, Int32(source.z))
+            sqlite3_bind_int(statement, 2, Int32(source.x))
             sqlite3_bind_int(statement, 3, Int32(row))
             guard sqlite3_step(statement) == SQLITE_ROW else {
                 completion(nil, OfflineMapError.missingTile); return
             }
-            let data = Self.blob(statement, column: 0)
-            guard Self.isPNG(data) else {
+            let raw = Self.blob(statement, column: 0)
+            guard Self.isPNG(raw) else {
                 completion(nil, OfflineMapError.invalidDatabase("tile không phải PNG")); return
             }
+            let data: Data
+            if source.scale > 1 {
+                guard let resized = Self.enlargePNG(raw, offsetX: source.offsetX, offsetY: source.offsetY, scale: source.scale) else {
+                    completion(nil, OfflineMapError.invalidDatabase("không phóng được tile PNG")); return
+                }
+                data = resized
+            } else { data = raw }
+            tileCache.setObject(data as NSData, forKey: key, cost: data.count)
             completion(data, nil)
         }
+    }
+
+    private static func enlargePNG(_ data: Data, offsetX: Int, offsetY: Int, scale: Int) -> Data? {
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else { return nil }
+        let width = Double(image.width) / Double(scale)
+        let height = Double(image.height) / Double(scale)
+        guard let cropped = image.cropping(to: CGRect(x: Double(offsetX) * width, y: Double(offsetY) * height,
+                                                      width: width, height: height)),
+              let context = CGContext(data: nil, width: 256, height: 256, bitsPerComponent: 8,
+                                      bytesPerRow: 256 * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.interpolationQuality = .high
+        context.draw(cropped, in: CGRect(x: 0, y: 0, width: 256, height: 256))
+        guard let enlarged = context.makeImage() else { return nil }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.png" as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, enlarged, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
     }
 
     private static func blob(_ statement: OpaquePointer?, column: Int32) -> Data {

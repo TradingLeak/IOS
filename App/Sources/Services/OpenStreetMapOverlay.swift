@@ -12,7 +12,7 @@ final class OpenStreetMapOverlay: MKTileOverlay {
         super.init(urlTemplate: nil)
         tileSize = CGSize(width: 256, height: 256)
         minimumZ = database?.manifest.minZoom ?? 0
-        maximumZ = database?.manifest.maxZoom ?? Self.maximumZoom
+        maximumZ = Self.maximumZoom // Tile native ít chi tiết hơn được phóng ảnh cục bộ.
         canReplaceMapContent = true
     }
 

@@ -435,6 +435,9 @@ struct MapScreen: View {
                 Link("© OpenStreetMap contributors", destination: OpenStreetMapOverlay.copyrightURL)
                     .font(.system(size: 12, weight: .semibold))
                     .frame(minHeight: 28)
+                if let attribution = offlineMaps.database?.manifest.attribution {
+                    Text(attribution).font(.system(size: 9)).multilineTextAlignment(.center)
+                }
                 if !offlineMaps.isReady {
                     Button("Chưa có bản đồ Việt Nam · Bấm để tải") { activeSheet = .offlineMap }
                         .font(.system(size: 12, weight: .semibold))

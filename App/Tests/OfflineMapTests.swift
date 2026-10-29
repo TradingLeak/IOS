@@ -2,16 +2,18 @@ import XCTest
 import SQLite3
 import CryptoKit
 import MapKit
+import CoreGraphics
+import ImageIO
 @testable import VietMap
 
 private enum OfflineMapFixture {
     static let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")!
 
-    static func make(country: String = "VN") throws -> (URL, OfflineMapManifest) {
+    static func make(country: String = "VN", pngData: Data? = nil) throws -> (URL, OfflineMapManifest) {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mbtiles")
         var db: OpaquePointer?
         guard sqlite3_open(url.path, &db) == SQLITE_OK else { throw OfflineMapError.invalidDatabase("fixture") }
-        let pngHex = png.map { String(format: "%02x", $0) }.joined()
+        let pngHex = (pngData ?? png).map { String(format: "%02x", $0) }.joined()
         let sql = """
         CREATE TABLE metadata (name TEXT PRIMARY KEY, value TEXT);
         INSERT INTO metadata VALUES ('format','png'),('country_code','\(country)'),('scheme','tms'),
@@ -62,6 +64,21 @@ final class OfflineMapTests: XCTestCase {
         XCTAssertFalse(OfflineMBTiles.tileIntersectsBounds(x: 25, y: 13, z: Int.max, bounds: bounds))
     }
 
+    func testOverzoomFindsCorrectParentAndSubtile() {
+        let native = OfflineMBTiles.sourceTile(x: 25, y: 13, z: 5, maximumNativeZoom: 13)
+        XCTAssertEqual(native?.x, 25)
+        XCTAssertEqual(native?.scale, 1)
+        let zoomed = OfflineMBTiles.sourceTile(x: 101, y: 55, z: 7, maximumNativeZoom: 5)
+        XCTAssertEqual(zoomed?.x, 25)
+        XCTAssertEqual(zoomed?.y, 13)
+        XCTAssertEqual(zoomed?.z, 5)
+        XCTAssertEqual(zoomed?.offsetX, 1)
+        XCTAssertEqual(zoomed?.offsetY, 3)
+        XCTAssertEqual(zoomed?.scale, 4)
+        XCTAssertNil(OfflineMBTiles.sourceTile(x: -1, y: 0, z: 7, maximumNativeZoom: 5))
+        XCTAssertNil(OfflineMBTiles.sourceTile(x: 0, y: 0, z: Int.max, maximumNativeZoom: 5))
+    }
+
     func testChecksumAndSizeAreVerified() throws {
         let (url, manifest) = try OfflineMapFixture.make()
         defer { try? FileManager.default.removeItem(at: url) }
@@ -91,6 +108,32 @@ final class OfflineMapTests: XCTestCase {
             ready.fulfill()
         }
         wait(for: [ready], timeout: 2)
+    }
+
+    func testOverzoomProducesValid256PixelPNGFromLocalParent() throws {
+        let context = CGContext(data: nil, width: 256, height: 256, bitsPerComponent: 8,
+                                bytesPerRow: 256 * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(CGColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 256, height: 256))
+        let pngData = NSMutableData()
+        let output = CGImageDestinationCreateWithData(pngData, "public.png" as CFString, 1, nil)!
+        CGImageDestinationAddImage(output, context.makeImage()!, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(output))
+        let (url, manifest) = try OfflineMapFixture.make(pngData: pngData as Data)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let database = try OfflineMBTiles(url: url, manifest: manifest)
+        let ready = expectation(description: "overzoom parent PNG")
+        database.tile(x: 51, y: 27, z: 6) { data, error in
+            XCTAssertNil(error)
+            if let data, let source = CGImageSourceCreateWithData(data as CFData, nil),
+               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+                XCTAssertEqual(image.width, 256)
+                XCTAssertEqual(image.height, 256)
+            } else { XCTFail("Invalid overzoom PNG") }
+            ready.fulfill()
+        }
+        wait(for: [ready], timeout: 3)
     }
 
     func testNoDatabaseDoesNotFallbackToNetwork() {

@@ -48,7 +48,7 @@
 	     Để trống thì người dùng tự nhập trong màn hình Cài đặt (lưu bằng Keychain). -->
 	<!-- URL manifest của gói PNG MBTiles Việt Nam được phép phân phối offline. -->
 	<key>VNOfflineMapManifestURL</key>
-	<string></string>
+	<string>https://github.com/TradingLeak/IOS/releases/download/offline-vietnam/manifest.json</string>
 	<key>AIBaseURL</key>
 	<string>$(AI_BASE_URL)</string>
 	<key>AIModel</key>
