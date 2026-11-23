@@ -52,7 +52,7 @@ struct PaymentEvent: Identifiable, Equatable {
     }
 
     var notificationBody: String {
-        let parts = [amountText, detail].filter { !$0.isEmpty }
+        let parts = [amountText, dateText, detail].filter { !$0.isEmpty }
         return parts.joined(separator: " · ")
     }
 }

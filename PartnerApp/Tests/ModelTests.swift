@@ -136,7 +136,10 @@ final class ModelTests: XCTestCase {
         let pro = tier.commission?["pro"]
         XCTAssertEqual(pro?.count, 2)
         XCTAssertEqual(pro?[0], 17)
-        XCTAssertNil(pro?[1])
+        XCTAssertEqual(pro?[1], 18)
+        let standard = tier.commission?["standard"]
+        XCTAssertEqual(standard?[0], 10)
+        XCTAssertNil(standard?[1])
     }
 
     func testRebateHistoryDecodes() throws {
