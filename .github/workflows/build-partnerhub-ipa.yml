@@ -1,0 +1,255 @@
+name: Build PartnerHub IPA
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "PartnerApp/**"
+      - "project.yml"
+      - "scripts/**"
+      - ".github/workflows/build-partnerhub-ipa.yml"
+  pull_request:
+    paths:
+      - "PartnerApp/**"
+      - "project.yml"
+      - "scripts/**"
+  workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: "Bundle ID ghi đè (để trống = giữ nguyên)"
+        required: false
+      display_name:
+        description: "Tên app hiển thị (để trống = giữ nguyên)"
+        required: false
+      run_tests:
+        description: "Chạy unit test (lâu hơn ~3 phút)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: partnerhub-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------- tests
+  unit-tests:
+    name: Unit test (PartnerHub)
+    # Chạy trên push/PR; với workflow_dispatch chỉ chạy khi chọn run_tests = true
+    if: github.event_name != 'workflow_dispatch' || inputs.run_tests
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Chọn Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.4"
+
+      - name: Cài xcodegen
+        run: brew install xcodegen || brew upgrade xcodegen
+
+      - name: Sinh project
+        run: xcodegen generate
+
+      - name: Chạy unit test trên Simulator
+        shell: bash
+        run: |
+          # Ưu tiên iPhone (tránh chọn nhầm Watch/TV/Vision simulator đứng trước trong danh sách)
+          UDID=$(xcrun simctl list devices available | grep -E 'iPhone' | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
+          [[ -n "$UDID" ]] || UDID=$(xcrun simctl list devices available | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
+          echo "Simulator: $UDID"
+          set +e
+          xcodebuild test \
+            -project VietMap.xcodeproj \
+            -scheme PartnerHub \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            > build-test.log 2>&1
+          RC=$?
+          set -e
+          grep -E "error:|failed" build-test.log | head -20 | while IFS= read -r line; do
+            printf '::error title=Test/Swift error::%s\n' "$(printf '%s' "$line" | cut -c1-900)"
+          done
+          tail -n 40 build-test.log
+          exit $RC
+
+  # ---------------------------------------------------------------- build
+  build:
+    name: Build IPA PartnerHub (không cần Apple ID)
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      SCHEME: PartnerHub
+      BUNDLE_ID: ${{ inputs.bundle_id || '' }}
+      DISPLAY_NAME: ${{ inputs.display_name || '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Chọn phiên bản Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.4"
+
+      - name: Thông tin môi trường
+        run: |
+          sw_vers
+          xcodebuild -version
+          echo "iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+
+      - name: Kiểm tra cú pháp script
+        run: bash -n scripts/make-ipa.sh
+
+      - name: Cài xcodegen
+        run: brew install xcodegen || brew upgrade xcodegen
+
+      - name: Sinh project Xcode từ project.yml
+        run: xcodegen generate
+
+      - name: Build IPA (unsigned)
+        shell: bash
+        run: |
+          chmod +x scripts/make-ipa.sh
+          args=(--scheme "$SCHEME" --output dist)
+          [[ -n "$BUNDLE_ID" ]] && args+=(--bundle-id "$BUNDLE_ID")
+          [[ -n "$DISPLAY_NAME" ]] && args+=(--display-name "$DISPLAY_NAME")
+          set +e
+          ./scripts/make-ipa.sh "${args[@]}" 2>&1 | tee build-output.log
+          RC=${PIPESTATUS[0]}
+          set -e
+          echo "make-ipa.sh exit=$RC"
+          exit $RC
+
+      - name: Báo lỗi biên dịch lên trang run (nếu build lỗi)
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f build/xcodebuild.log ]; then
+            grep -E "error:|fatal error:" build/xcodebuild.log | head -10 | while IFS= read -r line; do
+              printf '::error title=Swift build error::%s\n' "$(printf '%s' "$line" | cut -c1-900)"
+            done
+          fi
+          if [ -f build-output.log ]; then
+            tail -n 20 build-output.log | while IFS= read -r line; do
+              [ -n "$line" ] || continue
+              printf '::error title=Build output::%s\n' "$(printf '%s' "$line" | cut -c1-900)"
+            done
+          fi
+          true
+
+      - name: Kiểm tra nội dung IPA
+        if: success()
+        id: verify
+        shell: bash
+        run: |
+          IPA="$(ls dist/*.ipa | head -n 1)"
+          VERSIONED="$(basename "$IPA")"
+          STABLE="PartnerHub-unsigned.ipa"
+          cp "$IPA" "dist/$STABLE"
+          shasum -a 256 "dist/$STABLE" > "dist/$STABLE.sha256"
+
+          rm -rf /tmp/ipa-check && mkdir -p /tmp/ipa-check
+          unzip -q "$IPA" -d /tmp/ipa-check
+          APP_DIR="$(find /tmp/ipa-check/Payload -maxdepth 1 -name '*.app' -type d | head -n 1)"
+          APP_INFO="$APP_DIR/Info.plist"
+          EXEC_NAME="$(plutil -extract CFBundleExecutable raw -o - "$APP_INFO")"
+          EXEC_PATH="$APP_DIR/$EXEC_NAME"
+          [[ -f "$EXEC_PATH" ]] || { echo "::error::Không có binary thực thi $EXEC_NAME"; exit 1; }
+
+          ARCHS="$(lipo -archs "$EXEC_PATH")"
+          PLATFORM="$(vtool -show-build "$EXEC_PATH" | awk '/platform/{print $2; exit}')"
+          MIN_OS="$(plutil -extract MinimumOSVersion raw -o - "$APP_INFO")"
+          BUNDLE="$(plutil -extract CFBundleIdentifier raw -o - "$APP_INFO")"
+          SHORT="$(plutil -extract CFBundleShortVersionString raw -o - "$APP_INFO")"
+          BUILD_NUM="$(plutil -extract CFBundleVersion raw -o - "$APP_INFO")"
+          SIGNED="$(unzip -l "$IPA" | grep -cE '_CodeSignature|embedded\.mobileprovision' || true)"
+          SIZE="$(du -h "$IPA" | awk '{print $1}')"
+          SHA="$(shasum -a 256 "$IPA" | awk '{print $1}')"
+
+          case "$ARCHS" in
+            *arm64*) ;;
+            *) echo "::error::Binary không có arm64 (chỉ có: $ARCHS)"; exit 1 ;;
+          esac
+          case "${PLATFORM:-}" in
+            IOS|iOS|ios) ;;
+            SIMULATOR*) echo "::error::Đây là bản Simulator, không cài được lên máy thật"; exit 1 ;;
+            *) echo "::warning::Không xác định được platform (${PLATFORM:-trống})" ;;
+          esac
+
+          echo "::notice title=IPA đã build::$VERSIONED ($SIZE)"
+          echo "::notice title=Bundle ID::$BUNDLE"
+          echo "::notice title=Phiên bản::$SHORT ($BUILD_NUM)"
+          echo "::notice title=Kiến trúc::$ARCHS · platform ${PLATFORM:-?} · iOS tối thiểu $MIN_OS"
+          echo "::notice title=SHA-256::$SHA"
+
+          {
+            echo "name=$VERSIONED"
+            echo "stable=$STABLE"
+            echo "sha=$SHA"
+            echo "bundle=$BUNDLE"
+            echo "version=$SHORT ($BUILD_NUM)"
+            echo "size=$SIZE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Tóm tắt kết quả
+        if: always()
+        run: |
+          {
+            echo "## Kết quả build PartnerHub"
+            echo
+            if compgen -G "dist/*.ipa" > /dev/null; then
+              for f in dist/*.ipa; do
+                echo "- **$(basename "$f")** — $(du -h "$f" | awk '{print $1}')"
+                echo "- SHA-256: \`$(shasum -a 256 "$f" | awk '{print $1}')\`"
+              done
+              echo
+              echo "Tải ở mục **Artifacts** hoặc trang **Releases** (tag \`latest-partnerhub-ipa\`)."
+              echo "Hướng dẫn cài: [docs/INSTALL.md](../blob/main/docs/INSTALL.md)."
+            else
+              echo "Không có IPA được tạo. Xem log bước *Build IPA (unsigned)*."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload IPA (artifact, giữ 30 ngày)
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: partnerhub-ipa-${{ github.run_number }}
+          path: |
+            dist/*.ipa
+            dist/*.sha256
+            build/xcodebuild.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Phát hành Release "latest-partnerhub-ipa"
+        if: success() && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: latest-partnerhub-ipa
+          name: PartnerHub — IPA mới nhất (unsigned)
+          prerelease: true
+          make_latest: false
+          body: |
+            Build tự động từ GitHub Actions — không cần Mac, không cần tài khoản Apple.
+
+            - **File**: `${{ steps.verify.outputs.name }}`
+            - **Kích thước**: ${{ steps.verify.outputs.size }}
+            - **Bundle ID**: `${{ steps.verify.outputs.bundle }}`
+            - **Phiên bản**: ${{ steps.verify.outputs.version }}
+            - **SHA-256**: `${{ steps.verify.outputs.sha }}`
+
+            Link tải cố định:
+            `https://github.com/${{ github.repository }}/releases/download/latest-partnerhub-ipa/${{ steps.verify.outputs.stable }}`
+
+            Hướng dẫn kết nối API key: [docs/EXNESS-PARTNER.md](https://github.com/${{ github.repository }}/blob/main/docs/EXNESS-PARTNER.md)
+          files: |
+            dist/*.ipa
+            dist/*.sha256
+          fail_on_unmatched_files: true

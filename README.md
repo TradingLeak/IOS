@@ -1,8 +1,12 @@
-# 🗺️ Bản đồ & Chỉ đường Việt Nam (iOS) — MapKit + AI tuỳ chỉnh
+# 🗺️ Bản đồ Việt Nam + 📱 PartnerHub — Ứng dụng iOS
 
 [![Build unsigned IPA](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml/badge.svg)](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml)
+[![Build PartnerHub IPA](https://github.com/TradingLeak/IOS/actions/workflows/build-partnerhub-ipa.yml/badge.svg)](https://github.com/TradingLeak/IOS/actions/workflows/build-partnerhub-ipa.yml)
 
-App chỉ đường cho Việt Nam, giao diện kiểu **OsmAnd / Organic Maps** (card nổi, tìm kiếm
+Repo gồm **hai app iOS độc lập**: **VietMap** (bản đồ & chỉ đường Việt Nam, bên dưới) và
+**[PartnerHub](#-partnerhub--theo-dõi-hoa-hồng-exness-ios)** (theo dõi hoa hồng đối tác Exness).
+
+VietMap là app chỉ đường cho Việt Nam, giao diện kiểu **OsmAnd / Organic Maps** (card nổi, tìm kiếm
 nhanh, bottom sheet), dùng **Apple Maps (MapKit)** để vẽ bản đồ và tính tuyến, tích hợp
 **AI model tuỳ chỉnh** (mặc định **ckey.vn**, chuẩn OpenAI) để hiểu câu lệnh tiếng Việt.
 
@@ -16,6 +20,31 @@ Apple Developer.
 │  nhiên       │   ckey.vn / khác   │  + waypoint  │                  │  turn        │
 └──────────────┘                    └──────────────┘                  └──────────────┘
 ```
+
+## 📱 PartnerHub — Theo dõi hoa hồng Exness (iOS)
+
+Nằm cùng repo là **PartnerHub**, app iOS đọc **Exness Partnership API** — đúng API quản lý tại
+<https://my.exness.partners/settings/api-management> — để theo dõi hoa hồng đối tác:
+
+- **Tổng quan**: cấp bậc, khách hàng, volume, hoa hồng, biểu đồ theo ngày/tuần/tháng, rebate.
+- **Hoa hồng**: lọc 7/30 ngày, tháng này, tháng trước, năm nay; chi tiết từng dòng thưởng.
+- **Khách hàng**: tìm/sắp xếp theo hoa hồng, volume, mới nhất; badge KYC/FTD/FTT.
+- **Giao dịch**: lệnh đã chốt + lệnh chờ tính thưởng trong 7/14/30 ngày.
+- **Cài đặt**: dán API host + API key + private key (hex 128 ký tự hoặc PEM), kiểm tra kết nối.
+- **Thông báo thanh toán**: có khoản hoa hồng/hoàn phí mới → **pop-up trong app** + thông báo hệ
+  thống khi chạy nền (Background App Refresh); bấm vào mở thẳng tab Hoa hồng. Không cần server.
+
+Kỹ thuật: ký **Ed25519** + headers `EXN-*` ngay trên thiết bị, private key lưu **Keychain**,
+chỉ dùng scope **Read-only**. Tài liệu đầy đủ: **[docs/EXNESS-PARTNER.md](docs/EXNESS-PARTNER.md)**.
+
+```bash
+./scripts/make-ipa.sh --scheme PartnerHub   # → dist/PartnerHub-*-unsigned.ipa
+```
+
+Tải bản build tự động:
+[PartnerHub-unsigned.ipa](https://github.com/TradingLeak/IOS/releases/download/latest-partnerhub-ipa/PartnerHub-unsigned.ipa)
+
+---
 
 ## 📥 Tải IPA
 
@@ -127,6 +156,23 @@ App/
 └── Tests/                         # unit test parser, AI client, format, lưu trữ
 ```
 
+```
+PartnerApp/                        # app thứ 2: theo dõi hoa hồng Exness Partner
+├── Info.plist
+├── Resources/Assets.xcassets      # AppIcon 1024×1024, AccentColor, LaunchBackground
+├── Sources/
+│   ├── App/PartnerHubApp.swift
+│   ├── Design/                    # PartnerTheme + Components
+│   ├── Models/                    # PartnerModels (reports, tier, rebate), Formatting
+│   ├── Services/
+│   │   ├── ExnessSigner.swift     # Ed25519, EXN-* headers, parse hex/PEM key
+│   │   ├── ExnessClient.swift     # GET + query + lỗi API
+│   │   └── CredentialKeychain.swift
+│   ├── ViewModels/PartnerStore.swift
+│   └── Views/                     # Onboarding, Overview, Rewards, Clients, Transactions, Settings
+└── Tests/                         # signer, client, model, formatting
+```
+
 ## 🚀 Build
 
 **Trên GitHub (không cần Mac):** push code → workflow tự chạy 3 job: `lint` (ubuntu),
@@ -139,6 +185,9 @@ brew install xcodegen
 ./scripts/setup-macos.sh          # kiểm tra Xcode + sinh VietMap.xcodeproj
 ./scripts/make-ipa.sh             # → dist/VietMap-1.0.0-1-unsigned.ipa
 AI_BASE_URL=https://api.xah.io/v1 AI_MODEL=gpt-4o-mini ./scripts/make-ipa.sh
+
+# App thứ 2 — theo dõi hoa hồng Exness Partner
+./scripts/make-ipa.sh --scheme PartnerHub   # → dist/PartnerHub-1.0.0-1-unsigned.ipa
 ```
 
 **Kiểm tra không cần Xcode:**
@@ -162,6 +211,7 @@ Unit test chạy trên Simulator cho parser, AI client, format, lưu trữ.
 | [docs/BUILD.md](docs/BUILD.md) | Cơ chế build IPA unsigned, tuỳ biến project, thêm package |
 | [docs/INSTALL.md](docs/INSTALL.md) | Cài IPA lên iPhone: TrollStore, Sideloadly, SideStore… |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Lỗi thường gặp (build, MapKit, AI) |
+| [docs/EXNESS-PARTNER.md](docs/EXNESS-PARTNER.md) | PartnerHub: kết nối Exness Partnership API, ký Ed25519, endpoint, lỗi |
 
 ## ⚖️ Lưu ý
 

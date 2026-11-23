@@ -235,3 +235,67 @@ App vẫn có IPA dùng được; lỗi nằm ở test logic (parser/format/AI c
 ### Muốn bỏ test cho nhanh
 `Run workflow` → tắt `run_tests`, hoặc push với commit chỉ sửa docs (workflow vẫn chạy
 nhưng bạn có thể cancel job test).
+
+---
+
+# Phần 3 — Lỗi riêng của PartnerHub (Exness Partner API)
+
+Mọi lỗi API đều hiện ngay trong app dưới dạng `[mã] mô tả` (banner đỏ ở đầu màn hình). Các mã hay gặp:
+
+### `[1000]` API key không hợp lệ / hết hạn / sai IP
+Vào <https://my.exness.partners/settings/api-management> kiểm tra key còn **Active** không, có bị
+giới hạn IP không. Dán lại đúng **API key** (không phải partner code) trong *Cài đặt* → *Kiểm tra kết nối*.
+
+### `[1001]` Chữ ký số không hợp lệ
+- **Private key** phải là chuỗi **hex 128 ký tự** (64 byte: seed 32 byte + public key 32 byte) hoặc
+  **PEM PKCS#8** (`-----BEGIN PRIVATE KEY-----`). Thiếu/thừa ký tự là lỗi ngay.
+- Giờ trên iPhone bị lệch > vài phút so với giờ thật → chỉnh **Settings → General → Date & Time → Set Automatically**.
+- Nếu bạn tạo lại key trên trang Exness thì private key cũ sẽ không còn dùng được.
+
+### `[1002]` API key không có quyền Partnership
+Khi tạo key phải chọn scope **Read-only** (`partnership.all:read`) hoặc **Full access** (`partnership.all`).
+
+### `[1003]` / `[429]` Truy vấn quá nhanh (Throttled)
+Exness giới hạn **600 request / 60 giây / đối tác** (tính trên mọi key). Kéo để làm mới liên tục
+trên nhiều màn hình có thể chạm giới hạn — đợi ~1 phút rồi thử lại.
+
+### `[3001]` / `ValidationError` — Tham số không hợp lệ
+Thường gặp khi khoảng ngày **quá 32 ngày** với báo cáo lệnh, hoặc `date_to < date_from`. App chỉ gửi
+kỳ 7/14/30 ngày nên nếu vẫn gặp, kiểm tra múi giờ/ngày trên máy.
+
+### "Máy chủ không trả phản hồi HTTP" / không kết nối được
+- **API host** phải là origin HTTPS, đúng giá trị trong **DNS widget** của trang API management,
+  ví dụ `https://<api-host>` — **không** có path (`/v1`), query hay `/` cuối. Host không cố định, không đoán.
+- Mạng đang chặn (DNS, tường lửa, VPN). Thử chuyển Wi-Fi ↔ 4G/5G.
+- Hết thời gian chờ (30 giây) khi mạng chậm — app báo lỗi, kéo để thử lại.
+
+### Dữ liệu trống dù kết nối thành công (màn "Chưa có dữ liệu")
+Bình thường với tài khoản **mới**: chưa có khách hàng / chưa có lệnh chốt. Khách KYC nhưng chưa nạp
+hoặc chưa giao dịch vẫn chưa phát sinh hoa hồng.
+
+### `Không lưu được thông tin đăng nhập vào Keychain (mã -34018)`
+Chỉ xảy ra trên Simulator cũ/không có entitlement keychain. Trên máy thật không gặp; nếu gặp, xoá app
+và cài lại, hoặc build với Keychain Sharing capability.
+
+### Không thấy pop-up / thông báo khi có khoản thanh toán mới
+- **Lần đầu** sau khi cài/đăng nhập chỉ ghi nhận baseline (không báo lịch sử cũ là "mới"). Khoản
+  phát sinh *sau* đó mới được báo.
+- App đang mở: pop-up chỉ xuất hiện ở lần kiểm tra — mở app, kéo để làm mới, quay lại sau > 5 phút,
+  hoặc **Cài đặt → Kiểm tra thanh toán ngay**.
+- App đang đóng: phụ thuộc **Background App Refresh** — bật trong *Cài đặt → Chung → Background App
+  Refresh*, và *Cài đặt → PartnerHub → Thông báo* phải cho phép. iOS tự chọn lúc chạy, có thể không
+  chạy nếu app ít dùng/máy đang tiết kiệm pin.
+- Đã đổi tài khoản/host khác trong Cài đặt? Dấu vết cũ được xoá, lần kiểm tra đầu chỉ ghi baseline.
+- Muốn thử ngay: Cài đặt → Thông báo thanh toán → **Kiểm tra thanh toán ngay**. Nếu hiện "Chưa có
+  khoản thanh toán mới" nghĩa là không có ngày hoa hồng / id hoàn phí mới so với lần trước.
+
+### Thông báo hệ thống không hiện dù đã cấp quyền
+Kiểm tra *Cài đặt → PartnerHub → Notifications* (Allow Notifications + banner). Focus mode /
+Đừng làm phiền chặn cả local notification.
+
+### Lỗi biên dịch `cannot find 'PartnerStore' in scope` / scheme PartnerHub thiếu
+Chưa chạy `xcodegen generate` sau khi thêm target, hoặc mở `VietMap.xcodeproj` cũ. Chạy lại
+`xcodegen generate` rồi chọn scheme **PartnerHub**.
+
+### Muốn bỏ test cho nhanh
+`Run workflow` → tắt `run_tests` (job `unit-tests` sẽ bị skip), job `build` vẫn chạy.

@@ -24,7 +24,7 @@ done
 
 printf '\n\033[1m2. File cấu hình\033[0m\n'
 python3 - "$ROOT" <<'PY'
-import json, plistlib, sys, os, glob
+import json, plistlib, sys, os, glob, re
 
 root = sys.argv[1]
 bad = 0
@@ -147,6 +147,80 @@ else:
     else:
         ok("Ngoặc cân bằng ở tất cả file Swift")
 
+# PartnerApp (app theo dõi hoa hồng Exness)
+partner_swift = sorted(glob.glob(os.path.join(root, "PartnerApp/Sources/**/*.swift"), recursive=True))
+if not partner_swift:
+    no("Không có file .swift nào trong PartnerApp/Sources")
+else:
+    partner_mains = [f for f in partner_swift if "@main" in open(f, encoding="utf-8").read()]
+    if len(partner_mains) != 1:
+        no("PartnerApp phải có đúng 1 entry point @main, đang có %d" % len(partner_mains))
+    else:
+        ok("PartnerApp: %d file Swift, 1 entry point @main" % len(partner_swift))
+
+    partner_unbalanced = []
+    for path in partner_swift:
+        pcode = strip_literals(open(path, encoding="utf-8").read())
+        for open_ch, close_ch in (("{", "}"), ("(", ")"), ("[", "]")):
+            if pcode.count(open_ch) != pcode.count(close_ch):
+                partner_unbalanced.append(os.path.relpath(path, root))
+                break
+    if partner_unbalanced:
+        no("PartnerApp ngoặc không cân bằng: " + ", ".join(partner_unbalanced))
+    else:
+        ok("PartnerApp: ngoặc cân bằng ở tất cả file Swift")
+
+# PartnerApp Info.plist + icon
+pinfo = None
+try:
+    with open(os.path.join(root, "PartnerApp/Info.plist"), "rb") as fh:
+        pinfo = plistlib.load(fh)
+    prequired = ["CFBundleIdentifier", "CFBundleExecutable", "CFBundleShortVersionString",
+                 "CFBundleVersion", "CFBundlePackageType", "MinimumOSVersion"]
+    pmissing = [k for k in prequired if k not in pinfo]
+    if pmissing:
+        no("PartnerApp/Info.plist thiếu khoá: " + ", ".join(pmissing))
+    else:
+        ok("PartnerApp/Info.plist hợp lệ, đủ %d khoá bắt buộc" % len(prequired))
+except Exception as exc:  # noqa: BLE001
+    no("PartnerApp/Info.plist không đọc được: %s" % exc)
+
+# PartnerApp Background App Refresh: id trong Info.plist phải khớp id trong mã nguồn
+pbg_ids = (pinfo.get("BGTaskSchedulerPermittedIdentifiers") or []) if isinstance(pinfo, dict) else []
+pbg_modes = (pinfo.get("UIBackgroundModes") or []) if isinstance(pinfo, dict) else []
+pnotifier = os.path.join(root, "PartnerApp/Sources/Services/PaymentNotifier.swift")
+if not os.path.isfile(pnotifier):
+    no("Thiếu PartnerApp/Sources/Services/PaymentNotifier.swift")
+else:
+    psrc = open(pnotifier, encoding="utf-8").read()
+    pcode_id = re.search(r'taskIdentifier\s*=\s*"([^"]+)"', psrc)
+    if not pcode_id:
+        no("PaymentNotifier.swift không khai taskIdentifier cho Background App Refresh")
+    elif pcode_id.group(1) not in pbg_ids:
+        no("Info.plist BGTaskSchedulerPermittedIdentifiers thiếu: " + pcode_id.group(1))
+    elif "fetch" not in pbg_modes:
+        no("Info.plist UIBackgroundModes thiếu 'fetch' (cần cho BGAppRefreshTask)")
+    else:
+        ok("PartnerApp: Background App Refresh id khớp Info.plist, UIBackgroundModes có fetch")
+
+picon = os.path.join(root, "PartnerApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png")
+if not os.path.isfile(picon):
+    no("Thiếu icon PartnerApp (AppIcon-1024.png)")
+else:
+    with open(picon, "rb") as fh:
+        phead = fh.read(33)
+    if phead[:8] != b"\x89PNG\r\n\x1a\n":
+        no("Icon PartnerApp không phải PNG")
+    else:
+        pw = int.from_bytes(phead[16:20], "big")
+        ph = int.from_bytes(phead[20:24], "big")
+        if (pw, ph) != (1024, 1024):
+            no("Icon PartnerApp phải 1024x1024, đang là %dx%d" % (pw, ph))
+        elif phead[25] not in (0, 2):
+            no("Icon PartnerApp còn kênh alpha (color type %d)" % phead[25])
+        else:
+            ok("Icon PartnerApp 1024x1024, không alpha")
+
 # project.yml / Info.plist khớp nhau
 yml = open(os.path.join(root, "project.yml"), encoding="utf-8").read()
 for needle in ["INFOPLIST_FILE: App/Info.plist", "ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon",
@@ -155,6 +229,13 @@ for needle in ["INFOPLIST_FILE: App/Info.plist", "ASSETCATALOG_COMPILER_APPICON_
         ok("project.yml có: " + needle)
     else:
         no("project.yml thiếu: " + needle)
+
+for needle in ["PartnerApp/Info.plist", "com.tradingleak.partnerhub",
+               "PartnerHubTests"]:
+    if needle in yml:
+        ok("project.yml có PartnerHub: " + needle)
+    else:
+        no("project.yml thiếu PartnerHub: " + needle)
 
 # workflow
 try:
@@ -179,12 +260,23 @@ if os.path.isfile(wf):
 else:
     no("Thiếu .github/workflows/build-unsigned-ipa.yml")
 
+wf2 = os.path.join(root, ".github/workflows/build-partnerhub-ipa.yml")
+if os.path.isfile(wf2):
+    text2 = open(wf2, encoding="utf-8").read()
+    for needle in ["runs-on: macos-", "PartnerHub", "make-ipa.sh", "upload-artifact"]:
+        if needle in text2:
+            ok("workflow PartnerHub có: " + needle)
+        else:
+            no("workflow PartnerHub thiếu: " + needle)
+else:
+    no("Thiếu .github/workflows/build-partnerhub-ipa.yml")
+
 sys.exit(bad)
 PY
 if [[ $? -ne 0 ]]; then FAIL=1; fi
 
 printf '\n\033[1m3. Tài liệu\033[0m\n'
-for f in README.md docs/BUILD.md docs/INSTALL.md docs/TROUBLESHOOTING.md; do
+for f in README.md docs/BUILD.md docs/INSTALL.md docs/TROUBLESHOOTING.md docs/EXNESS-PARTNER.md; do
   if [[ -s "$f" ]]; then pass "$f"; else fail "thiếu $f"; fi
 done
 

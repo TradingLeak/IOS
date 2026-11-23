@@ -61,6 +61,45 @@ targets:
         BUNDLE_LOADER: "$(TEST_HOST)"
         CODE_SIGNING_ALLOWED: NO
 
+  PartnerHub:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: PartnerApp/Sources
+      - path: PartnerApp/Resources
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: PartnerHub
+        PRODUCT_BUNDLE_IDENTIFIER: com.tradingleak.partnerhub
+        INFOPLIST_FILE: PartnerApp/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: YES
+        SUPPORTS_MACCATALYST: NO
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+
+  PartnerHubTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: PartnerApp/Tests
+    dependencies:
+      - target: PartnerHub
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tradingleak.partnerhub.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/PartnerHub.app/PartnerHub"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        CODE_SIGNING_ALLOWED: NO
+
 schemes:
   VietMap:
     build:
@@ -73,6 +112,24 @@ schemes:
       config: Debug
       targets:
         - VietMapTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  PartnerHub:
+    build:
+      targets:
+        PartnerHub: all
+        PartnerHubTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - PartnerHubTests
     profile:
       config: Release
     analyze:

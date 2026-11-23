@@ -3,6 +3,9 @@
 Bạn đã có `HelloIPA-1.0.0-1-unsigned.ipa`. File này **chưa có chữ ký**, nên cần một
 trong các cách dưới đây.
 
+> Hướng dẫn này dùng chung cho cả hai app của repo: `VietMap-unsigned.ipa` (bản đồ)
+> và `PartnerHub-unsigned.ipa` (theo dõi hoa hồng Exness).
+
 Chọn theo phiên bản iOS của bạn (Cài đặt → Cài đặt chung → Giới thiệu):
 
 | iOS của bạn | Cách tốt nhất | Cần Apple ID? | Cần máy tính? |
@@ -81,7 +84,23 @@ ngay trên iPhone** bằng Apple ID hoặc bằng chứng chỉ có sẵn.
 ⚠️ Chỉ nhập Apple ID vào công cụ **mã nguồn mở, uy tín** hoặc dùng Apple ID phụ.
 Không nhập Apple ID chính của bạn vào app crack/nguồn lạ.
 
+**Các bước cụ thể với ESign (dùng cho `PartnerHub-unsigned.ipa` hoặc `VietMap-unsigned.ipa`):**
+
+1. Tải file IPA về iPhone: mở link
+   `https://github.com/TradingLeak/IOS/releases/download/latest-partnerhub-ipa/PartnerHub-unsigned.ipa`
+   bằng Safari → *Tải xuống* (vào Files → On My iPhone/Downloads), hoặc mở trực tiếp bằng ESign.
+2. Trong ESign: **Certification** → *Import* certificate (`.p12` + `.mobileprovision`, hoặc đăng nhập
+   Apple ID để tự tạo). Apple ID miễn phí: tối đa **3 app / 7 ngày**, app hết hạn sau **7 ngày** (mở ESign ký lại); certificate tự tạo cũng giới hạn 3 app/tuần.
+3. Tab **File** → chọn file `.ipa` → **Sign** → chọn certificate vừa import → *Sign*.
+   (File unsigned vẫn ký được bình thường; không cần "unsigned → signed" trước.)
+4. Mở file đã ký trong ESign → **Install**. iOS hỏi *Install App* → chọn **Install**.
+5. Lần đầu mở app: **Cài đặt → Cài đặt chung → VPN & Quản lý thiết bị** → tin tưởng certificate
+   (nếu dùng Apple ID tự ký). iOS 16+ cần bật **Developer Mode** (Cài đặt → Quyền riêng tư & Bảo mật).
+6. Với PartnerHub, để nhận thông báo khi app đóng: **Cài đặt → Chung → Background App Refresh**
+   bật *Wi-Fi & Cellular Data*; và *Cài đặt → PartnerHub* cho phép Notifications + Background App Refresh.
+
 ---
+
 
 ## Cách 5 — Apple Developer Program (chính thức, 99$/năm)
 

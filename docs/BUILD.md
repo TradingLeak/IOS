@@ -45,11 +45,20 @@ Hai target:
 
 | Target | Loại | Ghi chú |
 |---|---|---|
-| `VietMap` | application | app chính, `PRODUCT_BUNDLE_IDENTIFIER = com.tradingleak.vietmap` |
+| `VietMap` | application | app bản đồ, `PRODUCT_BUNDLE_IDENTIFIER = com.tradingleak.vietmap` |
 | `VietMapTests` | bundle.unit-test | test với `TEST_HOST` trỏ vào app |
+| `PartnerHub` | application | app theo dõi hoa hồng Exness, `com.tradingleak.partnerhub`, sources trong `PartnerApp/` |
+| `PartnerHubTests` | bundle.unit-test | test signer/client/model cho PartnerHub |
 
 Thêm file Swift mới vào `App/Sources/` rồi chạy lại `xcodegen generate` là xong.
 Bài test đặt trong `App/Tests/`.
+
+App thứ hai (`PartnerHub`) đặt source trong `PartnerApp/Sources`, test trong `PartnerApp/Tests`.
+Cả hai target dùng chung `project.yml`; build riêng bằng:
+
+```bash
+./scripts/make-ipa.sh --scheme PartnerHub
+```
 
 ## 4. Đổi tên app / bundle ID / phiên bản
 
