@@ -299,3 +299,58 @@ Chưa chạy `xcodegen generate` sau khi thêm target, hoặc mở `VietMap.xcod
 
 ### Muốn bỏ test cho nhanh
 `Run workflow` → tắt `run_tests` (job `unit-tests` sẽ bị skip), job `build` vẫn chạy.
+
+# Phần 4 — Lỗi riêng của Pulse (Trader API, lịch, tin tức, cảnh báo)
+
+### Tab Giá hiện "Cần Trader API" / giá "—"
+Chưa nhập đủ **host gateway** + **Account ID** (+ API key có scope **Trading**). Vào *Cài đặt* → mục
+Trader API → **Lưu & kiểm tra kết nối**. Kết quả phải có dòng `✓ Trader API · access point …`.
+Nếu `✗ Trader API · [1002] …` → key không có scope Trading; `[2000]` → sai Account ID.
+
+### Giá đứng yên / "Kết nối lại…" / "Mất kết nối"
+- Cuối tuần hoặc ngoài phiên thị trường đóng cửa → không có tick, bình thường.
+- Access point sai (đổi tài khoản/host mà không kiểm tra lại) → bấm **Lưu & kiểm tra kết nối** để phát hiện lại.
+- Mạng chặn WebSocket (Wi-Fi công ty, VPN) → thử 4G/5G. App tự kết nối lại mỗi 2→30 giây.
+- Danh sách theo dõi có mã không tồn tại trên tài khoản: app tự lọc theo `instruments`; nếu danh sách
+  mã chưa tải được (lỗi API), mở tab Giá kéo để tải lại.
+
+### Biểu đồ trống nhưng giá vẫn chạy
+Nến lấy từ REST (`candles`), có thể lỗi riêng (rate limit, mã không có nến ở khung đó). Kéo để tải lại,
+đổi khung thời gian. Thông báo lỗi hiện ngay trong card biểu đồ.
+
+### `Chưa cấu hình Trader API (host + account ID)` trong tab Giá
+Đúng như chữ: vào Cài đặt nhập đủ. Chỉ có Partnership key thì giá/cảnh báo không hoạt động.
+
+### Không nhận được thông báo cảnh báo giá
+- Tạo cảnh báo xong phải **bật** (toggle) và có giá thực (tick hoặc nến) — chưa có giá thì chưa thể kích hoạt.
+- Cảnh báo theo **mức giá tự tắt** sau khi kích hoạt (bật lại để dùng lại); cảnh báo **%** cách nhau 60 phút.
+- Kiểm tra *Cài đặt → Pulse → Notifications* (Allow + banner) và *Cài đặt → Chung → Background App Refresh*.
+- App đóng: iOS định kỳ đánh thức (15–60 phút tuỳ usage) — không tức thời. Focus/Đừng làm phiền chặn cả local notification.
+- Muốn thử ngay: tạo cảnh báo **Biên độ % 0.01%** cho mã đang có tick → kích hoạt trong vài giây.
+
+### Lịch kinh tế trống / "Không tải được lịch kinh tế"
+Nguồn `nfs.faireconomy.media` cần Internet; thử kéo để tải lại, đổi mạng. Nếu bộ lọc "Chỉ Cao" + tiền tệ
+hiếm → không có sự kiện: bấm **Bỏ lọc tiền tệ** / chọn "Tất cả". Cuối tuần nguồn có thể đổi tuần sớm
+(tuần mới bắt đầu Chủ nhật) — kéo để tải lại.
+
+### "Nhắc trước 15 phút" không báo
+Phải cấp quyền thông báo (Cài đặt → Thông báo → Cấp quyền). Mốc nhắc đã qua (sự kiện < 15 phút nữa)
+thì không xếp lịch được — bấm khi sự kiện còn xa hơn. Nhắc chỉ dùng local notification, không cần server.
+
+### Tin tức trống / thiếu nguồn
+- Một số nguồn chặn theo region/User-Agent (thường là CoinDesk hoặc Fed) — app bỏ qua nguồn lỗi và vẫn
+  hiện nguồn khác; bật/tắt nhóm nguồn trong *Cài đặt → Nguồn tin tức*.
+- Thêm RSS riêng phải là `https://` và là RSS/Atom hợp lệ (XML). Trang HTML thường sẽ không parse được.
+- Kéo để tải lại; tin đã có vẫn đọc được khi offline (cache 300 tin).
+
+### `[1001] Chữ ký số không hợp lệ` (cả hai API)
+Giờ thiết bị lệch > vài phút, private key dán thiếu/thừa, hoặc keyTrader khác key Partnership mà đang
+bật "Dùng API key riêng" sai. Chỉnh giờ tự động và dán lại key.
+
+### `REQUEST_RATE_LIMIT` / `[429]`
+Gọi quá nhanh: đừng kéo liên tục nhiều màn hình; app đã cache 10 phút cho lịch và không gọi lại khi
+đang tải. Đợi ~1 phút.
+
+### Lỗi biên dịch `cannot find 'PulseStore' in scope` / scheme PulseHub thiếu
+Chưa chạy `xcodegen generate` sau khi thêm target. Chạy lại rồi chọn scheme **PulseHub**.
+

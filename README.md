@@ -1,10 +1,13 @@
-# 🗺️ Bản đồ Việt Nam + 📱 PartnerHub — Ứng dụng iOS
+# 🗺️ Bản đồ Việt Nam + 📱 PartnerHub + 💓 Pulse — Ứng dụng iOS
 
 [![Build unsigned IPA](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml/badge.svg)](https://github.com/TradingLeak/IOS/actions/workflows/build-unsigned-ipa.yml)
 [![Build PartnerHub IPA](https://github.com/TradingLeak/IOS/actions/workflows/build-partnerhub-ipa.yml/badge.svg)](https://github.com/TradingLeak/IOS/actions/workflows/build-partnerhub-ipa.yml)
+[![Build PulseHub IPA](https://github.com/TradingLeak/IOS/actions/workflows/build-pulsehub-ipa.yml/badge.svg)](https://github.com/TradingLeak/IOS/actions/workflows/build-pulsehub-ipa.yml)
 
-Repo gồm **hai app iOS độc lập**: **VietMap** (bản đồ & chỉ đường Việt Nam, bên dưới) và
-**[PartnerHub](#-partnerhub--theo-dõi-hoa-hồng-exness-ios)** (theo dõi hoa hồng đối tác Exness).
+Repo gồm **ba app iOS độc lập**: **VietMap** (bản đồ & chỉ đường Việt Nam, bên dưới),
+**[PartnerHub](#-partnerhub--theo-dõi-hoa-hồng-exness-ios)** (theo dõi hoa hồng đối tác Exness) và
+**[Pulse](#-pulse--giá--giao-dịch--lịch-kinh-tế--tin-tức-ios)** (giá trực tiếp, tài khoản giao dịch,
+cảnh báo giá, lịch kinh tế miễn phí, tin tức nhiều nguồn).
 
 VietMap là app chỉ đường cho Việt Nam, giao diện kiểu **OsmAnd / Organic Maps** (card nổi, tìm kiếm
 nhanh, bottom sheet), dùng **Apple Maps (MapKit)** để vẽ bản đồ và tính tuyến, tích hợp
@@ -44,9 +47,37 @@ chỉ dùng scope **Read-only**. Tài liệu đầy đủ: **[docs/EXNESS-PARTNE
 Tải bản build tự động:
 [PartnerHub-unsigned.ipa](https://github.com/TradingLeak/IOS/releases/download/latest-partnerhub-ipa/PartnerHub-unsigned.ipa)
 
+## 💓 Pulse — Giá + Giao dịch + Lịch kinh tế + Tin tức (iOS)
+
+**Pulse** (target `PulseHub`, bundle `com.tradingleak.pulsehub`) tích hợp **cả hai API** của Exness và
+các nguồn dữ liệu công khai, giao diện tối hiện đại (gradient teal → tím, card kính, biểu đồ nến vẽ tay):
+
+- **Giá trực tiếp**: WebSocket ticks (bid/ask/spread) từ **Trader API**, sparkline và biểu đồ nến
+  M1 → D1, danh sách theo dõi tuỳ chỉnh (chỉ các mã có trên tài khoản — tránh server đóng kết nối 1008).
+- **Tài khoản giao dịch**: equity, số dư, margin, lệnh đang mở từ `snapshot`.
+- **Cảnh báo giá**: mức giá (vượt lên / rơi xuống / chạm) hoặc biên độ %; kiểm tra theo từng tick,
+  toast + **local notification**, lịch sử kích hoạt, **Background App Refresh** khi app đóng.
+- **Lịch kinh tế miễn phí** (Forex Factory, không cần key): lọc mức ảnh hưởng & tiền tệ, đếm ngược
+  sự kiện cao ảnh hưởng, nhắc trước 15 phút bằng thông báo hệ thống.
+- **Tin tức nâng cao**: FXStreet + InvestingLive + CoinDesk + Fed (RSS/Atom), gộp, lọc nhóm, tìm kiếm,
+  đọc trong app, chia sẻ, thêm nguồn RSS riêng.
+- **Đối tác**: cấp bậc, hoa hồng 30 ngày, khách hàng từ **Partnership API** (dùng chung cách ký với PartnerHub).
+
+Kỹ thuật: ký **Ed25519** + `EXN-*` trên thiết bị, key lưu **Keychain**; WebSocket tự kết nối lại;
+không cần server. Tài liệu: **[docs/PULSE.md](docs/PULSE.md)**.
+
+```bash
+./scripts/make-ipa.sh --scheme PulseHub   # → dist/PulseHub-*-unsigned.ipa
+```
+
+Tải bản build tự động:
+[PulseHub-unsigned.ipa](https://github.com/TradingLeak/IOS/releases/download/latest-pulsehub-ipa/PulseHub-unsigned.ipa)
+
 ---
 
 ## 📥 Tải IPA
+
+**Pulse (giá + lịch + tin tức):** [https://github.com/TradingLeak/IOS/releases/download/latest-pulsehub-ipa/PulseHub-unsigned.ipa](https://github.com/TradingLeak/IOS/releases/download/latest-pulsehub-ipa/PulseHub-unsigned.ipa)
 
 **[https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa](https://github.com/TradingLeak/IOS/releases/download/latest-ipa/VietMap-unsigned.ipa)**
 
@@ -173,6 +204,27 @@ PartnerApp/                        # app thứ 2: theo dõi hoa hồng Exness Pa
 └── Tests/                         # signer, client, model, formatting
 ```
 
+```
+PulseApp/                           # app thứ 3: giá + giao dịch + lịch kinh tế + tin tức + cảnh báo
+├── Info.plist                      # BGTaskSchedulerPermittedIdentifiers = <bundle>.alert-refresh
+├── Sources/
+│   ├── App/PulseHubApp.swift       # @main, delegate thông báo + Background App Refresh
+│   ├── Design/                     # PulseTheme (gradient teal→tím) + PulseComponents (card, chip, toast)
+│   ├── Models/                     # TradingModels, EconomicEvent (Forex Factory), NewsModels (RSS),
+│   │                               # PriceAlert + AlertEvaluator, PartnerSummary, Formatting
+│   ├── Services/
+│   │   ├── ExnessSigner.swift      # Ed25519 + EXN-* headers (giống PartnerHub)
+│   │   ├── ExnessClient.swift      # GET ký số, parse lỗi Partnership & Trader
+│   │   ├── TradingClient.swift     # access-point, account, instruments, snapshot, candles
+│   │   ├── TickStream.swift        # WebSocket ticks, ping, tự kết nối lại
+│   │   ├── PulseCredentials.swift  # host/key/account ID + Keychain
+│   │   ├── NewsService.swift       # tải song song RSS, merge, search, cache
+│   │   └── AlertNotifier.swift     # local notification + BG alert-refresh
+│   ├── ViewModels/PulseStore.swift # trạng thái trung tâm
+│   └── Views/                      # Onboarding, Dashboard, Market, Calendar, News, Alerts, Partner, Settings
+└── Tests/                          # signer, client, model (symbol, format, calendar, RSS, alert)
+```
+
 ## 🚀 Build
 
 **Trên GitHub (không cần Mac):** push code → workflow tự chạy 3 job: `lint` (ubuntu),
@@ -188,6 +240,9 @@ AI_BASE_URL=https://api.xah.io/v1 AI_MODEL=gpt-4o-mini ./scripts/make-ipa.sh
 
 # App thứ 2 — theo dõi hoa hồng Exness Partner
 ./scripts/make-ipa.sh --scheme PartnerHub   # → dist/PartnerHub-1.0.0-1-unsigned.ipa
+
+# App thứ 3 — giá + giao dịch + lịch kinh tế + tin tức + cảnh báo giá
+./scripts/make-ipa.sh --scheme PulseHub     # → dist/PulseHub-1.0.0-1-unsigned.ipa
 ```
 
 **Kiểm tra không cần Xcode:**
@@ -212,6 +267,7 @@ Unit test chạy trên Simulator cho parser, AI client, format, lưu trữ.
 | [docs/INSTALL.md](docs/INSTALL.md) | Cài IPA lên iPhone: TrollStore, Sideloadly, SideStore… |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Lỗi thường gặp (build, MapKit, AI) |
 | [docs/EXNESS-PARTNER.md](docs/EXNESS-PARTNER.md) | PartnerHub: kết nối Exness Partnership API, ký Ed25519, endpoint, lỗi |
+| [docs/PULSE.md](docs/PULSE.md) | Pulse: Trader API (ticks, nến, snapshot), Partnership API, lịch Forex Factory, RSS tin tức, cảnh báo giá |
 
 ## ⚖️ Lưu ý
 

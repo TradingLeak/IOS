@@ -193,11 +193,12 @@ if not os.path.isfile(pnotifier):
     no("Thiếu PartnerApp/Sources/Services/PaymentNotifier.swift")
 else:
     psrc = open(pnotifier, encoding="utf-8").read()
-    pcode_id = re.search(r'taskIdentifier\s*=\s*"([^"]+)"', psrc)
+    pcode_id = re.search(r'taskIdentifier\s*=.*payment-refresh"', psrc)
+    pbg_ok = bool(pbg_ids) and all(str(x).endswith(".payment-refresh") for x in pbg_ids)
     if not pcode_id:
         no("PaymentNotifier.swift không khai taskIdentifier cho Background App Refresh")
-    elif pcode_id.group(1) not in pbg_ids:
-        no("Info.plist BGTaskSchedulerPermittedIdentifiers thiếu: " + pcode_id.group(1))
+    elif not pbg_ok:
+        no("Info.plist BGTaskSchedulerPermittedIdentifiers phải là <bundle id>.payment-refresh")
     elif "fetch" not in pbg_modes:
         no("Info.plist UIBackgroundModes thiếu 'fetch' (cần cho BGAppRefreshTask)")
     else:
@@ -221,6 +222,106 @@ else:
         else:
             ok("Icon PartnerApp 1024x1024, không alpha")
 
+# PulseApp (app giá + lịch kinh tế + tin tức + cảnh báo)
+pulse_swift = sorted(glob.glob(os.path.join(root, "PulseApp/Sources/**/*.swift"), recursive=True))
+if not pulse_swift:
+    no("Không có file .swift nào trong PulseApp/Sources")
+else:
+    pulse_mains = [f for f in pulse_swift if "@main" in open(f, encoding="utf-8").read()]
+    if len(pulse_mains) != 1:
+        no("PulseApp phải có đúng 1 entry point @main, đang có %d" % len(pulse_mains))
+    else:
+        ok("PulseApp: %d file Swift, 1 entry point @main" % len(pulse_swift))
+
+    pulse_unbalanced = []
+    for path in pulse_swift:
+        pcode = strip_literals(open(path, encoding="utf-8").read())
+        for open_ch, close_ch in (("{", "}"), ("(", ")"), ("[", "]")):
+            if pcode.count(open_ch) != pcode.count(close_ch):
+                pulse_unbalanced.append(os.path.relpath(path, root))
+                break
+    if pulse_unbalanced:
+        no("PulseApp ngoặc không cân bằng: " + ", ".join(pulse_unbalanced))
+    else:
+        ok("PulseApp: ngoặc cân bằng ở tất cả file Swift")
+
+    # Không được dùng API chỉ có iOS 17 (project deploy iOS 16)
+    ios17 = []
+    for path in pulse_swift:
+        text = open(path, encoding="utf-8").read()
+        if "onChange(of:" in text and "{ old, new in" in text:
+            ios17.append(os.path.relpath(path, root))
+    if ios17:
+        no("PulseApp dùng Scene.onChange(of:) { old, new } (iOS 17): " + ", ".join(ios17))
+    else:
+        ok("PulseApp: không dùng API iOS 17-only")
+
+    # Mỗi nguồn dữ liệu miễn phí phải có URL đúng trong mã nguồn
+    pnews = open(os.path.join(root, "PulseApp/Sources/Models/NewsModels.swift"), encoding="utf-8").read()
+    pcal = open(os.path.join(root, "PulseApp/Sources/Models/EconomicEvent.swift"), encoding="utf-8").read()
+    for needle in ["https://www.fxstreet.com/rss/news", "https://investinglive.com/feed/news",
+                   "https://www.coindesk.com/arc/outboundfeeds/rss/",
+                   "https://www.federalreserve.gov/feeds/press_all.xml"]:
+        if needle in pnews:
+            ok("PulseApp nguồn tin: " + needle)
+        else:
+            no("PulseApp thiếu nguồn tin: " + needle)
+    for needle in ["ff_calendar_thisweek.json", "ff_calendar_nextweek.json"]:
+        if needle in pcal:
+            ok("PulseApp lịch kinh tế: " + needle)
+        else:
+            no("PulseApp thiếu nguồn lịch: " + needle)
+
+pulse_info = None
+try:
+    with open(os.path.join(root, "PulseApp/Info.plist"), "rb") as fh:
+        pulse_info = plistlib.load(fh)
+    pulse_required = ["CFBundleIdentifier", "CFBundleExecutable", "CFBundleShortVersionString",
+                      "CFBundleVersion", "CFBundlePackageType", "MinimumOSVersion", "UIBackgroundModes"]
+    pulse_missing = [k for k in pulse_required if k not in pulse_info]
+    if pulse_missing:
+        no("PulseApp/Info.plist thiếu khoá: " + ", ".join(pulse_missing))
+    else:
+        ok("PulseApp/Info.plist hợp lệ, đủ %d khoá bắt buộc" % len(pulse_required))
+except Exception as exc:  # noqa: BLE001
+    no("PulseApp/Info.plist không đọc được: %s" % exc)
+
+pulse_bg_ids = (pulse_info.get("BGTaskSchedulerPermittedIdentifiers") or []) if isinstance(pulse_info, dict) else []
+pulse_bg_modes = (pulse_info.get("UIBackgroundModes") or []) if isinstance(pulse_info, dict) else []
+pulse_notifier = os.path.join(root, "PulseApp/Sources/Services/AlertNotifier.swift")
+if not os.path.isfile(pulse_notifier):
+    no("Thiếu PulseApp/Sources/Services/AlertNotifier.swift")
+else:
+    pulse_src = open(pulse_notifier, encoding="utf-8").read()
+    pulse_code_id = re.search(r'taskIdentifier\s*=.*alert-refresh"', pulse_src)
+    pulse_bg_ok = len(pulse_bg_ids) == 1 and str(pulse_bg_ids[0]).endswith(".alert-refresh")
+    if not pulse_code_id:
+        no("AlertNotifier.swift không khai taskIdentifier cho Background App Refresh")
+    elif not pulse_bg_ok:
+        no("PulseApp Info.plist BGTaskSchedulerPermittedIdentifiers phải là <bundle id>.alert-refresh")
+    elif "fetch" not in pulse_bg_modes:
+        no("PulseApp Info.plist UIBackgroundModes thiếu 'fetch'")
+    else:
+        ok("PulseApp: Background App Refresh id khớp Info.plist, UIBackgroundModes có fetch")
+
+pulse_icon = os.path.join(root, "PulseApp/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png")
+if not os.path.isfile(pulse_icon):
+    no("Thiếu icon PulseApp (AppIcon-1024.png)")
+else:
+    with open(pulse_icon, "rb") as fh:
+        puhead = fh.read(33)
+    if puhead[:8] != b"\x89PNG\r\n\x1a\n":
+        no("Icon PulseApp không phải PNG")
+    else:
+        puw = int.from_bytes(puhead[16:20], "big")
+        puh = int.from_bytes(puhead[20:24], "big")
+        if (puw, puh) != (1024, 1024):
+            no("Icon PulseApp phải 1024x1024, đang là %dx%d" % (puw, puh))
+        elif puhead[25] not in (0, 2):
+            no("Icon PulseApp còn kênh alpha (color type %d)" % puhead[25])
+        else:
+            ok("Icon PulseApp 1024x1024, không alpha")
+
 # project.yml / Info.plist khớp nhau
 yml = open(os.path.join(root, "project.yml"), encoding="utf-8").read()
 for needle in ["INFOPLIST_FILE: App/Info.plist", "ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon",
@@ -236,6 +337,13 @@ for needle in ["PartnerApp/Info.plist", "com.tradingleak.partnerhub",
         ok("project.yml có PartnerHub: " + needle)
     else:
         no("project.yml thiếu PartnerHub: " + needle)
+
+for needle in ["PulseApp/Info.plist", "com.tradingleak.pulsehub",
+               "PulseHubTests", "PulseApp/Sources"]:
+    if needle in yml:
+        ok("project.yml có PulseHub: " + needle)
+    else:
+        no("project.yml thiếu PulseHub: " + needle)
 
 # workflow
 try:
@@ -271,12 +379,32 @@ if os.path.isfile(wf2):
 else:
     no("Thiếu .github/workflows/build-partnerhub-ipa.yml")
 
+wf3 = os.path.join(root, ".github/workflows/build-pulsehub-ipa.yml")
+if os.path.isfile(wf3):
+    text3 = open(wf3, encoding="utf-8").read()
+    for needle in ["runs-on: macos-", "PulseHub", "make-ipa.sh", "upload-artifact",
+                   "latest-pulsehub-ipa", "PulseApp/**"]:
+        if needle in text3:
+            ok("workflow PulseHub có: " + needle)
+        else:
+            no("workflow PulseHub thiếu: " + needle)
+else:
+    no("Thiếu .github/workflows/build-pulsehub-ipa.yml")
+
+# Id BG của hai app phải khác nhau (cài cùng máy không được trùng)
+partner_ids = set((pinfo.get("BGTaskSchedulerPermittedIdentifiers") or [])) if isinstance(pinfo, dict) else set()
+pulse_ids = set(pulse_bg_ids)
+if partner_ids & pulse_ids:
+    no("BGTaskSchedulerPermittedIdentifiers trùng giữa PartnerApp và PulseApp: " + ", ".join(partner_ids & pulse_ids))
+else:
+    ok("BGTaskSchedulerPermittedIdentifiers khác nhau giữa PartnerApp và PulseApp")
+
 sys.exit(bad)
 PY
 if [[ $? -ne 0 ]]; then FAIL=1; fi
 
 printf '\n\033[1m3. Tài liệu\033[0m\n'
-for f in README.md docs/BUILD.md docs/INSTALL.md docs/TROUBLESHOOTING.md docs/EXNESS-PARTNER.md; do
+for f in README.md docs/BUILD.md docs/INSTALL.md docs/TROUBLESHOOTING.md docs/EXNESS-PARTNER.md docs/PULSE.md; do
   if [[ -s "$f" ]]; then pass "$f"; else fail "thiếu $f"; fi
 done
 
