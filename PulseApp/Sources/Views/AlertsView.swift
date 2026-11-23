@@ -4,6 +4,7 @@ import UserNotifications
 
 struct AlertsView: View {
     @EnvironmentObject var store: PulseStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showEditor = false
     @State private var showSettings = false
     @State private var filterSymbol: String?
@@ -86,6 +87,11 @@ struct AlertsView: View {
             }
             .task {
                 permission = await AlertNotifier.shared.authorizationStatus()
+            }
+            .onChange(of: scenePhase) { phase in
+                // Quay lại từ Cài đặt iOS → đọc lại quyền thông báo.
+                guard phase == .active else { return }
+                Task { permission = await AlertNotifier.shared.authorizationStatus() }
             }
             .refreshable {
                 permission = await AlertNotifier.shared.authorizationStatus()
