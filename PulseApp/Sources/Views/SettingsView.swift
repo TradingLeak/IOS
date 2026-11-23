@@ -231,7 +231,7 @@ struct SettingsView: View {
                         _ = await AlertNotifier.shared.requestAuthorization()
                         permission = await AlertNotifier.shared.authorizationStatus()
                         if permission == .denied, let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
+                            _ = await UIApplication.shared.open(url)
                         }
                     }
                 }
