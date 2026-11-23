@@ -318,7 +318,22 @@ Nếu `✗ Trader API · [1002] …` → key không có scope Trading; `[2000]` 
 Nến lấy từ REST (`candles`), có thể lỗi riêng (rate limit, mã không có nến ở khung đó). Kéo để tải lại,
 đổi khung thời gian. Thông báo lỗi hiện ngay trong card biểu đồ.
 
-### `Chưa cấu hình Trader API (host + account ID)` trong tab Giá
+### Tab Giá hiện "Không tải được dữ liệu — Yêu cầu thất bại (HTTP 404)"
+Yêu cầu dữ liệu (candles/account) đã đi tới **gateway** — gateway chỉ có route discovery
+`/v1/trading/access-point`, không có `/v1/market-data/...` nên trả 404. Nguyên nhân: chưa phát hiện được
+access point (discovery thất bại) hoặc đang dùng bản build cũ (bản < 55a9bda gửi mọi REST lên gateway). Xử lý:
+1. Cài bản build mới: app luôn discovery trước khi gọi REST và hiện **lý do discovery thất bại** thay vì 404.
+2. *Cài đặt* → **Lưu & kiểm tra kết nối** → dòng phải là `✓ Trader API · access point …`. Nếu `✗`:
+   `[1002]` key thiếu scope Trading · `[2000]` sai Account ID · `[1001]` private key không đúng cặp với Trading
+   API key (bật "API key riêng" mà bỏ trống private key → app dùng private key Partnership → sai) · `HTTP 404`
+   ngay ở bước discovery → URL gateway không lấy từ DNS widget.
+
+### Tài khoản không có mã `XAUUSD` (biểu đồ trống, giá "—")
+Tài khoản Standard dùng mã có đuôi (`XAUUSDm`, `EURUSDm`). App tự map mã trong danh sách theo dõi sang mã có
+đuôi khi gọi candles/ticks và gán giá về mã gốc. Nếu vẫn báo "Tài khoản không có mã…" → mã đó thật sự không có
+trong `instruments` của tài khoản (ví dụ tài khoản không giao dịch crypto) → đổi mã.
+
+### `Chưa cấu hình Trader API (host + account ID + API key + private key)` trong tab Giá
 Đúng như chữ: vào Cài đặt nhập đủ. Chỉ có Partnership key thì giá/cảnh báo không hoạt động.
 
 ### Không nhận được thông báo cảnh báo giá

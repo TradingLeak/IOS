@@ -176,23 +176,35 @@ enum AlertBackgroundRefresh {
     /// Kiểm tra cảnh báo bằng key trong Keychain (không cần UI). `true` nếu gọi API thành công.
     static func run() async -> Bool {
         guard AlertNotifier.shared.isEnabled else { return true }
-        guard let credentials = PulseKeychain().load(),
+        guard var credentials = PulseKeychain().load(),
               let trading = credentials.tradingCredentials else {
             return false
         }
         let alerts = PriceAlertStore.load().filter { $0.enabled }
         guard !alerts.isEmpty else { return true }
 
-        let gateway = credentials.tradingGatewayCredentials ?? trading
-        let client = TradingClient(discovery: ExnessClient(credentials: gateway),
-                                   account: ExnessClient(credentials: trading),
-                                   accountId: credentials.accountId)
+        // REST phải đi qua access point; chưa có thì phát hiện qua gateway rồi lưu lại Keychain.
+        func makeClient() -> TradingClient {
+            let account = credentials.tradingCredentials ?? trading
+            let gateway = credentials.tradingGatewayCredentials ?? account
+            return TradingClient(discovery: ExnessClient(credentials: gateway),
+                                 account: ExnessClient(credentials: account),
+                                 accountId: credentials.accountId)
+        }
+        var client = makeClient()
+        if credentials.accessPoint?.isEmpty != false, let point = try? await client.accessPoint() {
+            credentials.accessPoint = point
+            try? PulseKeychain().save(credentials)
+            client = makeClient()
+        }
+        let knownInstruments = UserDefaults.standard.stringArray(forKey: PulseSymbol.instrumentsDefaultsKey) ?? []
         var success = true
         var history = AlertHistoryStore.load()
 
         for alert in alerts {
             do {
-                guard let price = try await client.latestPrice(symbol: alert.symbol) else { continue }
+                let api = PulseSymbol.apiInstrument(alert.symbol, in: knownInstruments)
+                guard let price = try await client.latestPrice(symbol: api) else { continue }
                 if let fired = AlertEvaluator.fire(alert, price: price) {
                     var all = PriceAlertStore.load()
                     if let index = all.firstIndex(where: { $0.id == fired.id }) {

@@ -18,6 +18,8 @@ final class PulseStore: ObservableObject {
     @Published var selectedTab: PulseTab = .dashboard
     @Published var errorMessage: String?
     @Published var isTesting = false
+    /// Lỗi lần phát hiện access point gần nhất — nguyên nhân thật khi REST bị 404.
+    @Published var accessPointError: String?
     /// Chế độ chỉ xem (lịch + tin tức) khi chưa có API key.
     @Published var guestMode = UserDefaults.standard.bool(forKey: "pulse.guestMode")
 
@@ -132,7 +134,36 @@ final class PulseStore: ObservableObject {
     /// Mã thực sự gửi lên WebSocket: lọc theo danh sách mã của tài khoản để tránh
     /// server đóng kết nối (1008) khi có mã không tồn tại.
     var streamSymbols: [String] {
-        instruments.isEmpty ? watchlist : watchlist.filter { instruments.contains($0) }
+        watchlist.compactMap { base in
+            let api = apiInstrument(for: base)
+            return instruments.isEmpty || instruments.contains(api) ? api : nil
+        }
+    }
+
+    /// Mã gửi lên API (candles, ticks…) cho mã trong danh sách theo dõi.
+    func apiInstrument(for symbol: String) -> String {
+        PulseSymbol.apiInstrument(symbol, in: instruments)
+    }
+
+    /// Đảm bảo đã có access point (discovery qua gateway) trước khi gọi REST. REST không bao giờ
+    /// được gửi thẳng lên gateway — gateway chỉ có route discovery, gọi lên đó sẽ nhận 404 vô nghĩa.
+    @discardableResult
+    func ensureAccessPoint() async -> Bool {
+        guard var current = credentials, let client = tradingClient else { return false }
+        if let point = current.accessPoint, !point.isEmpty { return true }
+        do {
+            let point = try await client.accessPoint()
+            current.accessPoint = point
+            try? keychain.save(current)
+            credentials = current
+            accessPointError = nil
+            cachedTradingClient = nil
+            refreshStream()
+            return true
+        } catch {
+            accessPointError = ExnessClient.message(for: error)
+            return false
+        }
     }
 
     // MARK: - Lưu / xoá thông tin đăng nhập
@@ -166,6 +197,7 @@ final class PulseStore: ObservableObject {
         accountState = nil
         positions = []
         instruments = []
+        UserDefaults.standard.removeObject(forKey: PulseSymbol.instrumentsDefaultsKey)
         quotes = [:]
         sparklines = [:]
         sessionChanges = [:]
@@ -212,7 +244,8 @@ final class PulseStore: ObservableObject {
                 refreshStream()
                 lines.append("✓ Trader API · access point " + point)
             } catch {
-                lines.append("✗ Trader API · " + ExnessClient.message(for: error))
+                lines.append("✗ Trader API · " + ExnessClient.message(for: error)
+                             + "\n  Kiểm tra: URL gateway lấy từ DNS widget, key có scope Trading, Account ID là tài khoản đã chọn cho key, private key đúng cặp với Trading API key.")
             }
         }
         if lines.isEmpty { lines.append("Chưa nhập đủ host/key để kiểm tra.") }
@@ -229,14 +262,7 @@ final class PulseStore: ObservableObject {
             return
         }
         if current.isTradingConfigured {
-            if current.accessPoint == nil, let client = tradingClient,
-               let point = try? await client.accessPoint() {
-                var updated = current
-                updated.accessPoint = point
-                try? keychain.save(updated)
-                credentials = updated
-                cachedTradingClient = nil
-            }
+            await ensureAccessPoint()
             refreshStream()
             await loadAccount()
         }
@@ -261,14 +287,21 @@ final class PulseStore: ObservableObject {
         isLoadingAccount = true
         errorMessage = nil
         defer { isLoadingAccount = false }
+        guard await ensureAccessPoint() else {
+            errorMessage = "Chưa lấy được access point: " + (accessPointError ?? "lỗi không xác định")
+                + ". Vào Cài đặt kiểm tra URL gateway (DNS widget), API key scope Trading, Account ID rồi bấm “Lưu & kiểm tra kết nối”."
+            return
+        }
+        let active = tradingClient ?? client
 
         do {
-            tradingAccount = try await client.account()
-            let snapshot = try await client.snapshot()
+            tradingAccount = try await active.account()
+            let snapshot = try await active.snapshot()
             accountState = snapshot.accountState
             positions = snapshot.positions ?? []
             if instruments.isEmpty {
-                instruments = try await client.instruments()
+                instruments = try await active.instruments()
+                UserDefaults.standard.set(instruments, forKey: PulseSymbol.instrumentsDefaultsKey)
                 refreshStream()
             }
         } catch {
@@ -296,6 +329,11 @@ final class PulseStore: ObservableObject {
     func handle(_ quote: Quote) {
         quotes[quote.symbol] = quote
         evaluateAlerts(symbol: quote.symbol, price: quote.mid)
+        // Server trả mã có đuôi (XAUUSDm) → gán thêm cho mã gốc trong danh sách theo dõi (XAUUSD).
+        if let base = PulseSymbol.baseSymbol(quote.symbol, in: watchlist), base != quote.symbol {
+            quotes[base] = quote
+            evaluateAlerts(symbol: base, price: quote.mid)
+        }
     }
 
     // MARK: - Danh sách theo dõi
@@ -326,14 +364,27 @@ final class PulseStore: ObservableObject {
     func loadCandles() async {
         guard let client = tradingClient else {
             candles = []
-            candleError = "Chưa cấu hình Trader API (host + account ID)."
+            candleError = "Chưa cấu hình Trader API (host + account ID + API key + private key)."
             return
         }
         isLoadingCandles = true
         candleError = nil
         defer { isLoadingCandles = false }
+        guard await ensureAccessPoint() else {
+            candles = []
+            candleError = "Chưa lấy được access point: " + (accessPointError ?? "lỗi không xác định")
+                + ". Kiểm tra URL gateway (DNS widget), API key scope Trading, Account ID trong Cài đặt rồi bấm “Lưu & kiểm tra kết nối”."
+            return
+        }
+        let active = tradingClient ?? client
+        let api = apiInstrument(for: selectedSymbol)
+        guard instruments.isEmpty || instruments.contains(api) else {
+            candles = []
+            candleError = "Tài khoản không có mã \(selectedSymbol). Chọn mã khác trong danh sách theo dõi."
+            return
+        }
         do {
-            let list = try await client.candles(symbol: selectedSymbol, timeframe: timeframe)
+            let list = try await active.candles(symbol: api, timeframe: timeframe)
             candles = list
         } catch {
             candles = []
@@ -344,15 +395,17 @@ final class PulseStore: ObservableObject {
     func loadSparklines() async {
         guard let client = tradingClient else { return }
         let symbols = Array(streamSymbols.prefix(8))
-        guard !symbols.isEmpty else { return }
+        guard !symbols.isEmpty, await ensureAccessPoint() else { return }
+        let active = tradingClient ?? client
         await withTaskGroup(of: (String, [Double]).self) { group in
-            for symbol in symbols {
+            for api in symbols {
                 group.addTask {
-                    let list = (try? await client.candles(symbol: symbol, timeframe: .M5, count: 40)) ?? []
-                    return (symbol, list.map(\.close))
+                    let list = (try? await active.candles(symbol: api, timeframe: .M5, count: 40)) ?? []
+                    return (api, list.map(\.close))
                 }
             }
-            for await (symbol, closes) in group {
+            for await (api, closes) in group {
+                let symbol = PulseSymbol.baseSymbol(api, in: watchlist) ?? api
                 guard closes.count >= 2, let first = closes.first, let last = closes.last, first > 0 else { continue }
                 sparklines[symbol] = closes
                 sessionChanges[symbol] = (last - first) / first * 100

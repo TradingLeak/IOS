@@ -38,6 +38,12 @@ struct ExnessAPIError: Error, LocalizedError {
             return "Không tìm thấy mã này trên tài khoản."
         case "DECODE_ERROR":
             return "Dữ liệu API không đúng định dạng dự kiến."
+        case "HTTP_400":
+            return "Yêu cầu không hợp lệ (HTTP 400). Kiểm tra mã, khung thời gian và khoảng ngày."
+        case "HTTP_401", "HTTP_403":
+            return "API key hoặc chữ ký không được chấp nhận. Kiểm tra API key, private key và scope của key (Trader API cần scope Trading)."
+        case "HTTP_404":
+            return "Máy chủ không có đường dẫn này (HTTP 404). Với Trader API, URL nhập phải là gateway trong DNS widget; bấm “Lưu & kiểm tra kết nối” để app tự lấy access point trước khi gọi dữ liệu."
         default:
             return message
         }

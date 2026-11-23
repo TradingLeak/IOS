@@ -318,7 +318,8 @@ final class PulseModelTests: XCTestCase {
     }
 
     func testTradingBaseURLPrefersAccessPoint() {
-        var credentials = PulseCredentials(tradingHost: "https://gw.example.com", accountId: "1")
+        var credentials = PulseCredentials(tradingHost: "https://gw.example.com", accountId: "1",
+                                           apiKey: "k", privateKey: "p")
         XCTAssertEqual(credentials.tradingBaseURL, "https://gw.example.com")
         XCTAssertEqual(credentials.tradingGatewayCredentials?.baseURL, "https://gw.example.com")
 
@@ -327,6 +328,17 @@ final class PulseModelTests: XCTestCase {
         XCTAssertEqual(credentials.tradingCredentials?.baseURL, "https://tt.example.com")
         XCTAssertEqual(credentials.tradingGatewayCredentials?.baseURL, "https://gw.example.com",
                        "Discovery luôn đi qua gateway")
+    }
+
+    func testAPIInstrumentMapsAccountSuffix() {
+        let instruments = ["XAUUSDm", "EURUSDm", "BTCUSDm", "GBPUSD"]
+        XCTAssertEqual(PulseSymbol.apiInstrument("XAUUSD", in: instruments), "XAUUSDm")
+        XCTAssertEqual(PulseSymbol.apiInstrument("GBPUSD", in: instruments), "GBPUSD")
+        XCTAssertEqual(PulseSymbol.apiInstrument("GBPUSD", in: []), "GBPUSD")
+        XCTAssertEqual(PulseSymbol.apiInstrument("USDJPY", in: instruments), "USDJPY", "Không có thì giữ nguyên")
+        XCTAssertEqual(PulseSymbol.baseSymbol("XAUUSDm", in: ["XAUUSD", "EURUSD"]), "XAUUSD")
+        XCTAssertNil(PulseSymbol.baseSymbol("XAGUSDm", in: ["XAUUSD"]))
+        XCTAssertNil(PulseSymbol.baseSymbol("XAUUSD", in: ["XAUUSD"]), "Trùng chính nó không cần alias")
     }
 
     func testTickParsingAcceptsNumbersStringsAndEpoch() throws {

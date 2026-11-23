@@ -208,6 +208,35 @@ enum PulseSymbol {
         return s
     }
 
+    /// Key UserDefaults lưu danh sách mã của tài khoản (dùng cho background alert).
+    static let instrumentsDefaultsKey = "pulse.instruments"
+
+    /// Mã gửi lên API cho `symbol`: khớp chính xác trong danh sách mã của tài khoản, nếu không
+    /// thử mã có đuôi loại tài khoản (XAUUSD → XAUUSDm trên tài khoản Standard). Chưa có danh
+    /// sách → giữ nguyên.
+    static func apiInstrument(_ symbol: String, in instruments: [String]) -> String {
+        guard !instruments.isEmpty, !instruments.contains(symbol) else { return symbol }
+        let lower = symbol.lowercased()
+        if let exact = instruments.first(where: { $0.lowercased() == lower }) { return exact }
+        let candidates = instruments.filter {
+            $0.lowercased().hasPrefix(lower) && $0.count > symbol.count && $0.count - symbol.count <= 3
+        }
+        let preferred = ["m", "z", "c", "s"]
+        return candidates.min { a, b in
+            let sa = preferred.firstIndex(of: a.dropFirst(symbol.count).lowercased()) ?? 99
+            let sb = preferred.firstIndex(of: b.dropFirst(symbol.count).lowercased()) ?? 99
+            return sa != sb ? sa < sb : a.count < b.count
+        } ?? symbol
+    }
+
+    /// Chiều ngược lại: mã API có đuôi (XAUUSDm) → mã gốc trong danh sách theo dõi (XAUUSD).
+    static func baseSymbol(_ apiSymbol: String, in watchlist: [String]) -> String? {
+        let lower = apiSymbol.lowercased()
+        return watchlist.first {
+            $0.lowercased() != lower && lower.hasPrefix($0.lowercased()) && apiSymbol.count - $0.count <= 3
+        }
+    }
+
     /// Cờ (emoji) cho mã tiền tệ trong lịch kinh tế.
     static func flag(forCurrency code: String) -> String {
         switch code.uppercased() {

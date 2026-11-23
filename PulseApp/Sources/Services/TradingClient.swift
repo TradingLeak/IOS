@@ -1,6 +1,6 @@
 import Foundation
 
-/// Client cho Trader API (Exness Trade API) — gọi qua gateway của tài khoản.
+/// Client cho Trader API (Exness Trade API) — discovery qua gateway, REST qua access point.
 /// Mọi yêu cầu đều được ký bằng `EXN-*` headers (xem `ExnessClient`).
 final class TradingClient {
     /// Gateway (host trong DNS widget) — chỉ dùng để discovery access point.
