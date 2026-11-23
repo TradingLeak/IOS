@@ -73,7 +73,7 @@ jobs:
       - name: Chạy unit test trên Simulator
         shell: bash
         run: |
-          UDID=$(xcrun simctl list devices available | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
+          UDID=$(xcrun simctl list devices available | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1 || true)
           echo "Simulator: $UDID"
           set +e
           xcodebuild test \
@@ -85,7 +85,8 @@ jobs:
             > build-test.log 2>&1
           RC=$?
           set -e
-          grep -E "error:|failed" build-test.log | head -20 | while IFS= read -r line; do
+          # `|| true` để pipefail không đánh fail step khi test pass (grep không khớp dòng nào).
+          { grep -E "error:|failed" build-test.log || true; } | head -20 | while IFS= read -r line; do
             printf '::error title=Test/Swift error::%s\n' "$(printf '%s' "$line" | cut -c1-900)"
           done
           tail -n 40 build-test.log

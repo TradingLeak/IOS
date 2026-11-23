@@ -58,10 +58,15 @@ jobs:
       - name: Chạy unit test trên Simulator
         shell: bash
         run: |
+          # Lấy danh sách simulator; `|| true` để pipefail không giết step khi grep không khớp.
+          devices="$(xcrun simctl list devices available 2>/dev/null || true)"
+          uuid_re='[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}'
           # Ưu tiên iPhone (tránh chọn nhầm Watch/TV/Vision simulator đứng trước trong danh sách)
-          UDID=$(xcrun simctl list devices available | grep -E 'iPhone' | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
-          [[ -n "$UDID" ]] || UDID=$(xcrun simctl list devices available | grep -oE '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
+          UDID="$(printf '%s\n' "$devices" | grep -E 'iPhone' | grep -oE "$uuid_re" | head -n 1 || true)"
+          [[ -n "$UDID" ]] || UDID="$(printf '%s\n' "$devices" | grep -oE "$uuid_re" | head -n 1 || true)"
+          [[ -n "$UDID" ]] || { echo "::error::Không tìm thấy simulator iOS nào trên runner"; exit 1; }
           echo "Simulator: $UDID"
+
           set +e
           xcodebuild test \
             -project VietMap.xcodeproj \
@@ -72,11 +77,29 @@ jobs:
             > build-test.log 2>&1
           RC=$?
           set -e
-          grep -E "error:|failed" build-test.log | head -20 | while IFS= read -r line; do
+
+          if [[ "$RC" -eq 0 ]]; then
+            echo "::notice title=Unit test PartnerHub::PASS — xcodebuild exit 0"
+          else
+            echo "::error title=Unit test PartnerHub::FAIL — xcodebuild exit $RC"
+          fi
+
+          # Đưa dòng lỗi (nếu có) lên Annotations. `|| true` + head để không fail khi không có dòng nào.
+          { grep -E "error:|failed|Fatal error|crash" build-test.log || true; } | head -20 | while IFS= read -r line; do
             printf '::error title=Test/Swift error::%s\n' "$(printf '%s' "$line" | cut -c1-900)"
           done
+          { grep -E "Executed [0-9]+ tests?" build-test.log | tail -n 3 || true; }
           tail -n 40 build-test.log
           exit $RC
+
+      - name: Tải log test lên artifact (khi lỗi)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: partnerhub-test-log-${{ github.run_number }}
+          path: build-test.log
+          if-no-files-found: ignore
+          retention-days: 14
 
   # ---------------------------------------------------------------- build
   build:
