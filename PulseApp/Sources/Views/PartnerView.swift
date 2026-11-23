@@ -25,8 +25,7 @@ struct PartnerView: View {
                     PulseEmptyState(symbol: "person.2", title: "Chưa có dữ liệu", message: "Kéo để tải lại.")
                 }
 
-                Text("Dữ liệu từ Partnership API · hoa hồng tính theo USD · cập nhật " +
-                     (store.partnerSummary == nil ? "—" : PulseFormat.clock(Date()) + " " + PulseFormat.shortDate(Date())))
+                Text(partnerFooter)
                     .font(.system(size: 10))
                     .foregroundStyle(PulseTheme.textTertiary)
                     .multilineTextAlignment(.center)
@@ -61,6 +60,15 @@ struct PartnerView: View {
                 await store.loadPartner()
             }
         }
+    }
+
+    private var partnerFooter: String {
+        guard store.partnerSummary != nil else {
+            return "Dữ liệu từ Partnership API · hoa hồng tính theo USD"
+        }
+        let now = Date()
+        return "Dữ liệu từ Partnership API · hoa hồng tính theo USD · cập nhật " +
+            PulseFormat.clock(now) + " " + PulseFormat.shortDate(now)
     }
 
     // MARK: - Chưa cấu hình
@@ -143,9 +151,13 @@ struct PartnerView: View {
 
     // MARK: - Hoa hồng gần đây
 
+    private var rewardsSubtitle: String? {
+        store.partnerRewards.isEmpty ? nil : "\(store.partnerRewards.count) dòng"
+    }
+
     private var rewardsCard: some View {
         PulsePanelCard(title: "Hoa hồng 30 ngày gần nhất",
-                       subtitle: store.partnerRewards.isEmpty ? nil : "\(store.partnerRewards.count) dòng",
+                       subtitle: rewardsSubtitle,
                        symbol: "chart.bar.fill",
                        tint: PulseTheme.gold) {
             if store.partnerRewards.isEmpty {
@@ -155,37 +167,54 @@ struct PartnerView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(store.partnerRewards.prefix(30).enumerated()), id: \.element.id) { index, row in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(Fmt.date(row.rewardDate))
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(PulseTheme.textPrimary)
-                                Text([row.clientAccount.map { "#" + $0 }, row.country].compactMap { $0 }.joined(separator: " · ") +
-                                     (row.ordersCount > 0 ? " · \(row.ordersCount) lệnh" : ""))
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(PulseTheme.textTertiary)
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            Text(Fmt.usd(row.rewardUsdDecimal))
-                                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                                .foregroundStyle(PulseTheme.gold)
-                        }
-                        .padding(.vertical, 8)
-                        if index < min(store.partnerRewards.count, 30) - 1 {
-                            Divider().overlay(PulseTheme.stroke)
-                        }
+                        rewardRow(row, isLast: index == min(store.partnerRewards.count, 30) - 1)
                     }
                 }
             }
         }
     }
 
+    private func rewardRow(_ row: PartnerRewardRow, isLast: Bool) -> some View {
+        let detail: String = {
+            let parts = [row.clientAccount.map { "#" + $0 }, row.country].compactMap { $0 }
+            let text = parts.joined(separator: " · ")
+            if row.ordersCount > 0 {
+                return text.isEmpty ? "\(row.ordersCount) lệnh" : text + " · \(row.ordersCount) lệnh"
+            }
+            return text
+        }()
+        return VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Fmt.date(row.rewardDate))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(PulseTheme.textPrimary)
+                    Text(detail)
+                        .font(.system(size: 10))
+                        .foregroundStyle(PulseTheme.textTertiary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Text(Fmt.usd(row.rewardUsdDecimal))
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundStyle(PulseTheme.gold)
+            }
+            .padding(.vertical, 8)
+            if !isLast {
+                Divider().overlay(PulseTheme.stroke)
+            }
+        }
+    }
+
     // MARK: - Khách hàng
+
+    private var clientsSubtitle: String? {
+        store.partnerClients.isEmpty ? nil : "Top theo hoa hồng"
+    }
 
     private var clientsCard: some View {
         PulsePanelCard(title: "Khách hàng",
-                       subtitle: store.partnerClients.isEmpty ? nil : "Top theo hoa hồng",
+                       subtitle: clientsSubtitle,
                        symbol: "person.3.fill",
                        tint: PulseTheme.teal) {
             if store.partnerClients.isEmpty {
@@ -195,31 +224,40 @@ struct PartnerView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(store.partnerClients.prefix(10).enumerated()), id: \.element.id) { index, client in
-                        HStack {
-                            Text(PulseSymbol.flag(forCurrency: client.clientCountry))
-                                .font(.system(size: 18))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("#" + client.clientUid)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(PulseTheme.textPrimary)
-                                    .lineLimit(1)
-                                Text(client.clientCountry + " · " + Fmt.lots(client.volumeLots) + " lots" +
-                                     (client.clientStatus.map { " · " + $0 } ?? ""))
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(PulseTheme.textTertiary)
-                                    .lineLimit(1)
-                            }
-                            Spacer()
-                            Text(Fmt.usd(client.rewardUsd))
-                                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                .foregroundStyle(PulseTheme.teal)
-                        }
-                        .padding(.vertical, 8)
-                        if index < min(store.partnerClients.count, 10) - 1 {
-                            Divider().overlay(PulseTheme.stroke)
-                        }
+                        clientRow(client, isLast: index == min(store.partnerClients.count, 10) - 1)
                     }
                 }
+            }
+        }
+    }
+
+    private func clientRow(_ client: PartnerClientRow, isLast: Bool) -> some View {
+        var detail = client.clientCountry + " · " + Fmt.lots(client.volumeLots) + " lots"
+        if let status = client.clientStatus, !status.isEmpty {
+            detail += " · " + status
+        }
+        return VStack(spacing: 0) {
+            HStack {
+                Text(PulseSymbol.flag(forCurrency: client.clientCountry))
+                    .font(.system(size: 18))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("#" + client.clientUid)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(PulseTheme.textPrimary)
+                        .lineLimit(1)
+                    Text(detail)
+                        .font(.system(size: 10))
+                        .foregroundStyle(PulseTheme.textTertiary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Text(Fmt.usd(client.rewardUsd))
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundStyle(PulseTheme.teal)
+            }
+            .padding(.vertical, 8)
+            if !isLast {
+                Divider().overlay(PulseTheme.stroke)
             }
         }
     }

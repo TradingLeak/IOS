@@ -319,20 +319,20 @@ final class PulseModelTests: XCTestCase {
 
     func testTickParsingAcceptsNumbersStringsAndEpoch() throws {
         let numeric = try XCTUnwrap(TickStream.parse(
-            Data(#"{"instrument":"xauusd","bid":4050.12,"ask":4050.32,"timestamp":"2026-11-23T10:00:00Z"}"#.utf8)))
+            data: Data(#"{"instrument":"xauusd","bid":4050.12,"ask":4050.32,"timestamp":"2026-11-23T10:00:00Z"}"#.utf8)))
         XCTAssertEqual(numeric.symbol, "XAUUSD")
         XCTAssertEqual(numeric.mid, 4050.22, accuracy: 0.0001)
         XCTAssertEqual(numeric.spread, 0.2, accuracy: 0.0001)
         XCTAssertNotNil(numeric.timestamp)
 
         let loose = try XCTUnwrap(TickStream.parse(
-            Data(#"{"instrument":"EURUSD","bid":"1.1000","ask":"1.1002","timestamp":1795428000000}"#.utf8)))
+            data: Data(#"{"instrument":"EURUSD","bid":"1.1000","ask":"1.1002","timestamp":1795428000000}"#.utf8)))
         XCTAssertEqual(loose.bid, 1.1)
         XCTAssertEqual(loose.ask, 1.1002)
         XCTAssertEqual(loose.timestamp?.timeIntervalSince1970 ?? 0, 1_795_428_000, accuracy: 0.001)
 
-        XCTAssertNil(TickStream.parse(Data(#"{"instrument":"EURUSD","bid":"abc","ask":"1.1"}"#.utf8)))
-        XCTAssertNil(TickStream.parse(Data("{}".utf8)))
+        XCTAssertNil(TickStream.parse(data: Data(#"{"instrument":"EURUSD","bid":"abc","ask":"1.1"}"#.utf8)))
+        XCTAssertNil(TickStream.parse(data: Data("{}".utf8)))
     }
 
     // MARK: - Cấu hình nguồn tin

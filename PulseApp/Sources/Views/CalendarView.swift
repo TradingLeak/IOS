@@ -38,9 +38,7 @@ struct CalendarView: View {
                         ForEach(store.calendarDays) { day in
                             daySection(day)
                         }
-                        Text("Nguồn: Forex Factory (faireconomy.media) · cập nhật " +
-                             (store.calendarUpdatedAt.map { PulseFormat.clock($0) + " " + PulseFormat.shortDate($0) } ?? "—") +
-                             " · giờ hiển thị theo múi giờ thiết bị")
+                        Text(calendarFooter)
                             .font(.system(size: 10))
                             .foregroundStyle(PulseTheme.textTertiary)
                             .multilineTextAlignment(.center)
@@ -81,6 +79,15 @@ struct CalendarView: View {
             }
             .refreshable { await store.loadCalendar(force: true) }
         }
+    }
+
+    private var calendarFooter: String {
+        var text = "Nguồn: Forex Factory (faireconomy.media)"
+        if let updated = store.calendarUpdatedAt {
+            text += " · cập nhật " + PulseFormat.clock(updated) + " " + PulseFormat.shortDate(updated)
+        }
+        text += " · giờ hiển thị theo múi giờ thiết bị"
+        return text
     }
 
     // MARK: - Sự kiện tiếp theo

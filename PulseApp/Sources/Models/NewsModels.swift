@@ -67,7 +67,8 @@ enum NewsSources {
     static let customKey = "pulse.news.customFeeds"
 
     static func disabledCategories() -> Set<NewsCategory> {
-        Set(UserDefaults.standard.stringArray(forKey: disabledKey) ?? [])
+        let raw = UserDefaults.standard.stringArray(forKey: disabledKey) ?? []
+        return Set(raw.compactMap { NewsCategory(rawValue: $0) })
     }
 
     static func setDisabledCategories(_ set: Set<NewsCategory>) {

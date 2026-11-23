@@ -129,8 +129,7 @@ struct DashboardView: View {
             let margin = store.accountState?.usedMarginDecimal
             let currency = store.tradingAccount?.currency ?? "USD"
             PulsePanelCard(title: "Tài khoản giao dịch",
-                           subtitle: "#\(store.credentials?.accountId ?? "") · \(currency)" +
-                               (store.tradingAccount?.tradeMode.map { " · \($0)" } ?? ""),
+                           subtitle: accountSubtitle(currency: currency),
                            symbol: "creditcard.fill",
                            tint: PulseTheme.violet,
                            trailing: AnyView(
@@ -169,6 +168,15 @@ struct DashboardView: View {
                 }
             }
         }
+    }
+
+    private func accountSubtitle(currency: String) -> String {
+        let account = store.credentials?.accountId ?? ""
+        var text = "#" + account + " · " + currency
+        if let mode = store.tradingAccount?.tradeMode, !mode.isEmpty {
+            text += " · " + mode
+        }
+        return text
     }
 
     private func kpi(_ title: String, _ value: String, tint: Color) -> some View {
