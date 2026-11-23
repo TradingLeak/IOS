@@ -133,7 +133,7 @@ struct SettingsView: View {
                 .tint(PartnerTheme.accent)
                 .onChange(of: notificationsEnabled) { enabled in
                     guard enabled else { return }
-                    Task { notificationStatus = await PaymentNotifier.shared.requestAuthorization() }
+                    Task { await requestNotificationPermission() }
                 }
 
                 if notificationsEnabled {
@@ -149,7 +149,7 @@ struct SettingsView: View {
                         Spacer(minLength: 8)
                         if notificationStatus == .notDetermined {
                             SecondaryActionButton(title: "Cấp quyền", symbol: "bell") {
-                                Task { notificationStatus = await PaymentNotifier.shared.requestAuthorization() }
+                                Task { await requestNotificationPermission() }
                             }
                             .frame(width: 118)
                         } else if notificationStatus == .denied {
@@ -407,6 +407,12 @@ struct SettingsView: View {
             let total = events.filter { $0.kind.isPositive }.reduce(Decimal(0)) { $0 + $1.amountUSD }
             checkMessage = "Có \(events.count) khoản mới · tổng " + Fmt.usd(total)
         }
+    }
+
+    /// Xin quyền rồi đọc lại trạng thái (requestAuthorization chỉ trả Bool).
+    @MainActor private func requestNotificationPermission() async {
+        await PaymentNotifier.shared.requestAuthorization()
+        notificationStatus = await PaymentNotifier.shared.authorizationStatus()
     }
 
     private func openSystemSettings() {
