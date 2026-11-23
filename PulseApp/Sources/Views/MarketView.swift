@@ -144,7 +144,7 @@ struct MarketView: View {
                 Text(store.timeframe.title)
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(PulseTheme.textSecondary)
-                Text("· Nến Exness" + (store.isTradingConfigured ? "" : ""))
+                Text("· Nến Exness" + (focus != nil ? " · chạm để tra" : " · vuốt để tra OHLC"))
                     .font(.system(size: 11))
                     .foregroundStyle(PulseTheme.textTertiary)
                 Spacer()
