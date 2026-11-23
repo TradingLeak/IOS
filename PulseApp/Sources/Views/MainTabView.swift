@@ -37,8 +37,9 @@ struct MainTabView: View {
         }
         .onChange(of: scenePhase) { phase in
             guard phase == .active else { return }
-            // Quay lại app sau hơn 15 phút → nạp lại dữ liệu.
-            if let updated = store.calendarUpdatedAt, Date().timeIntervalSince(updated) > 900 {
+            // Quay lại app sau hơn 15 phút (hoặc lần đầu chưa có dữ liệu) → nạp lại.
+            let stale = store.calendarUpdatedAt.map { Date().timeIntervalSince($0) > 900 } ?? true
+            if stale {
                 Task { await store.refreshDashboard() }
             }
         }
