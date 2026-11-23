@@ -1,10 +1,5 @@
 import Foundation
 
-/// `GET /v1/trading/access-point?account_id=…`
-struct AccessPointResponse: Decodable {
-    let accessPoint: String
-}
-
 /// Client cho Trader API (Exness Trade API) — gọi qua gateway của tài khoản.
 /// Mọi yêu cầu đều được ký bằng `EXN-*` headers (xem `ExnessClient`).
 final class TradingClient {
