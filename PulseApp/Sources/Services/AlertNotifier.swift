@@ -183,7 +183,10 @@ enum AlertBackgroundRefresh {
         let alerts = PriceAlertStore.load().filter { $0.enabled }
         guard !alerts.isEmpty else { return true }
 
-        let client = TradingClient(client: ExnessClient(credentials: trading), accountId: credentials.accountId)
+        let gateway = credentials.tradingGatewayCredentials ?? trading
+        let client = TradingClient(discovery: ExnessClient(credentials: gateway),
+                                   account: ExnessClient(credentials: trading),
+                                   accountId: credentials.accountId)
         var success = true
         var history = AlertHistoryStore.load()
 

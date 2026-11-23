@@ -33,6 +33,8 @@ final class TickStream {
     private var pingLoop: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
     private var url: URL?
+    /// Headers ký số cho handshake WebSocket (EXN-*), tạo mới mỗi lần kết nối vì có timestamp.
+    private var headersProvider: () -> [String: String] = { [:] }
     private(set) var symbols: [String] = []
     private var attempt = 0
     private var stopped = true
@@ -47,11 +49,14 @@ final class TickStream {
 
     // MARK: - Điều khiển
 
-    /// Đổi URL hoặc danh sách mã → kết nối lại khi cần.
-    func configure(url newURL: URL?, symbols newSymbols: [String]) {
+    /// Đổi URL hoặc danh sách mã → kết nối lại khi cần. `headers` ký handshake (GET, path = WS path).
+    func configure(url newURL: URL?,
+                   symbols newSymbols: [String],
+                   headers: @escaping () -> [String: String] = { [:] }) {
         let normalized = Array(Set(newSymbols.map { $0.uppercased() })).sorted()
         let urlChanged = newURL != url
         url = newURL
+        headersProvider = headers
         symbols = normalized
 
         guard let newURL, !normalized.isEmpty else {
@@ -91,7 +96,11 @@ final class TickStream {
         pingLoop?.cancel()
         task?.cancel(with: .goingAway, reason: nil)
 
-        let socket = URLSession.shared.webSocketTask(with: url)
+        var request = URLRequest(url: url)
+        for (key, value) in headersProvider() {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        let socket = URLSession.shared.webSocketTask(with: request)
         task = socket
         socket.resume()
 

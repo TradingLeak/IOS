@@ -97,7 +97,7 @@ struct SettingsView: View {
 
     private var partnershipSection: some View {
         Section {
-            TextField("https://api.exness.com", text: $partnerHost)
+            TextField("https://<API host — giống app Exness Partner>", text: $partnerHost)
                 .textContentType(.URL)
                 .keyboardType(.URL)
                 .foregroundStyle(PulseTheme.textPrimary)
@@ -115,7 +115,7 @@ struct SettingsView: View {
             Label("Partnership API (hoa hồng đối tác)", systemImage: "person.2.fill")
                 .foregroundStyle(PulseTheme.gold)
         } footer: {
-            Text("Tạo key tại my.exness.partners → Settings → API management, scope Read-only. Host là địa chỉ trong DNS widget (bắt đầu bằng https://). Để trống nếu chỉ dùng Trader API.")
+            Text("URL = giá trị trong ô “API host” / DNS widget trên trang my.exness.partners → Settings → API management (bắt đầu bằng https://, không có /v1…). Dùng đúng URL bạn đã nhập trong app Exness Partner. Key scope Read-only. Để trống nếu chỉ dùng Trader API.")
                 .font(.system(size: 11))
         }
     }
@@ -124,7 +124,7 @@ struct SettingsView: View {
 
     private var tradingSection: some View {
         Section {
-            TextField("https://<gateway>.exness.io", text: $tradingHost)
+            TextField("https://<gateway từ DNS widget>", text: $tradingHost)
                 .textContentType(.URL)
                 .keyboardType(.URL)
                 .foregroundStyle(PulseTheme.textPrimary)
@@ -158,7 +158,7 @@ struct SettingsView: View {
             Label("Trader API (giá, tài khoản, giao dịch)", systemImage: "chart.line.uptrend.xyaxis")
                 .foregroundStyle(PulseTheme.violet)
         } footer: {
-            Text("Key cần scope Trading (Read-only đủ để xem giá/tài khoản). Host gateway và Account ID lấy trong Personal Area → API. App tự phát hiện access point cho WebSocket khi kiểm tra kết nối.")
+            Text("URL (gateway) = giá trị trong ô DNS widget tại Personal Area (my.exness.com) → Cài đặt → Key Management / API, sau khi tạo key scope Trading (Read-only đủ để xem giá) và chọn tài khoản. Account ID = số ID của tài khoản giao dịch đó (xem trong Personal Area). App tự gọi discovery để lấy access point, rồi dùng access point cho mọi request và WebSocket — bạn không cần nhập access point.")
                 .font(.system(size: 11))
         }
     }

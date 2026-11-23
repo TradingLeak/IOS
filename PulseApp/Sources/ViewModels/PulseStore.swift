@@ -116,10 +116,15 @@ final class PulseStore: ObservableObject {
         return created
     }
 
+    /// REST của tài khoản đi qua access point (nếu đã phát hiện), discovery đi qua gateway.
     var tradingClient: TradingClient? {
         if let cachedTradingClient { return cachedTradingClient }
-        guard let credentials, let trading = credentials.tradingCredentials else { return nil }
-        let created = TradingClient(client: ExnessClient(credentials: trading), accountId: credentials.accountId)
+        guard let credentials,
+              let gateway = credentials.tradingGatewayCredentials,
+              let account = credentials.tradingCredentials else { return nil }
+        let created = TradingClient(discovery: ExnessClient(credentials: gateway),
+                                    account: ExnessClient(credentials: account),
+                                    accountId: credentials.accountId)
         cachedTradingClient = created
         return created
     }
@@ -138,6 +143,7 @@ final class PulseStore: ObservableObject {
         leaveGuestMode()
         cachedPartnerClient = nil
         cachedTradingClient = nil
+        refreshStream()
     }
 
     func enterGuestMode() {
@@ -191,7 +197,11 @@ final class PulseStore: ObservableObject {
             }
         }
         if let trading = current.tradingCredentials {
-            let client = TradingClient(client: ExnessClient(credentials: trading), accountId: current.accountId)
+            // Discovery luôn đi qua gateway (host DNS widget), không qua access point cũ.
+            let gateway = current.tradingGatewayCredentials ?? trading
+            let client = TradingClient(discovery: ExnessClient(credentials: gateway),
+                                       account: ExnessClient(credentials: trading),
+                                       accountId: current.accountId)
             do {
                 let point = try await client.accessPoint()
                 var updated = current
@@ -199,6 +209,7 @@ final class PulseStore: ObservableObject {
                 try? keychain.save(updated)
                 credentials = updated
                 cachedTradingClient = nil
+                refreshStream()
                 lines.append("✓ Trader API · access point " + point)
             } catch {
                 lines.append("✗ Trader API · " + ExnessClient.message(for: error))
@@ -224,6 +235,7 @@ final class PulseStore: ObservableObject {
                 updated.accessPoint = point
                 try? keychain.save(updated)
                 credentials = updated
+                cachedTradingClient = nil
             }
             refreshStream()
             await loadAccount()
@@ -267,11 +279,18 @@ final class PulseStore: ObservableObject {
     // MARK: - WebSocket ticks
 
     func refreshStream() {
-        guard let url = credentials?.ticksURL() else {
+        guard let credentials, let url = credentials.ticksURL() else {
             stream.configure(url: nil, symbols: [])
             return
         }
-        stream.configure(url: url, symbols: streamSymbols)
+        // Handshake WebSocket phải ký như GET với path đúng bằng path kết nối (không có query).
+        let path = "/v1/server-events/accounts/\(credentials.accountId)/ws/ticks"
+        stream.configure(url: url, symbols: streamSymbols) {
+            guard let trading = credentials.tradingCredentials else { return [:] }
+            return (try? ExnessSigner.signedHeaders(credentials: trading,
+                                                     method: "GET",
+                                                     pathAndQuery: path)) ?? [:]
+        }
     }
 
     func handle(_ quote: Quote) {

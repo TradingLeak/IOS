@@ -24,12 +24,16 @@ mọi yêu cầu API đều ký ngay trên thiết bị và dữ liệu công kh
 
 1. Vào **Personal Area** → mục API → tạo API key với scope **Trading** (Read-only là đủ để xem).
    Key nhận cặp **API key** + **private key** (hex 128 ký tự hoặc PEM).
-2. Trang API có **DNS widget** cho ra **host gateway** của tài khoản, ví dụ
-   `https://<account-id>.my-traefik.exness.io` — dán đúng host đó (bắt buộc HTTPS, không path).
-3. **Account ID** là chuỗi số dương (uint64) của tài khoản giao dịch.
+2. Vào **Personal Area** (my.exness.com) → Cài đặt → **Key Management / API** → tạo key scope
+   **Trading** (Read-only là đủ) và **chọn tài khoản giao dịch** cho key. Trên trang đó có ô
+   **DNS widget** hiện **Gateway host** (dạng `https://…`, mỗi tài khoản/môi trường một host khác nhau,
+   không đoán) — dán đúng host đó vào ô Trader API.
+3. **Account ID** là chuỗi số dương (uint64) của tài khoản giao dịch đã chọn cho key (xem trong Personal Area).
 
-Khi bấm **Lưu & kiểm tra kết nối**, app gọi `GET /v1/trading/access-point?account_id=…` để lấy
-**access point** (host WebSocket) rồi lưu lại; các lần sau mở app kết nối lại ngay.
+Khi bấm **Lưu & kiểm tra kết nối**, app gọi `GET {gateway}/v1/trading/access-point?account_id=…` để lấy
+**access point** của tài khoản rồi lưu lại. **Mọi REST và WebSocket sau đó đi qua access point** (không phải
+gateway); gateway chỉ dùng để discovery. Các lần sau mở app dùng lại access point đã lưu (đúng khuyến nghị
+của Exness: discovery bị rate limit, chỉ gọi một lần rồi cache).
 
 ### 1.2 Partnership API (hoa hồng đối tác)
 
@@ -58,20 +62,22 @@ EXN-SIGN           base64url(Ed25519(EXN-DATA))
 
 `path` là path **+ đúng chuỗi query** đã ký — app ghép query theo thứ tự truyền vào, không sắp xếp lại.
 
-| Mục đích | Endpoint |
+| Mục đích | Endpoint (host) |
 |---|---|
-| Phát hiện access point | `GET /v1/trading/access-point?account_id=` |
-| Thông tin tài khoản | `GET /v1/configuration/accounts/{id}/account` |
-| Danh sách mã | `GET /v1/configuration/accounts/{id}/instruments` |
-| Snapshot (lệnh, vị thế, số dư) | `GET /v1/trading/accounts/{id}/snapshot` |
-| Nến giá | `GET /v1/market-data/accounts/{id}/candles?instrument=&timeframe=&from=&to=&price_type=bid` |
-| Ticks WebSocket | `wss://{access_point}/v1/server-events/accounts/{id}/ws/ticks` |
+| Phát hiện access point | `GET /v1/trading/access-point?account_id=` — **gateway** (DNS widget) |
+| Thông tin tài khoản | `GET /v1/configuration/accounts/{id}/account` — access point |
+| Danh sách mã | `GET /v1/configuration/accounts/{id}/instruments` — access point |
+| Snapshot (lệnh, vị thế, số dư) | `GET /v1/trading/accounts/{id}/snapshot` — access point |
+| Nến giá | `GET /v1/market-data/accounts/{id}/candles?instrument=&timeframe=&from=&to=&price_type=bid` — access point |
+| Ticks WebSocket | `wss://{access_point}/v1/server-events/accounts/{id}/ws/ticks` (handshake ký GET) |
 
 - Nến: `from` inclusive, `to` exclusive; app cộng thêm 1 nến ở `to` để lấy nến đang tạo. Khung:
   `M1 M5 M15 M30 H1 H4 D1`. Giá là JSON number, mã hoá `price_type=bid`.
-- Ticks: đăng ký `{"id":"pulse-ticks","subscribe":{"event":"ticks","instruments":[…]}}` →
-  `{instrument, bid, ask, timestamp}`; throttled ≤ 500 ms. **Mã không tồn tại làm server đóng kết nối
-  (1008)** — vì vậy app chỉ đăng ký các mã có trong danh sách `instruments` của tài khoản.
+- Ticks: **handshake WebSocket phải ký như một GET** (headers `EXN-*`, `EXN-DATA.path` = đúng path
+  `/v1/server-events/accounts/{id}/ws/ticks`, tạo mới mỗi lần kết nối vì có timestamp), sau đó gửi
+  `{"id":"pulse-ticks","subscribe":{"event":"ticks","instruments":[…]}}` → `{instrument, bid, ask, timestamp}`;
+  throttled ≤ 500 ms. **Mã không tồn tại làm server đóng kết nối (1008)** — vì vậy app chỉ đăng ký các mã
+  có trong danh sách `instruments` của tài khoản.
 - Không có replay: khi rớt mạng app tự kết nối lại (exponential backoff 2 s → 30 s) và đăng ký lại;
   giá sẽ cập nhật từ tick kế tiếp.
 - Lỗi thường gặp: `1000` key, `1001` chữ ký, `2000` sai account, `4003` thị trường đóng,

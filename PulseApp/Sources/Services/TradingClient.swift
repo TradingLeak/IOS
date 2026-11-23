@@ -3,12 +3,16 @@ import Foundation
 /// Client cho Trader API (Exness Trade API) — gọi qua gateway của tài khoản.
 /// Mọi yêu cầu đều được ký bằng `EXN-*` headers (xem `ExnessClient`).
 final class TradingClient {
+    /// Gateway (host trong DNS widget) — chỉ dùng để discovery access point.
+    let discovery: ExnessClient
+    /// Access point của tài khoản — dùng cho mọi REST (account, instruments, snapshot, candles).
     let client: ExnessClient
     let accountId: String
     private let iso: ISO8601DateFormatter
 
-    init(client: ExnessClient, accountId: String) {
-        self.client = client
+    init(discovery: ExnessClient, account: ExnessClient, accountId: String) {
+        self.discovery = discovery
+        self.client = account
         self.accountId = accountId.trimmingCharacters(in: .whitespacesAndNewlines)
         iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
@@ -18,8 +22,8 @@ final class TradingClient {
 
     /// `GET /v1/trading/access-point?account_id=…` → host dùng cho WebSocket.
     func accessPoint() async throws -> String {
-        let response = try await client.get(AccessPointResponse.self,
-                                            path: "/v1/trading/access-point",
+        let response = try await discovery.get(AccessPointResponse.self,
+                                               path: "/v1/trading/access-point",
                                             query: [("account_id", accountId)])
         return PulseCredentials.normalizeAccessPoint(response.accessPoint)
     }

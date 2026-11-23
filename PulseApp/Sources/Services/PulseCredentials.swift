@@ -55,12 +55,34 @@ struct PulseCredentials: Codable, Equatable {
         return ExnessClient(credentials: ExnessCredentials(baseURL: partnerHost, apiKey: apiKey, privateKey: privateKey))
     }
 
-    var tradingCredentials: ExnessCredentials? {
-        guard isTradingConfigured else { return nil }
+    /// Cặp key dùng cho Trader API (riêng nếu có, không thì dùng chung với Partnership).
+    private var tradingKeyPair: (key: String, privateKey: String)? {
         let key = tradingAPIKey.isEmpty ? apiKey : tradingAPIKey
         let priv = tradingPrivateKey.isEmpty ? privateKey : tradingPrivateKey
         guard !key.isEmpty, !priv.isEmpty else { return nil }
-        return ExnessCredentials(baseURL: tradingHost, apiKey: key, privateKey: priv)
+        return (key, priv)
+    }
+
+    /// Base URL cho mọi REST của tài khoản: **access point** đã phát hiện,
+    /// chưa có thì tạm dùng gateway (một số môi trường gateway cũng phục vụ REST).
+    var tradingBaseURL: String {
+        if let accessPoint, !accessPoint.isEmpty {
+            let host = Self.normalizeAccessPoint(accessPoint)
+            if !host.isEmpty { return "https://" + host }
+        }
+        return tradingHost.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Client gọi REST của tài khoản (account, instruments, snapshot, candles).
+    var tradingCredentials: ExnessCredentials? {
+        guard isTradingConfigured, let pair = tradingKeyPair else { return nil }
+        return ExnessCredentials(baseURL: tradingBaseURL, apiKey: pair.key, privateKey: pair.privateKey)
+    }
+
+    /// Client chỉ dùng để gọi discovery `GET /v1/trading/access-point` trên gateway (DNS widget).
+    var tradingGatewayCredentials: ExnessCredentials? {
+        guard isTradingConfigured, let pair = tradingKeyPair else { return nil }
+        return ExnessCredentials(baseURL: tradingHost, apiKey: pair.key, privateKey: pair.privateKey)
     }
 
     /// Chuẩn hoá access point thành host (bỏ scheme, slash).

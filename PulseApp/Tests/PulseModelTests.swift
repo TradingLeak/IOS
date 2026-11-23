@@ -317,6 +317,18 @@ final class PulseModelTests: XCTestCase {
         XCTAssertEqual(separate.partnerClient?.credentials.apiKey, "k")
     }
 
+    func testTradingBaseURLPrefersAccessPoint() {
+        var credentials = PulseCredentials(tradingHost: "https://gw.example.com", accountId: "1")
+        XCTAssertEqual(credentials.tradingBaseURL, "https://gw.example.com")
+        XCTAssertEqual(credentials.tradingGatewayCredentials?.baseURL, "https://gw.example.com")
+
+        credentials.accessPoint = "https://tt.example.com/"
+        XCTAssertEqual(credentials.tradingBaseURL, "https://tt.example.com")
+        XCTAssertEqual(credentials.tradingCredentials?.baseURL, "https://tt.example.com")
+        XCTAssertEqual(credentials.tradingGatewayCredentials?.baseURL, "https://gw.example.com",
+                       "Discovery luôn đi qua gateway")
+    }
+
     func testTickParsingAcceptsNumbersStringsAndEpoch() throws {
         let numeric = try XCTUnwrap(TickStream.parse(
             data: Data(#"{"instrument":"xauusd","bid":4050.12,"ask":4050.32,"timestamp":"2026-11-23T10:00:00Z"}"#.utf8)))
