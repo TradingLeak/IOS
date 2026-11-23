@@ -12,7 +12,8 @@ struct CredentialStoreError: LocalizedError {
 /// Lưu API key + private key trong Keychain của máy, mã hoá bởi hệ điều hành.
 /// Không dùng UserDefaults, không ghi log.
 struct CredentialKeychain {
-    private let service = "com.tradingleak.partnerhub.credentials"
+    /// Service theo bundle id: PartnerHub giữ nguyên giá trị cũ để không mất key đã lưu.
+    private let service = (Bundle.main.bundleIdentifier ?? "com.tradingleak.partnerhub") + ".credentials"
     private let account = "partner.credentials"
 
     private var baseQuery: [String: Any] {

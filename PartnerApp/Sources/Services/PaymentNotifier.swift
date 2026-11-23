@@ -98,8 +98,9 @@ final class PaymentNotifier: NSObject, UNUserNotificationCenterDelegate {
 /// iOS **tự quyết định** thời điểm (thường 15–60 phút/lần khi app được dùng thường xuyên,
 /// máy đang sạc/Wi-Fi); không đảm bảo chính xác.
 enum BackgroundRefreshScheduler {
-    static let taskIdentifier = "com.tradingleak.partnerhub.payment-refresh"
-    /// Phải khai báo cùng id trong Info.plist `BGTaskSchedulerPermittedIdentifiers`.
+    /// Id = `<bundle id>.payment-refresh`, phải khai báo cùng giá trị trong Info.plist
+    /// `BGTaskSchedulerPermittedIdentifiers` — mỗi app trong repo dùng id của chính mình.
+    static let taskIdentifier = (Bundle.main.bundleIdentifier ?? "com.tradingleak.partnerhub") + ".payment-refresh"
     static let minimumInterval: TimeInterval = 30 * 60
 
     /// Gọi một lần trong `application(_:didFinishLaunchingWithOptions:)`.
